@@ -342,7 +342,7 @@ Vue.js • Vite • Bootstrap • Axios
 
 <td align="center">
 
-### 👨‍💻 Peterson de Almeida Oenning
+### 👨‍💻 Peterson Oenning
 
 **Back-end**
 
