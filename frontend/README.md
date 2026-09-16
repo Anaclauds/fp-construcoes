@@ -2,7 +2,7 @@
 
 # 🎨 Front-end — FP Construções
 
-Interface web do **Sistema de Gestão FP Construções**.
+### Interface web do Sistema de Gestão FP Construções
 
 <br>
 
@@ -11,10 +11,46 @@ Interface web do **Sistema de Gestão FP Construções**.
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white)
 ![Axios](https://img.shields.io/badge/Axios-HTTP-5A29E4?style=for-the-badge&logo=axios&logoColor=white)
 
+<br><br>
+
+<img
+  src="../assets/equipe/anaclaudia.png"
+  width="190"
+  alt="Ana Claudia"
+/>
+
+### 👩‍💻 Ana Claudia
+
+**Desenvolvimento Front-end**
+
+Vue.js • Vite • Bootstrap • Axios
+
+<br>
+
+Responsável pelo desenvolvimento da interface e pela integração do Front-end com a API do **Sistema de Gestão FP Construções**.
+
+<br>
+
+<a href="https://github.com/Anaclauds">
+  <img
+    src="https://img.shields.io/badge/GitHub-Ver%20perfil-181717?style=for-the-badge&logo=github&logoColor=white"
+    alt="GitHub Ana Claudia"
+  />
+</a>
+
 </div>
 
-[⬅️ Voltar para a documentação principal](../README.md)  
-[⚙️ Ver documentação do Back-end](../backend/README.md)
+<br>
+
+---
+
+<div align="center">
+
+[⬅️ **Documentação principal**](../README.md)
+&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;
+[⚙️ **Documentação do Back-end**](../backend/README.md)
+
+</div>
 
 ---
 
@@ -42,6 +78,8 @@ As interfaces foram inicialmente prototipadas no **Figma** e serão implementada
 
 ## 🧩 Estrutura
 
+A aplicação poderá seguir uma estrutura semelhante a:
+
 ```text
 frontend/
 │
@@ -65,7 +103,52 @@ frontend/
 
 ---
 
+## 🧱 Componentização
+
+A utilização do Vue.js permite organizar a interface por meio de componentes reutilizáveis.
+
+Alguns exemplos previstos para o sistema:
+
+```text
+components/
+│
+├── MenuLateral
+├── BotaoSalvar
+├── BotaoCancelar
+├── CampoData
+├── MensagemConfirmacao
+└── ...
+```
+
+A componentização contribui para o reaproveitamento de elementos e facilita a manutenção da interface.
+
+---
+
+## ⚡ Reatividade
+
+O Vue.js permitirá que a interface seja atualizada automaticamente quando o estado dos dados for alterado.
+
+Um exemplo no sistema é o orçamento:
+
+```text
+Quantidade do material
+          +
+Valor unitário
+          ↓
+     Alteração
+          ↓
+Vue atualiza o estado
+          ↓
+Total do orçamento é recalculado
+          ↓
+Interface é atualizada
+```
+
+---
+
 ## 🔄 Comunicação com o Back-end
+
+A comunicação com a API será realizada utilizando **Axios**.
 
 ```text
 Usuário
@@ -76,43 +159,73 @@ Axios
    ↓
 API REST — NestJS
    ↓
-Prisma
+Prisma ORM
    ↓
 MySQL
 ```
 
 Principais operações HTTP:
 
+| Método | Utilização |
+| :--- | :--- |
+| `GET` | Consultar dados |
+| `POST` | Cadastrar dados |
+| `PUT` | Atualizar dados |
+| `DELETE` | Excluir dados |
+
+Exemplo:
+
 ```text
-GET     → Consultar dados
-POST    → Cadastrar dados
-PUT     → Atualizar dados
-DELETE  → Excluir dados
+Usuário preenche cadastro
+          ↓
+Componente Vue
+          ↓
+Axios
+          ↓
+POST /clientes
+          ↓
+API NestJS
+          ↓
+Resposta da API
+          ↓
+Interface apresenta o resultado
 ```
 
 ---
 
 ## 🚀 Executando o Front-end
 
-Acesse o diretório:
+### 1. Acesse o diretório
 
 ```bash
 cd frontend
 ```
 
-Instale as dependências:
+### 2. Instale as dependências
 
 ```bash
 npm install
 ```
 
-Inicie o ambiente de desenvolvimento:
+### 3. Inicie o ambiente de desenvolvimento
 
 ```bash
 npm run dev
 ```
 
 O Vite informará no terminal o endereço local para acessar a aplicação.
+
+---
+
+## 📦 Build de produção
+
+Para gerar os arquivos otimizados da aplicação:
+
+```bash
+npm run build
+```
+
+O Vite será responsável por gerar o build utilizado posteriormente no ambiente de produção.
 
 ---
 
@@ -128,13 +241,18 @@ VITE_API_URL=http://localhost:3000
 
 > ⚠️ Arquivos `.env` com informações reais não devem ser enviados ao GitHub.
 
-O `.env.example` poderá ser utilizado para documentar as variáveis necessárias.
+O arquivo `.env.example` poderá ser utilizado para documentar as variáveis necessárias.
 
 ---
 
-## 👩‍💻 Responsável
+<div align="center">
 
-**Ana Claudia**  
-Desenvolvimento Front-end
+### 🎨 Front-end — FP Construções
 
-**Análise e Desenvolvimento de Sistemas — IFRO**
+**Desenvolvido por Ana Claudia**
+
+Vue.js • Vite • Bootstrap • Axios
+
+[⬆️ Voltar ao início](#-front-end--fp-construções)
+
+</div>

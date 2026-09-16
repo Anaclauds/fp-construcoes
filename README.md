@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏗️ Sistema FP Construções
+# 🏗️ Sistema de Gestão — FP Construções
 
 ### Desenvolvimento WEB de um Sistema de Gestão para empresa na área de Construção Civil e Serralheria
 
@@ -25,13 +25,13 @@ Projeto desenvolvido como **Trabalho de Conclusão de Curso (TCC)** do curso de 
 
 ## 🧭 Navegação
 
-A documentação do projeto está organizada entre a visão geral do sistema e as documentações específicas de cada aplicação.
-
 <div align="center">
+
+A documentação está organizada entre a visão geral do sistema e as áreas específicas de desenvolvimento.
 
 | 🎨 Front-end | ⚙️ Back-end | 📚 Documentação |
 | :---: | :---: | :---: |
-| Vue.js • Vite • Bootstrap • Axios | NestJS • Prisma • MySQL • Swagger | Diagramas e documentos do projeto |
+| Vue.js • Vite • Bootstrap • Axios | NestJS • Prisma • MySQL • Swagger | Diagramas e documentos |
 | [**Acessar Front-end**](./frontend/README.md) | [**Acessar Back-end**](./backend/README.md) | [**Acessar documentação**](./docs/) |
 
 </div>
@@ -40,11 +40,11 @@ A documentação do projeto está organizada entre a visão geral do sistema e a
 
 ## 📌 Sobre o projeto
 
-O **Sistema de Gestão FP Construções** tem como objetivo apoiar e centralizar os processos administrativos e operacionais da **FP Construções**, empresa que atua nas áreas de **construção civil e serralheria**.
+O **Sistema de Gestão FP Construções** tem como objetivo apoiar e centralizar os processos administrativos e operacionais da **FP Construções**, empresa que atua nas áreas de **construção civil, serralheria, calhas e rufos**.
 
-Atualmente, parte significativa das informações da empresa é registrada e acompanhada de forma manual, no papel, e por meio do WhatsApp. O sistema busca proporcionar maior organização e centralização dessas informações, auxiliando no acompanhamento das atividades da empresa.
+Atualmente, parte significativa das informações da empresa é registrada e acompanhada de forma manual e por meio do WhatsApp. O sistema busca proporcionar maior organização e centralização dessas informações, auxiliando no acompanhamento das atividades da empresa.
 
-A aplicação será desenvolvida utilizando arquitetura **cliente-servidor**, com separação entre **Front-end e Back-end**.
+A aplicação será desenvolvida utilizando arquitetura **cliente-servidor**, com separação entre **Front-end, Back-end e Banco de Dados**.
 
 ---
 
@@ -102,13 +102,13 @@ A aplicação será desenvolvida utilizando arquitetura **cliente-servidor**, co
 | **GitHub** | Hospedagem e colaboração no código-fonte |
 | **Visual Studio Code** | Ambiente de desenvolvimento |
 | **Jira** | Organização e acompanhamento das atividades |
-| **Scrum** | Metodologia utilizada na organização do desenvolvimento |
+| **Scrum** | Organização do processo de desenvolvimento |
 
 ---
 
 # 🏛️ Arquitetura da aplicação
 
-De forma simplificada, a comunicação ocorre da seguinte maneira:
+De forma simplificada, a comunicação entre as tecnologias ocorre da seguinte maneira:
 
 ```text
 ┌──────────────────────┐
@@ -155,6 +155,11 @@ O **Front-end** é responsável pela interação com o usuário. O **Axios** rea
 ```text
 fp-construcoes/
 │
+├── assets/
+│   └── equipe/
+│       ├── anaclaudia.png
+│       └── peterson.png
+│
 ├── frontend/
 │   ├── public/
 │   ├── src/
@@ -178,17 +183,25 @@ fp-construcoes/
 └── README.md
 ```
 
-> A estrutura interna poderá evoluir durante o desenvolvimento conforme as necessidades do projeto.
+> A estrutura interna poderá evoluir conforme as necessidades identificadas durante o desenvolvimento.
 
 ---
 
 # 🌿 Estratégia de versionamento
 
-A branch `main` representa a versão principal e estável do projeto.
+O projeto utiliza **Git** para controle de versão e **GitHub** para hospedagem e colaboração.
+
+A branch:
+
+```text
+main
+```
+
+representa a versão principal e estável do projeto.
 
 Novas funcionalidades, correções e alterações devem ser desenvolvidas em branches específicas antes de serem integradas à `main`.
 
-### Padrão de branches
+## Padrão de branches
 
 | Prefixo | Finalidade |
 | :--- | :--- |
@@ -233,7 +246,7 @@ Merge na main
 
 # 💬 Padrão de commits
 
-Exemplos:
+Exemplos de mensagens:
 
 ```bash
 feat: adiciona cadastro de clientes
@@ -249,7 +262,7 @@ docs: atualiza documentação do projeto
 test: adiciona testes de cadastro de cliente
 ```
 
-Evitar mensagens pouco descritivas como:
+Devem ser evitadas mensagens pouco descritivas, como:
 
 ```text
 alteração
@@ -263,6 +276,8 @@ agora foi
 # 🚀 Como executar o projeto
 
 ## Pré-requisitos
+
+Antes de executar o sistema, é necessário possuir:
 
 - Node.js;
 - npm;
@@ -281,7 +296,7 @@ Acesse o projeto:
 cd fp-construcoes
 ```
 
-### 🎨 Front-end
+## 🎨 Front-end
 
 ```bash
 cd frontend
@@ -289,7 +304,7 @@ npm install
 npm run dev
 ```
 
-### ⚙️ Back-end
+## ⚙️ Back-end
 
 ```bash
 cd backend
@@ -304,7 +319,7 @@ npm run start:dev
 
 # 🔐 Variáveis de ambiente
 
-Informações sensíveis não devem ser enviadas ao GitHub.
+Informações sensíveis, como credenciais de banco de dados, não devem ser enviadas ao GitHub.
 
 O arquivo:
 
@@ -314,55 +329,84 @@ O arquivo:
 
 deve permanecer no `.gitignore`.
 
-O repositório poderá conter um:
+O repositório poderá conter:
 
 ```text
 .env.example
 ```
 
-com exemplos das variáveis necessárias, sem credenciais reais.
+para documentar as variáveis necessárias sem expor credenciais reais.
 
 ---
 
-# 👩‍💻 Equipe
+# 👩‍💻 Equipe de Desenvolvimento
 
-<table>
-<tr>
-<td align="center">
+<p align="center">
+  Desenvolvimento realizado em conjunto nas áreas de Front-end e Back-end.
+</p>
 
-### 👩‍💻 Ana Claudia
+<br>
 
-**Front-end**
-
-Vue.js • Vite • Bootstrap • Axios
-
-[GitHub](https://github.com/Anaclauds)
-
-</td>
-
-<td align="center">
-
-### 👨‍💻 Peterson Oenning
-
-**Back-end**
-
-NestJS • Prisma • MySQL • Swagger
-
-[GitHub](https://github.com/petersonoenning)
-
-</td>
-</tr>
+<table align="center">
+  <tr>
+    <td align="center" width="320">
+      <img
+        src="./assets/equipe/anaclaudia.png"
+        width="170"
+        alt="Ana Claudia"
+      />
+      <br><br>
+      <strong>👩‍💻 Ana Claudia</strong>
+      <br>
+      <sub><b>Desenvolvimento Front-end</b></sub>
+      <br><br>
+      <sub>Vue.js • Vite • Bootstrap • Axios</sub>
+      <br><br>
+      <a href="https://github.com/Anaclauds">
+        <img
+          src="https://img.shields.io/badge/GitHub-Ver%20perfil-181717?style=for-the-badge&logo=github&logoColor=white"
+          alt="GitHub Ana Claudia"
+        />
+      </a>
+    </td>
+    <td align="center" width="320">
+      <img
+        src="./assets/equipe/peterson.png"
+        width="170"
+        alt="Peterson de Almeida Oenning"
+      />
+      <br><br>
+      <strong>👨‍💻 Peterson de Almeida Oenning</strong>
+      <br>
+      <sub><b>Desenvolvimento Back-end</b></sub>
+      <br><br>
+      <sub>NestJS • Prisma • MySQL • Swagger</sub>
+      <br><br>
+      <a href="https://github.com/petersonoenning">
+        <img
+          src="https://img.shields.io/badge/GitHub-Ver%20perfil-181717?style=for-the-badge&logo=github&logoColor=white"
+          alt="GitHub Peterson"
+        />
+      </a>
+    </td>
+  </tr>
 </table>
+
+<br>
+
+<div align="center">
 
 ### 🎓 Orientação
 
-**Prof. Dr. Jackson Henrique**  
-Orientador do Trabalho de Conclusão de Curso.
+**Prof. Jackson Henrique**  
+Orientador do Trabalho de Conclusão de Curso
 
 ### 🏗️ Product Owner / Cliente
 
 **Francisco Pereira da Silva**  
-Proprietário da FP Construções.
+Proprietário da FP Construções
+
+</div>
 
 ---
 
@@ -424,6 +468,8 @@ As configurações definitivas serão documentadas conforme a evolução do proj
 ## 🏗️ FP Construções
 
 ### Tecnologia aplicada à gestão da construção civil e serralheria.
+
+<br>
 
 Desenvolvido por **Ana Claudia & Peterson de Almeida Oenning**
 
