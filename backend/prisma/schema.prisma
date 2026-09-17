@@ -1,0 +1,660 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum StatusCadastro {
+  ATIVO
+  INATIVO
+}
+
+enum StatusFrequencia {
+  PRESENTE
+  MEIO_PERIODO
+  FALTA_JUSTIFICADA
+  FALTA_NAO_JUSTIFICADA
+}
+
+enum TipoCliente {
+  PF
+  PJ
+}
+
+enum TipoOrcamento {
+  CONSTRUCAO_CIVIL
+  SERRALHERIA
+  CALHAS           @map("CALHAS_RUFOS")
+}
+
+enum StatusOrcamento {
+  PENDENTE
+  EM_ANALISE
+  APROVADO
+  REPROVADO  @map("REJEITADO")
+  CANCELADO
+}
+
+enum StatusProjeto {
+  PLANEJADO
+  EM_EXECUCAO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum TipoCobranca {
+  ENTRADA
+  FINAL
+  MEDICAO
+}
+
+enum ModalidadeCobranca {
+  A_VISTA
+  PARCELADO_MANUAL
+  PARCELADO_AUTOMATICO
+}
+
+enum StatusCobranca {
+  EM_ABERTO
+  PARCIAL
+  PAGO
+  CANCELADO
+}
+
+enum StatusParcela {
+  EM_ABERTO
+  PARCIAL
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum FormaPagamento {
+  PIX
+  DINHEIRO
+  TRANSFERENCIA
+  CHEQUE
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  BOLETO
+}
+
+enum StatusReservaEstoque {
+  ATIVA
+  CONSUMIDA
+  LIBERADA
+  CANCELADA
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA_COMPRA
+  AJUSTE_ENTRADA
+  AJUSTE_SAIDA
+  RESERVA
+  LIBERACAO_RESERVA
+  BAIXA_PROJETO
+}
+
+enum StatusCaixa {
+  ABERTO
+  FECHADO
+}
+
+enum TipoMovimentacaoCaixa {
+  ENTRADA
+  SAIDA
+}
+
+enum TipoDespesa {
+  COMPRA_MATERIAL
+  DIVERSA
+}
+
+enum CategoriaDespesa {
+  COMPRA_MATERIAL
+  COMBUSTIVEL
+  FERRAMENTA
+  MANUTENCAO
+  ALIMENTACAO
+  MAO_DE_OBRA
+  ALUGUEL
+  OUTROS
+}
+
+model Funcionario {
+  id                    Int            @id @default(autoincrement())
+  nomeCompleto          String         @map("nome_completo") @db.VarChar(150)
+  apelido               String?        @db.VarChar(80)
+  cpf                   String         @unique(map: "uq_funcionario_cpf") @db.Char(11)
+  dataNascimento        DateTime       @map("data_nascimento") @db.Date
+  sexo                  String         @db.VarChar(30)
+  celular               String         @db.VarChar(20)
+  cep                   String         @db.Char(8)
+  cidade                String         @db.VarChar(100)
+  estado                String         @db.Char(2)
+  rua                   String         @db.VarChar(150)
+  numero                String         @db.VarChar(20)
+  bairro                String         @db.VarChar(100)
+  complemento           String?        @db.VarChar(150)
+  funcao                String         @db.VarChar(100)
+  setorAtuacao          String         @map("setor_atuacao") @db.VarChar(100)
+  salario               Decimal        @db.Decimal(12, 2)
+  tipoContrato          String         @map("tipo_contrato") @db.VarChar(40)
+  dataContratacao       DateTime       @map("data_contratacao") @db.Date
+  contatoEmergencia     String         @map("contato_emergencia") @db.VarChar(20)
+  nomeContatoEmergencia String         @map("nome_contato_emergencia") @db.VarChar(150)
+  grauVinculo           String         @map("grau_vinculo") @db.VarChar(60)
+  status                StatusCadastro @default(ATIVO)
+  usuario               Usuario?
+  frequencias           Frequencia[]
+  projetosResponsavel   Projeto[]
+
+  @@map("funcionario")
+}
+
+model Usuario {
+  id                      Int                   @id @default(autoincrement())
+  funcionarioId           Int                   @unique(map: "uq_usuario_funcionario") @map("funcionario_id")
+  login                   String                @unique(map: "uq_usuario_login") @db.VarChar(50)
+  senhaHash               String                @map("senha_hash") @db.VarChar(255)
+  status                  StatusCadastro        @default(ATIVO)
+  ultimoAcesso            DateTime?             @map("ultimo_acesso") @db.DateTime(0)
+  funcionario             Funcionario           @relation(fields: [funcionarioId], references: [id], map: "fk_usuario_funcionario")
+  permissoes              PermissaoUsuario[]
+  frequenciasRegistradas  Frequencia[]          @relation("UsuarioRegistroFrequencia")
+  recebimentosRegistrados Recebimento[]         @relation("UsuarioRegistroRecebimento")
+  despesasRegistradas     Despesa[]             @relation("UsuarioRegistroDespesa")
+  caixasFechados          Caixa[]               @relation("UsuarioFechamentoCaixa")
+  movimentacoesEstoque    MovimentacaoEstoque[] @relation("UsuarioRegistroMovimentacaoEstoque")
+
+  @@map("usuario")
+}
+
+model PermissaoUsuario {
+  id             Int     @id @default(autoincrement())
+  usuarioId      Int     @map("usuario_id")
+  modulo         String  @db.VarChar(80)
+  podeVisualizar Boolean @default(false) @map("pode_visualizar")
+  podeGerenciar  Boolean @default(false) @map("pode_gerenciar")
+  usuario        Usuario @relation(fields: [usuarioId], references: [id], map: "fk_permissao_usuario_usuario")
+
+  @@unique([usuarioId, modulo], map: "uq_permissao_usuario_modulo")
+  @@map("permissao_usuario")
+}
+
+model Frequencia {
+  id                     Int              @id @default(autoincrement())
+  funcionarioId          Int              @map("funcionario_id")
+  data                   DateTime         @db.Date
+  status                 StatusFrequencia
+  observacao             String?          @db.Text
+  registradoPorUsuarioId Int              @map("registrado_por_usuario_id")
+  funcionario            Funcionario      @relation(fields: [funcionarioId], references: [id], map: "fk_frequencia_funcionario")
+  registradoPorUsuario   Usuario          @relation("UsuarioRegistroFrequencia", fields: [registradoPorUsuarioId], references: [id], map: "fk_frequencia_usuario_registro")
+
+  @@unique([funcionarioId, data], map: "uq_frequencia_funcionario_data")
+  @@index([registradoPorUsuarioId], map: "idx_frequencia_usuario_registro")
+  @@map("frequencia")
+}
+
+model Cliente {
+  id               Int            @id @default(autoincrement())
+  nome             String         @db.VarChar(180)
+  telefone         String         @db.VarChar(20)
+  cidade           String         @db.VarChar(100)
+  estado           String         @db.Char(2)
+  tipo             TipoCliente?
+  cpfCnpj          String?        @unique(map: "uq_cliente_cpf_cnpj") @map("cpf_cnpj") @db.VarChar(14)
+  email            String?        @db.VarChar(180)
+  apelido          String?        @db.VarChar(80)
+  dataNascimento   DateTime?      @map("data_nascimento") @db.Date
+  sexo             String?        @db.VarChar(30)
+  razaoSocial      String?        @map("razao_social") @db.VarChar(180)
+  nomeFantasia     String?        @map("nome_fantasia") @db.VarChar(150)
+  responsavel      String?        @db.VarChar(150)
+  cargoResponsavel String?        @map("cargo_responsavel") @db.VarChar(100)
+  cep              String?        @db.Char(8)
+  rua              String?        @db.VarChar(150)
+  numero           String?        @db.VarChar(20)
+  bairro           String?        @db.VarChar(100)
+  complemento      String?        @db.VarChar(150)
+  cadastroCompleto Boolean        @default(false) @map("cadastro_completo")
+  status           StatusCadastro @default(ATIVO)
+  orcamentos       Orcamento[]
+
+  @@map("cliente")
+}
+
+model Fornecedor {
+  id                     Int            @id @default(autoincrement())
+  razaoSocial            String         @map("razao_social") @db.VarChar(180)
+  nomeFantasia           String         @map("nome_fantasia") @db.VarChar(150)
+  cnpj                   String         @unique(map: "uq_fornecedor_cnpj") @db.Char(14)
+  contato                String         @db.VarChar(20)
+  responsavel            String         @db.VarChar(150)
+  cargoResponsavel       String         @map("cargo_responsavel") @db.VarChar(100)
+  cep                    String         @db.Char(8)
+  cidade                 String         @db.VarChar(100)
+  estado                 String         @db.Char(2)
+  rua                    String         @db.VarChar(150)
+  numero                 String         @db.VarChar(20)
+  bairro                 String         @db.VarChar(100)
+  complemento            String?        @db.VarChar(150)
+  status                 StatusCadastro @default(ATIVO)
+  materiaisPreferenciais Material[]
+  equipamentos           Equipamento[]
+  despesas               Despesa[]
+
+  @@map("fornecedor")
+}
+
+model Equipamento {
+  id                Int            @id @default(autoincrement())
+  codigoPatrimonial String         @unique(map: "uq_equipamento_codigo_patrimonial") @map("codigo_patrimonial") @db.VarChar(20)
+  nome              String         @db.VarChar(150)
+  tipo              String         @db.VarChar(80)
+  marca             String         @db.VarChar(80)
+  modelo            String?        @db.VarChar(80)
+  observacoes       String?        @db.Text
+  dataAquisicao     DateTime?      @map("data_aquisicao") @db.Date
+  valorAquisicao    Decimal?       @map("valor_aquisicao") @db.Decimal(12, 2)
+  fornecedorId      Int?           @map("fornecedor_id")
+  status            StatusCadastro @default(ATIVO)
+  fornecedor        Fornecedor?    @relation(fields: [fornecedorId], references: [id], map: "fk_equipamento_fornecedor")
+
+  @@index([fornecedorId], map: "idx_equipamento_fornecedor")
+  @@map("equipamento")
+}
+
+model Servico {
+  id              Int                @id @default(autoincrement())
+  nome            String             @db.VarChar(150)
+  categoria       TipoOrcamento
+  descricao       String?            @db.Text
+  valorReferencia Decimal            @map("valor_referencia") @db.Decimal(12, 2)
+  unidadeMedida   String             @map("unidade_medida") @db.VarChar(50)
+  status          StatusCadastro     @default(ATIVO)
+  orcamentos      OrcamentoServico[]
+  etapas          EtapaServico[]
+  extras          ExtraServico[]
+
+  @@map("servico")
+}
+
+model Material {
+  id                       Int                   @id @default(autoincrement())
+  codigo                   String                @unique(map: "uq_material_codigo") @db.VarChar(20)
+  nome                     String                @db.VarChar(180)
+  categoria                String                @db.VarChar(100)
+  unidadeMedida            String                @map("unidade_medida") @db.VarChar(50)
+  descricao                String?               @db.Text
+  precoReferencia          Decimal               @map("preco_referencia") @db.Decimal(12, 2)
+  fornecedorPreferencialId Int?                  @map("fornecedor_preferencial_id")
+  status                   StatusCadastro        @default(ATIVO)
+  fornecedorPreferencial   Fornecedor?           @relation(fields: [fornecedorPreferencialId], references: [id], map: "fk_material_fornecedor_preferencial")
+  estoque                  EstoqueMaterial?
+  orcamentos               OrcamentoMaterial[]
+  extras                   ExtraMaterial[]
+  reservas                 ReservaEstoque[]
+  movimentacoes            MovimentacaoEstoque[]
+  despesasMateriais        DespesaMaterial[]
+
+  @@index([fornecedorPreferencialId], map: "idx_material_fornecedor_preferencial")
+  @@map("material")
+}
+
+model EstoqueMaterial {
+  materialId          Int      @id @map("material_id")
+  quantidadeAtual     Decimal  @default(0) @map("quantidade_atual") @db.Decimal(12, 3)
+  quantidadeReservada Decimal  @default(0) @map("quantidade_reservada") @db.Decimal(12, 3)
+  atualizadoEm        DateTime @map("atualizado_em") @db.DateTime(0)
+  material            Material @relation(fields: [materialId], references: [id], map: "fk_estoque_material_material")
+
+  @@map("estoque_material")
+}
+
+model Orcamento {
+  id                     Int                 @id @default(autoincrement())
+  numero                 String              @unique(map: "uq_orcamento_numero") @db.VarChar(20)
+  titulo                 String              @db.VarChar(180)
+  tipo                   TipoOrcamento
+  clienteId              Int                 @map("cliente_id")
+  dataEmissao            DateTime            @map("data_emissao") @db.Date
+  status                 StatusOrcamento     @default(PENDENTE)
+  desconto               Decimal             @default(0) @db.Decimal(12, 2)
+  valorTotal             Decimal             @map("valor_total") @db.Decimal(12, 2)
+  modalidadePagamento    ModalidadeCobranca  @default(A_VISTA) @map("modalidade_pagamento")
+  numeroParcelas         Int?                @map("numero_parcelas")
+  dataPrimeiroVencimento DateTime?           @map("data_primeiro_vencimento") @db.Date
+  prazoEstimadoDias      Int                 @map("prazo_estimado_dias")
+  observacoes            String?             @db.Text
+  cliente                Cliente             @relation(fields: [clienteId], references: [id], map: "fk_orcamento_cliente")
+  materiais              OrcamentoMaterial[]
+  servicos               OrcamentoServico[]
+  projeto                Projeto?
+
+  @@index([clienteId], map: "idx_orcamento_cliente")
+  @@map("orcamento")
+}
+
+model OrcamentoMaterial {
+  id            Int              @id @default(autoincrement())
+  orcamentoId   Int              @map("orcamento_id")
+  materialId    Int              @map("material_id")
+  quantidade    Decimal          @db.Decimal(12, 3)
+  valorUnitario Decimal          @map("valor_unitario") @db.Decimal(12, 2)
+  valorTotal    Decimal          @map("valor_total") @db.Decimal(12, 2)
+  orcamento     Orcamento        @relation(fields: [orcamentoId], references: [id], map: "fk_orcamento_material_orcamento")
+  material      Material         @relation(fields: [materialId], references: [id], map: "fk_orcamento_material_material")
+  reservas      ReservaEstoque[]
+
+  @@index([orcamentoId], map: "idx_orcamento_material_orcamento")
+  @@index([materialId], map: "idx_orcamento_material_material")
+  @@map("orcamento_material")
+}
+
+model OrcamentoServico {
+  id                 Int       @id @default(autoincrement())
+  orcamentoId        Int       @map("orcamento_id")
+  servicoId          Int       @map("servico_id")
+  descricaoAdicional String?   @map("descricao_adicional") @db.Text
+  quantidade         Decimal   @db.Decimal(12, 3)
+  valorUnitario      Decimal   @map("valor_unitario") @db.Decimal(12, 2)
+  valorTotal         Decimal   @map("valor_total") @db.Decimal(12, 2)
+  orcamento          Orcamento @relation(fields: [orcamentoId], references: [id], map: "fk_orcamento_servico_orcamento")
+  servico            Servico   @relation(fields: [servicoId], references: [id], map: "fk_orcamento_servico_servico")
+
+  @@index([orcamentoId], map: "idx_orcamento_servico_orcamento")
+  @@index([servicoId], map: "idx_orcamento_servico_servico")
+  @@map("orcamento_servico")
+}
+
+model Projeto {
+  id                Int              @id @default(autoincrement())
+  orcamentoId       Int              @unique(map: "uq_projeto_orcamento") @map("orcamento_id")
+  responsavelId     Int              @map("responsavel_id")
+  status            StatusProjeto    @default(PLANEJADO)
+  dataInicio        DateTime?        @map("data_inicio") @db.Date
+  previsaoInicio    DateTime?        @map("previsao_inicio") @db.Date
+  previsaoConclusao DateTime?        @map("previsao_conclusao") @db.Date
+  dataConclusao     DateTime?        @map("data_conclusao") @db.Date
+  cepObra           String?          @map("cep_obra") @db.Char(8)
+  cidadeObra        String?          @map("cidade_obra") @db.VarChar(100)
+  estadoObra        String?          @map("estado_obra") @db.Char(2)
+  ruaObra           String?          @map("rua_obra") @db.VarChar(150)
+  numeroObra        String?          @map("numero_obra") @db.VarChar(20)
+  bairroObra        String?          @map("bairro_obra") @db.VarChar(100)
+  complementoObra   String?          @map("complemento_obra") @db.VarChar(150)
+  orcamento         Orcamento        @relation(fields: [orcamentoId], references: [id], map: "fk_projeto_orcamento")
+  responsavel       Funcionario      @relation(fields: [responsavelId], references: [id], map: "fk_projeto_responsavel")
+  etapas            EtapaProjeto[]
+  extras            ExtraProjeto[]
+  cobrancas         Cobranca[]
+  reservasEstoque   ReservaEstoque[]
+
+  @@index([responsavelId], map: "idx_projeto_responsavel")
+  @@map("projeto")
+}
+
+model EtapaProjeto {
+  id                   Int                    @id @default(autoincrement())
+  projetoId            Int                    @map("projeto_id")
+  descricao            String                 @db.Text
+  dataRegistro         DateTime               @map("data_registro") @db.Date
+  custoInternoEstimado Decimal?               @map("custo_interno_estimado") @db.Decimal(12, 2)
+  valorCobrado         Decimal                @map("valor_cobrado") @db.Decimal(12, 2)
+  projeto              Projeto                @relation(fields: [projetoId], references: [id], map: "fk_etapa_projeto_projeto")
+  servicos             EtapaServico[]
+  materiaisCliente     EtapaMaterialCliente[]
+  cobranca             Cobranca?
+
+  @@index([projetoId], map: "idx_etapa_projeto_projeto")
+  @@map("etapa_projeto")
+}
+
+model EtapaMaterialCliente {
+  id            Int          @id @default(autoincrement())
+  etapaId       Int          @map("etapa_id")
+  nome          String       @db.VarChar(180)
+  quantidade    Decimal      @db.Decimal(12, 3)
+  unidadeMedida String       @map("unidade_medida") @db.VarChar(50)
+  etapa         EtapaProjeto @relation(fields: [etapaId], references: [id], map: "fk_etapa_material_cliente_etapa")
+
+  @@index([etapaId], map: "idx_etapa_material_cliente_etapa")
+  @@map("etapa_material_cliente")
+}
+
+model EtapaServico {
+  id                   Int          @id @default(autoincrement())
+  etapaId              Int          @map("etapa_id")
+  servicoId            Int          @map("servico_id")
+  quantidade           Decimal      @db.Decimal(12, 3)
+  valorUnitario        Decimal?     @map("valor_unitario") @db.Decimal(12, 2)
+  custoInternoEstimado Decimal?     @map("custo_interno_estimado") @db.Decimal(12, 2)
+  etapa                EtapaProjeto @relation(fields: [etapaId], references: [id], map: "fk_etapa_servico_etapa")
+  servico              Servico      @relation(fields: [servicoId], references: [id], map: "fk_etapa_servico_servico")
+
+  @@index([etapaId], map: "idx_etapa_servico_etapa")
+  @@index([servicoId], map: "idx_etapa_servico_servico")
+  @@map("etapa_servico")
+}
+
+model ExtraProjeto {
+  id                     Int             @id @default(autoincrement())
+  projetoId              Int             @map("projeto_id")
+  descricaoJustificativa String          @map("descricao_justificativa") @db.Text
+  dataRegistro           DateTime        @map("data_registro") @db.Date
+  custoInternoEstimado   Decimal?        @map("custo_interno_estimado") @db.Decimal(12, 2)
+  despesaId              Int?            @unique(map: "uq_extra_projeto_despesa") @map("despesa_id")
+  projeto                Projeto         @relation(fields: [projetoId], references: [id], map: "fk_extra_projeto_projeto")
+  despesa                Despesa?        @relation(fields: [despesaId], references: [id], map: "fk_extra_projeto_despesa")
+  materiais              ExtraMaterial[]
+  servicos               ExtraServico[]
+
+  @@index([projetoId], map: "idx_extra_projeto_projeto")
+  @@map("extra_projeto")
+}
+
+model ExtraMaterial {
+  id                    Int              @id @default(autoincrement())
+  extraId               Int              @map("extra_id")
+  materialId            Int              @map("material_id")
+  quantidade            Decimal          @db.Decimal(12, 3)
+  custoUnitarioEstimado Decimal?         @map("custo_unitario_estimado") @db.Decimal(12, 2)
+  extra                 ExtraProjeto     @relation(fields: [extraId], references: [id], map: "fk_extra_material_extra")
+  material              Material         @relation(fields: [materialId], references: [id], map: "fk_extra_material_material")
+  reservas              ReservaEstoque[]
+
+  @@index([extraId], map: "idx_extra_material_extra")
+  @@index([materialId], map: "idx_extra_material_material")
+  @@map("extra_material")
+}
+
+model ReservaEstoque {
+  id                  Int                   @id @default(autoincrement())
+  projetoId           Int                   @map("projeto_id")
+  materialId          Int                   @map("material_id")
+  orcamentoMaterialId Int?                  @map("orcamento_material_id")
+  extraMaterialId     Int?                  @map("extra_material_id")
+  quantidade          Decimal               @db.Decimal(12, 3)
+  status              StatusReservaEstoque  @default(ATIVA)
+  criadaEm            DateTime              @default(now()) @map("criada_em") @db.DateTime(0)
+  projeto             Projeto               @relation(fields: [projetoId], references: [id], map: "fk_reserva_estoque_projeto")
+  material            Material              @relation(fields: [materialId], references: [id], map: "fk_reserva_estoque_material")
+  orcamentoMaterial   OrcamentoMaterial?    @relation(fields: [orcamentoMaterialId], references: [id], map: "fk_reserva_estoque_orcamento_material")
+  extraMaterial       ExtraMaterial?        @relation(fields: [extraMaterialId], references: [id], map: "fk_reserva_estoque_extra_material")
+  movimentacoes       MovimentacaoEstoque[]
+
+  @@index([projetoId], map: "idx_reserva_estoque_projeto")
+  @@index([materialId], map: "idx_reserva_estoque_material")
+  @@index([orcamentoMaterialId], map: "idx_reserva_estoque_orcamento_material")
+  @@index([extraMaterialId], map: "idx_reserva_estoque_extra_material")
+  @@map("reserva_estoque")
+}
+
+model MovimentacaoEstoque {
+  id                     Int                     @id @default(autoincrement())
+  materialId             Int                     @map("material_id")
+  tipo                   TipoMovimentacaoEstoque
+  quantidade             Decimal                 @db.Decimal(12, 3)
+  dataHora               DateTime                @default(now()) @map("data_hora") @db.DateTime(0)
+  justificativa          String?                 @db.Text
+  despesaMaterialId      Int?                    @map("despesa_material_id")
+  reservaEstoqueId       Int?                    @map("reserva_estoque_id")
+  registradoPorUsuarioId Int                     @map("registrado_por_usuario_id")
+  material               Material                @relation(fields: [materialId], references: [id], map: "fk_movimentacao_estoque_material")
+  despesaMaterial        DespesaMaterial?        @relation(fields: [despesaMaterialId], references: [id], map: "fk_movimentacao_estoque_despesa_material")
+  reservaEstoque         ReservaEstoque?         @relation(fields: [reservaEstoqueId], references: [id], map: "fk_movimentacao_estoque_reserva")
+  registradoPorUsuario   Usuario                 @relation("UsuarioRegistroMovimentacaoEstoque", fields: [registradoPorUsuarioId], references: [id], map: "fk_movimentacao_estoque_usuario_registro")
+
+  @@index([materialId], map: "idx_movimentacao_estoque_material")
+  @@index([despesaMaterialId], map: "idx_movimentacao_estoque_despesa_material")
+  @@index([reservaEstoqueId], map: "idx_movimentacao_estoque_reserva")
+  @@index([registradoPorUsuarioId], map: "idx_movimentacao_estoque_usuario_registro")
+  @@map("movimentacao_estoque")
+}
+
+model ExtraServico {
+  id                    Int          @id @default(autoincrement())
+  extraId               Int          @map("extra_id")
+  servicoId             Int          @map("servico_id")
+  quantidade            Decimal      @db.Decimal(12, 3)
+  custoUnitarioEstimado Decimal?     @map("custo_unitario_estimado") @db.Decimal(12, 2)
+  extra                 ExtraProjeto @relation(fields: [extraId], references: [id], map: "fk_extra_servico_extra")
+  servico               Servico      @relation(fields: [servicoId], references: [id], map: "fk_extra_servico_servico")
+
+  @@index([extraId], map: "idx_extra_servico_extra")
+  @@index([servicoId], map: "idx_extra_servico_servico")
+  @@map("extra_servico")
+}
+
+model Cobranca {
+  id                   Int                @id @default(autoincrement())
+  projetoId            Int                @map("projeto_id")
+  etapaId              Int?               @unique(map: "uq_cobranca_etapa") @map("etapa_id")
+  tipo                 TipoCobranca
+  modalidade           ModalidadeCobranca
+  formaPagamento       FormaPagamento?    @map("forma_pagamento")
+  percentualReferencia Decimal?           @map("percentual_referencia") @db.Decimal(5, 2)
+  percentualDesconto   Decimal            @default(0) @map("percentual_desconto") @db.Decimal(5, 2)
+  percentualAcrescimo  Decimal            @default(0) @map("percentual_acrescimo") @db.Decimal(5, 2)
+  desconto             Decimal            @default(0) @db.Decimal(12, 2)
+  acrescimo            Decimal            @default(0) @db.Decimal(12, 2)
+  valorTotal           Decimal            @map("valor_total") @db.Decimal(12, 2)
+  status               StatusCobranca     @default(EM_ABERTO)
+  criadaEm             DateTime           @default(now()) @map("criada_em") @db.DateTime(0)
+  projeto              Projeto            @relation(fields: [projetoId], references: [id], map: "fk_cobranca_projeto")
+  etapa                EtapaProjeto?      @relation(fields: [etapaId], references: [id], map: "fk_cobranca_etapa")
+  parcelas             Parcela[]
+
+  @@index([projetoId], map: "idx_cobranca_projeto")
+  @@map("cobranca")
+}
+
+model Parcela {
+  id           Int           @id @default(autoincrement())
+  cobrancaId   Int           @map("cobranca_id")
+  numero       Int
+  vencimento   DateTime      @db.Date
+  valor        Decimal       @db.Decimal(12, 2)
+  status       StatusParcela @default(EM_ABERTO)
+  cobranca     Cobranca      @relation(fields: [cobrancaId], references: [id], map: "fk_parcela_cobranca")
+  recebimentos Recebimento[]
+
+  @@unique([cobrancaId, numero], map: "uq_parcela_cobranca_numero")
+  @@map("parcela")
+}
+
+model Recebimento {
+  id                     Int                @id @default(autoincrement())
+  parcelaId              Int                @map("parcela_id")
+  valor                  Decimal            @db.Decimal(12, 2)
+  dataRecebimento        DateTime           @map("data_recebimento") @db.Date
+  formaPagamento         FormaPagamento     @map("forma_pagamento")
+  observacoes            String?            @db.Text
+  registradoPorUsuarioId Int                @map("registrado_por_usuario_id")
+  parcela                Parcela            @relation(fields: [parcelaId], references: [id], map: "fk_recebimento_parcela")
+  registradoPorUsuario   Usuario            @relation("UsuarioRegistroRecebimento", fields: [registradoPorUsuarioId], references: [id], map: "fk_recebimento_usuario_registro")
+  movimentacaoCaixa      MovimentacaoCaixa?
+
+  @@index([parcelaId], map: "idx_recebimento_parcela")
+  @@index([registradoPorUsuarioId], map: "idx_recebimento_usuario_registro")
+  @@map("recebimento")
+}
+
+model Despesa {
+  id                     Int                @id @default(autoincrement())
+  tipo                   TipoDespesa
+  categoria              CategoriaDespesa?
+  data                   DateTime           @db.Date
+  fornecedorId           Int?               @map("fornecedor_id")
+  descricao              String             @db.Text
+  valorTotal             Decimal            @map("valor_total") @db.Decimal(12, 2)
+  registradoPorUsuarioId Int                @map("registrado_por_usuario_id")
+  fornecedor             Fornecedor?        @relation(fields: [fornecedorId], references: [id], map: "fk_despesa_fornecedor")
+  registradoPorUsuario   Usuario            @relation("UsuarioRegistroDespesa", fields: [registradoPorUsuarioId], references: [id], map: "fk_despesa_usuario_registro")
+  materiais              DespesaMaterial[]
+  movimentacaoCaixa      MovimentacaoCaixa?
+  extraProjeto           ExtraProjeto?
+
+  @@index([fornecedorId], map: "idx_despesa_fornecedor")
+  @@index([registradoPorUsuarioId], map: "idx_despesa_usuario_registro")
+  @@map("despesa")
+}
+
+model DespesaMaterial {
+  id            Int                   @id @default(autoincrement())
+  despesaId     Int                   @map("despesa_id")
+  materialId    Int                   @map("material_id")
+  quantidade    Decimal               @db.Decimal(12, 3)
+  unidadeMedida String                @map("unidade_medida") @db.VarChar(50)
+  valorUnitario Decimal               @map("valor_unitario") @db.Decimal(12, 2)
+  valorTotal    Decimal               @map("valor_total") @db.Decimal(12, 2)
+  despesa       Despesa               @relation(fields: [despesaId], references: [id], map: "fk_despesa_material_despesa")
+  material      Material              @relation(fields: [materialId], references: [id], map: "fk_despesa_material_material")
+  movimentacoes MovimentacaoEstoque[]
+
+  @@index([despesaId], map: "idx_despesa_material_despesa")
+  @@index([materialId], map: "idx_despesa_material_material")
+  @@map("despesa_material")
+}
+
+model Caixa {
+  id                  Int                 @id @default(autoincrement())
+  competencia         DateTime            @unique(map: "uq_caixa_competencia") @db.Date
+  valorInicial        Decimal             @map("valor_inicial") @db.Decimal(12, 2)
+  status              StatusCaixa         @default(ABERTO)
+  abertoEm            DateTime            @default(now()) @map("aberto_em") @db.DateTime(0)
+  fechadoEm           DateTime?           @map("fechado_em") @db.DateTime(0)
+  fechadoPorUsuarioId Int?                @map("fechado_por_usuario_id")
+  fechadoPorUsuario   Usuario?            @relation("UsuarioFechamentoCaixa", fields: [fechadoPorUsuarioId], references: [id], map: "fk_caixa_usuario_fechamento")
+  movimentacoes       MovimentacaoCaixa[]
+
+  @@index([fechadoPorUsuarioId], map: "idx_caixa_usuario_fechamento")
+  @@map("caixa")
+}
+
+model MovimentacaoCaixa {
+  id            Int                   @id @default(autoincrement())
+  caixaId       Int                   @map("caixa_id")
+  tipo          TipoMovimentacaoCaixa
+  data          DateTime              @db.Date
+  descricao     String                @db.VarChar(255)
+  categoria     String                @db.VarChar(100)
+  valor         Decimal               @db.Decimal(12, 2)
+  recebimentoId Int?                  @unique(map: "uq_movimentacao_caixa_recebimento") @map("recebimento_id")
+  despesaId     Int?                  @unique(map: "uq_movimentacao_caixa_despesa") @map("despesa_id")
+  caixa         Caixa                 @relation(fields: [caixaId], references: [id], map: "fk_movimentacao_caixa_caixa")
+  recebimento   Recebimento?          @relation(fields: [recebimentoId], references: [id], map: "fk_movimentacao_caixa_recebimento")
+  despesa       Despesa?              @relation(fields: [despesaId], references: [id], map: "fk_movimentacao_caixa_despesa")
+
+  @@index([caixaId], map: "idx_movimentacao_caixa_caixa")
+  @@map("movimentacao_caixa")
+}
