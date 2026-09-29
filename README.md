@@ -261,16 +261,6 @@ docs: atualiza documentação do projeto
 
 test: adiciona testes de cadastro de cliente
 ```
-
-Devem ser evitadas mensagens pouco descritivas, como:
-
-```text
-alteração
-teste
-arrumei
-agora foi
-```
-
 ---
 
 # 🚀 Como executar o projeto
@@ -376,7 +366,7 @@ para documentar as variáveis necessárias sem expor credenciais reais.
         alt="Peterson de Almeida Oenning"
       />
       <br><br>
-      <strong>👨‍💻 Peterson de Almeida Oenning</strong>
+      <strong>👨‍💻 Peterson Oenning</strong>
       <br>
       <sub><b>Desenvolvimento Back-end</b></sub>
       <br><br>
@@ -467,11 +457,11 @@ As configurações definitivas serão documentadas conforme a evolução do proj
 
 ## 🏗️ FP Construções
 
-### Tecnologia aplicada à gestão da construção civil e serralheria.
+### Tecnologia aplicada à gestão de uma empresa na área de Construção Cvil e Serralheria.
 
 <br>
 
-Desenvolvido por **Ana Claudia & Peterson de Almeida Oenning**
+Desenvolvido por **Ana Claudia & Peterson Oenning**
 
 🎓 **Análise e Desenvolvimento de Sistemas — IFRO**
 
