@@ -1,4 +1,4 @@
 <template>
-  <h1>FP Construções</h1>
+  <h2>Início</h2>
   <p>Página inicial do sistema</p>
 </template>
