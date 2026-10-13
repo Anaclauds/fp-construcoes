@@ -13,13 +13,15 @@ export type FuncionarioOpcao = Pick<Funcionario, 'id' | 'nomeCompleto' | 'funcao
 /**
  * Todos os funcionários (ativos e inativos), percorrendo as páginas da API; usado em seletores.
  * Quem tem acesso à Frequência mas não a Funcionários recebe 403 em /funcionarios: nesse caso a
- * lista vem da folha do dia (só ativos) e `somenteAtivos` avisa a tela.
+ * lista vem da folha do dia (só ativos) e `somenteAtivos` avisa a tela. Sem acesso a nenhum dos dois
+ * módulos, `semPermissao` fica verdadeiro (além de `erro`): a tela pode explicar a permissão necessária.
  */
 export function useTodosFuncionarios() {
   const funcionarios = shallowRef<FuncionarioOpcao[]>([])
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
   const somenteAtivos = shallowRef(false)
+  const semPermissao = shallowRef(false)
 
   async function buscarTodos(): Promise<FuncionarioOpcao[]> {
     const todos: FuncionarioOpcao[] = []
@@ -49,6 +51,7 @@ export function useTodosFuncionarios() {
     carregando.value = true
     erro.value = null
     somenteAtivos.value = false
+    semPermissao.value = false
     try {
       let lista: FuncionarioOpcao[]
       try {
@@ -60,11 +63,13 @@ export function useTodosFuncionarios() {
       }
       funcionarios.value = lista.sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto, 'pt-BR'))
     } catch (e) {
-      erro.value = extrairErro(e).mensagem
+      const { mensagem, status } = extrairErro(e)
+      semPermissao.value = status === 403
+      erro.value = mensagem
     } finally {
       carregando.value = false
     }
   }
 
-  return { funcionarios, carregando, erro, somenteAtivos, carregar }
+  return { funcionarios, carregando, erro, somenteAtivos, semPermissao, carregar }
 }
