@@ -40,7 +40,7 @@ export const gruposMenu: GrupoMenu[] = [
     icone: comercialVendasIcon,
     itens: [
       { rotulo: 'Cliente', rota: 'clientes', modulo: 'CLIENTES', rotasRelacionadas: ['clienteNovo'] },
-      { rotulo: 'Orçamento', rota: 'orcamentos', modulo: 'ORCAMENTOS' },
+      { rotulo: 'Orçamento', rota: 'orcamentos', modulo: 'ORCAMENTOS', rotasRelacionadas: ['orcamentoNovo'] },
       { rotulo: 'Cobrança', rota: 'cobrancas', modulo: 'COBRANCAS' },
     ],
   },
