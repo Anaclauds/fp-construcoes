@@ -3,6 +3,7 @@ import BotaoAcao from '../ui/BotaoAcao.vue'
 import ControleStatusFrequencia from '../ui/ControleStatusFrequencia.vue'
 import TabelaDados, { type ColunaTabela } from '../ui/TabelaDados.vue'
 import type { StatusFrequencia } from '../../types'
+import { rotuloLegivel } from '../../utils/formatadores'
 import type { LinhaFolha } from '../../utils/frequencia'
 
 const props = defineProps<{
@@ -27,8 +28,8 @@ const emit = defineEmits<{
 
 const colunas: ColunaTabela[] = [
   { chave: 'funcionario', rotulo: 'Funcionário', largura: '22%' },
-  { chave: 'status', rotulo: 'Status', largura: '42%' },
-  { chave: 'observacao', rotulo: 'Observação', largura: '24%' },
+  { chave: 'status', rotulo: 'Status', largura: '45%' },
+  { chave: 'observacao', rotulo: 'Observação', largura: '21%' },
   { chave: 'acoes', rotulo: 'Ações', largura: '12%' },
 ]
 
@@ -65,7 +66,7 @@ function dicaObservacao(linha: LinhaFolha): string {
   >
     <template #celula-funcionario="{ linha }">
       <span class="fp-celula-nome folha-bloco">{{ linha.nome }}</span>
-      <span class="folha-secundaria">{{ linha.apelido ? `${linha.apelido} | ${linha.funcao}` : linha.funcao }}</span>
+      <span class="folha-secundaria">{{ linha.apelido ? `${linha.apelido} | ${rotuloLegivel(linha.funcao)}` : rotuloLegivel(linha.funcao) }}</span>
     </template>
 
     <template #celula-status="{ linha }">

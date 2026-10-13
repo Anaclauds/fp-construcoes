@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import logoFp from '../../assets/images/logo-fp.png'
 import type { RelatorioFrequencia, StatusFrequencia } from '../../types'
 import { diaDaSemana } from '../../utils/datas'
-import { isoParaDataBr } from '../../utils/formatadores'
+import { isoParaDataBr, rotuloLegivel } from '../../utils/formatadores'
 import { ROTULO_STATUS, classeStatus } from '../../utils/frequencia'
 
 const props = defineProps<{
@@ -84,7 +84,7 @@ const totalDias = computed(() => {
           {{ relatorio.funcionario.nomeCompleto }}
         </p>
         <p class="documento-funcao">
-          {{ relatorio.funcionario.funcao }}
+          {{ rotuloLegivel(relatorio.funcionario.funcao) }}
         </p>
       </div>
       <div>
@@ -121,7 +121,10 @@ const totalDias = computed(() => {
             <th scope="col">
               Data
             </th>
-            <th scope="col">
+            <th
+              scope="col"
+              class="documento-dia"
+            >
               Dia da Semana
             </th>
             <th scope="col">
@@ -138,7 +141,9 @@ const totalDias = computed(() => {
             :key="linha.chave"
           >
             <td>{{ linha.data }}</td>
-            <td>{{ linha.diaSemana }}</td>
+            <td class="documento-dia">
+              {{ linha.diaSemana }}
+            </td>
             <td>
               <span
                 class="documento-status"
@@ -192,8 +197,7 @@ const totalDias = computed(() => {
 
     <footer class="documento-rodape">
       <span>FP Construções · Relatório gerado em {{ emitidoEm }}</span>
-      <!-- Na impressão a numeração vem do rodapé da página (@page), que conhece o total de páginas. -->
-      <span v-if="!impressao">Pág. 1 de 1</span>
+      <!-- A numeração de páginas só existe no impresso, vinda do rodapé da página (@page), que conhece o total. -->
     </footer>
   </article>
 </template>
@@ -352,6 +356,10 @@ td {
   font-size: 12.5px;
 }
 
+.documento-dia {
+  white-space: nowrap;
+}
+
 tfoot td {
   background-color: var(--fp-cinza-fundo);
   color: #4a5565;
@@ -457,6 +465,11 @@ tfoot td {
 .documento--impressao td {
   padding: 4px 10px;
   font-size: 11px;
+}
+
+/* O total aparece uma vez, no fim da tabela, e não repetido no rodapé de cada página. */
+.documento--impressao tfoot {
+  display: table-row-group;
 }
 
 .documento--impressao .documento-declaracao {

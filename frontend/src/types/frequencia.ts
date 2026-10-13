@@ -43,8 +43,8 @@ export interface FolhaFrequencia {
 export interface RegistroFrequenciaPayload {
   funcionarioId: number
   status: StatusFrequencia
-  /** Obrigatoria para MEIO_PERIODO e FALTA_JUSTIFICADA. */
-  observacao?: string
+  /** Obrigatoria para MEIO_PERIODO e FALTA_JUSTIFICADA. null limpa a salva; omitida mantém a atual. */
+  observacao?: string | null
 }
 
 export interface SalvarFolhaPayload {

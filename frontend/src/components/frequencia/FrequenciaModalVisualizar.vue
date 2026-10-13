@@ -5,7 +5,7 @@ import ModalBase from '../ui/ModalBase.vue'
 import FrequenciaResumoRegistro from './FrequenciaResumoRegistro.vue'
 import { diaDaSemana } from '../../utils/datas'
 import { isoParaDataBr } from '../../utils/formatadores'
-import { exigeObservacao, type LinhaFolha } from '../../utils/frequencia'
+import type { LinhaFolha } from '../../utils/frequencia'
 
 const props = defineProps<{
   /** Data do registro (YYYY-MM-DD). */
@@ -31,11 +31,7 @@ const subtitulo = computed(() => `${isoParaDataBr(props.data)} · ${diaDaSemana(
 
     <section>
       <h3 class="registro-rotulo">
-        Observação<span
-          v-if="exigeObservacao(linha.status)"
-          class="registro-obrigatorio"
-          aria-hidden="true"
-        >*</span>
+        Observação
       </h3>
       <p
         class="registro-observacao"
@@ -62,11 +58,6 @@ const subtitulo = computed(() => `${isoParaDataBr(props.data)} · ${diaDaSemana(
   color: var(--fp-verde);
   font-size: 14px;
   font-weight: 500;
-}
-
-.registro-obrigatorio {
-  margin-left: 2px;
-  color: var(--fp-obrigatorio);
 }
 
 .registro-observacao {

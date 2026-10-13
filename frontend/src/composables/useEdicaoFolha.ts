@@ -63,9 +63,11 @@ export function useEdicaoFolha(registros: Ref<Frequencia[]>) {
     return linhasAlteradas.value.flatMap((linha) => {
       if (linha.status === null) return []
       const observacao = linha.observacao.trim()
-      // Observação apagada precisa ir vazia para limpar a salva; sem nenhuma, o campo nem é enviado.
-      const enviar = observacao !== '' || originais.value.get(linha.funcionarioId)?.observacao.trim()
-      return [{ funcionarioId: linha.funcionarioId, status: linha.status, ...(enviar ? { observacao } : {}) }]
+      // Nunca vai '': com texto, envia o texto; apagada, envia null para limpar a que estava salva
+      // (omitir manteria a antiga); sem nenhuma, o campo nem é enviado.
+      const tinhaSalva = !!originais.value.get(linha.funcionarioId)?.observacao.trim()
+      const campoObservacao = observacao !== '' ? { observacao } : tinhaSalva ? { observacao: null } : {}
+      return [{ funcionarioId: linha.funcionarioId, status: linha.status, ...campoObservacao }]
     })
   }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { StatusFrequencia } from '../../types'
-import { ROTULO_CURTO_STATUS, ROTULO_STATUS, STATUS_FREQUENCIA, classeStatus } from '../../utils/frequencia'
+import { ROTULO_BOTAO_STATUS, ROTULO_STATUS, STATUS_FREQUENCIA, classeStatus } from '../../utils/frequencia'
 
 defineProps<{
   /** Quem está sendo marcado, para o rótulo acessível ("Frequência de Maria Silva"). */
@@ -27,6 +27,7 @@ const status = defineModel<StatusFrequencia | null>({ default: null })
       :class="[classeStatus(opcao), { 'controle-status-botao--marcado': status === opcao }]"
       :aria-pressed="status === opcao"
       :aria-label="ROTULO_STATUS[opcao]"
+      :title="ROTULO_STATUS[opcao]"
       :disabled="somenteLeitura"
       @click="status = opcao"
     >
@@ -34,7 +35,7 @@ const status = defineModel<StatusFrequencia | null>({ default: null })
         class="controle-status-ponto"
         aria-hidden="true"
       />
-      {{ ROTULO_CURTO_STATUS[opcao] }}
+      {{ ROTULO_BOTAO_STATUS[opcao] }}
     </button>
   </div>
 </template>
@@ -42,7 +43,7 @@ const status = defineModel<StatusFrequencia | null>({ default: null })
 <style scoped>
 .controle-status {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
 }
 
@@ -51,9 +52,9 @@ const status = defineModel<StatusFrequencia | null>({ default: null })
 
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 
-  padding: 0 9px;
+  padding: 0 8px;
   border: 1px solid var(--fp-cinza-borda);
   border-radius: 8px;
   background-color: #fff;

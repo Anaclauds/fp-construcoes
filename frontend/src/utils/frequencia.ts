@@ -22,6 +22,14 @@ export const ROTULO_CURTO_STATUS: Record<StatusFrequencia, string> = {
   FALTA_NAO_JUSTIFICADA: 'F. N. Justif.',
 }
 
+/** Rótulos mínimos dos botões da folha, para os quatro caberem numa linha (o nome completo vai no title). */
+export const ROTULO_BOTAO_STATUS: Record<StatusFrequencia, string> = {
+  PRESENTE: 'Presente',
+  MEIO_PERIODO: 'Meio Per.',
+  FALTA_JUSTIFICADA: 'F. Just.',
+  FALTA_NAO_JUSTIFICADA: 'F. N. Just.',
+}
+
 const CLASSE_STATUS: Record<StatusFrequencia, string> = {
   PRESENTE: 'fp-status--presente',
   MEIO_PERIODO: 'fp-status--meio-periodo',

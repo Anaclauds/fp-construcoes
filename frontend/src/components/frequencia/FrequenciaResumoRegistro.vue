@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { rotuloLegivel } from '../../utils/formatadores'
 import { classeStatus, rotuloStatus, type LinhaFolha } from '../../utils/frequencia'
 
 defineProps<{ linha: LinhaFolha }>()
@@ -7,7 +8,7 @@ defineProps<{ linha: LinhaFolha }>()
 <template>
   <div class="resumo-funcionario">
     <strong class="resumo-nome">{{ linha.nome }}</strong>
-    <span class="resumo-funcao">{{ linha.funcao }}</span>
+    <span class="resumo-funcao">{{ rotuloLegivel(linha.funcao) }}</span>
   </div>
 
   <section
@@ -19,7 +20,10 @@ defineProps<{ linha: LinhaFolha }>()
       aria-hidden="true"
     />
     <div>
-      <p class="resumo-status-rotulo">
+      <p
+        v-if="linha.status"
+        class="resumo-status-rotulo"
+      >
         Status registrado
       </p>
       <p class="resumo-status-valor">
