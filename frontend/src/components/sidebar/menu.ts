@@ -39,7 +39,7 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Comercial e Vendas',
     icone: comercialVendasIcon,
     itens: [
-      { rotulo: 'Cliente', rota: 'clientes', modulo: 'CLIENTES' },
+      { rotulo: 'Cliente', rota: 'clientes', modulo: 'CLIENTES', rotasRelacionadas: ['clienteNovo'] },
       { rotulo: 'Orçamento', rota: 'orcamentos', modulo: 'ORCAMENTOS' },
       { rotulo: 'Cobrança', rota: 'cobrancas', modulo: 'COBRANCAS' },
     ],
