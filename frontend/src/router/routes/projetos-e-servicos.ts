@@ -8,11 +8,13 @@ const projetosEServicosRoutes: RouteRecordRaw[] = [
     path: '/projetos',
     name: 'projetos',
     component: ProjetosView,
+    meta: { permissao: { modulo: 'PROJETOS', acao: 'visualizar' } },
   },
   {
     path: '/servicos',
     name: 'servicos',
     component: ServicosView,
+    meta: { permissao: { modulo: 'SERVICOS', acao: 'visualizar' } },
   },
 ]
 

@@ -1,3 +1,26 @@
+/* Tokens do Figma (arquivo TCC). */
+:root {
+  --fp-verde: #1a6647;
+  --fp-verde-10: rgba(26, 102, 71, 0.1);
+  --fp-verde-20: rgba(26, 102, 71, 0.2);
+  --fp-verde-30: rgba(26, 102, 71, 0.3);
+  --fp-texto: #000;
+  --fp-texto-suave: rgba(0, 0, 0, 0.5);
+  --fp-texto-corpo: #555;
+  --fp-texto-titulo-campo: #364153;
+  --fp-cinza-borda: #e5e7eb;
+  --fp-cinza-fundo: #f9fafb;
+  --fp-cinza-rotulo: #999;
+  --fp-vermelho: #e7000b;
+  --fp-vermelho-escuro: #b91c1c;
+  --fp-obrigatorio: #e7000b;
+  --fp-raio: 10px;
+  --fp-sombra-card: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --fp-foco: 0 0 0 3px rgba(26, 102, 71, 0.35);
+
+  --bs-body-font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -11,4 +34,105 @@ body,
 
 body {
   min-width: 320px;
+}
+
+/* Nome em destaque nas células de tabela (usado dentro dos slots de TabelaDados). */
+.fp-celula-nome {
+  color: var(--fp-verde);
+  font-weight: 600;
+}
+
+/*
+  Cores por status de frequência. O elemento recebe a classe (ver classeStatus em utils/frequencia.ts)
+  e os componentes usam --st-fundo / --st-borda / --st-texto.
+*/
+.fp-status--presente {
+  --st-fundo: #dcfce7;
+  --st-borda: #86efac;
+  --st-texto: #008236;
+}
+
+.fp-status--meio-periodo {
+  --st-fundo: #fef3c7;
+  --st-borda: #fcd34d;
+  --st-texto: #b45309;
+}
+
+.fp-status--falta-justificada {
+  --st-fundo: #dbeafe;
+  --st-borda: #93c5fd;
+  --st-texto: #1d4ed8;
+}
+
+.fp-status--falta-nao-justificada {
+  --st-fundo: #fee2e2;
+  --st-borda: #fca5a5;
+  --st-texto: #b91c1c;
+}
+
+.fp-status--nenhum {
+  --st-fundo: #f3f4f6;
+  --st-borda: #d1d5db;
+  --st-texto: #6b7280;
+}
+
+/* Linha da tabela que ainda precisa de justificativa (frequência). */
+.fp-linha-pendente td {
+  background-color: #fffbeb;
+}
+
+/* Área do relatório que só existe na impressão (ver RelatorioResultado.vue). */
+.fp-area-impressao {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 12mm 16mm;
+
+    /* Numeração das páginas do relatório (Chrome/Edge 131+); navegadores sem suporte ignoram. */
+    @bottom-right {
+      content: 'Pág. ' counter(page) ' de ' counter(pages);
+      color: #6b7280;
+      font-family: 'Poppins', system-ui, sans-serif;
+      font-size: 9pt;
+    }
+  }
+
+  #app {
+    display: none !important;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .fp-area-impressao {
+    display: block;
+  }
+}
+
+.fp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

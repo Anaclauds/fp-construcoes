@@ -1,8 +1,11 @@
 import type { RouteRecordRaw } from 'vue-router'
 
 import UsuariosView from '../../views/gestao-de-pessoas/UsuariosView.vue'
+import UsuarioNovoView from '../../views/gestao-de-pessoas/UsuarioNovoView.vue'
 import FuncionariosView from '../../views/gestao-de-pessoas/FuncionariosView.vue'
+import FuncionarioNovoView from '../../views/gestao-de-pessoas/FuncionarioNovoView.vue'
 import FrequenciaView from '../../views/gestao-de-pessoas/FrequenciaView.vue'
+import FrequenciaEdicaoView from '../../views/gestao-de-pessoas/FrequenciaEdicaoView.vue'
 import RelatorioFrequenciaView from '../../views/gestao-de-pessoas/RelatorioFrequenciaView.vue'
 
 const gestaoDePessoasRoutes: RouteRecordRaw[] = [
@@ -10,21 +13,43 @@ const gestaoDePessoasRoutes: RouteRecordRaw[] = [
     path: '/usuarios',
     name: 'usuarios',
     component: UsuariosView,
+    meta: { permissao: { modulo: 'GESTAO_USUARIOS', acao: 'visualizar' } },
+  },
+  {
+    path: '/usuarios/novo',
+    name: 'usuarioNovo',
+    component: UsuarioNovoView,
+    meta: { permissao: { modulo: 'GESTAO_USUARIOS', acao: 'gerenciar' } },
   },
   {
     path: '/funcionarios',
     name: 'funcionarios',
     component: FuncionariosView,
+    meta: { permissao: { modulo: 'GESTAO_FUNCIONARIOS', acao: 'visualizar' } },
+  },
+  {
+    path: '/funcionarios/novo',
+    name: 'funcionarioNovo',
+    component: FuncionarioNovoView,
+    meta: { permissao: { modulo: 'GESTAO_FUNCIONARIOS', acao: 'gerenciar' } },
   },
   {
     path: '/frequencia',
     name: 'frequencia',
     component: FrequenciaView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'visualizar' } },
+  },
+  {
+    path: '/frequencia/editar',
+    name: 'frequenciaEditar',
+    component: FrequenciaEdicaoView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'gerenciar' } },
   },
   {
     path: '/relatorio-frequencia',
     name: 'relatorioFrequencia',
     component: RelatorioFrequenciaView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'visualizar' } },
   },
 ]
 

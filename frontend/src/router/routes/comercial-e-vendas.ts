@@ -9,16 +9,19 @@ const comercialEVendasRoutes: RouteRecordRaw[] = [
     path: '/clientes',
     name: 'clientes',
     component: ClientesView,
+    meta: { permissao: { modulo: 'CLIENTES', acao: 'visualizar' } },
   },
   {
     path: '/orcamentos',
     name: 'orcamentos',
     component: OrcamentosView,
+    meta: { permissao: { modulo: 'ORCAMENTOS', acao: 'visualizar' } },
   },
   {
     path: '/cobrancas',
     name: 'cobrancas',
     component: CobrancasView,
+    meta: { permissao: { modulo: 'COBRANCAS', acao: 'visualizar' } },
   },
 ]
 

@@ -10,21 +10,25 @@ const estoqueESuprimentosRoutes: RouteRecordRaw[] = [
     path: '/equipamentos',
     name: 'equipamentos',
     component: EquipamentosView,
+    meta: { permissao: { modulo: 'EQUIPAMENTOS', acao: 'visualizar' } },
   },
   {
     path: '/materiais',
     name: 'materiais',
     component: MateriaisView,
+    meta: { permissao: { modulo: 'MATERIAIS', acao: 'visualizar' } },
   },
   {
     path: '/estoque',
     name: 'estoque',
     component: EstoqueView,
+    meta: { permissao: { modulo: 'ESTOQUE', acao: 'visualizar' } },
   },
   {
     path: '/fornecedores',
     name: 'fornecedores',
     component: FornecedoresView,
+    meta: { permissao: { modulo: 'FORNECEDORES', acao: 'visualizar' } },
   },
 ]
 
