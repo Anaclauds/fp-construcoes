@@ -4,7 +4,7 @@ import BotaoFp from '../ui/BotaoFp.vue'
 import CampoData from '../ui/CampoData.vue'
 import CampoFormulario, { type OpcaoCampo } from '../ui/CampoFormulario.vue'
 import type { FuncionarioOpcao } from '../../composables/useTodosFuncionarios'
-import type { StatusFrequencia } from '../../types'
+import type { StatusFiltroRelatorio } from '../../types'
 import { dataBrParaIso } from '../../utils/formatadores'
 import { ROTULO_STATUS, STATUS_FREQUENCIA } from '../../utils/frequencia'
 import { dataBrValida } from '../../utils/validacao'
@@ -14,7 +14,7 @@ export interface FiltrosEscolhidos {
   /** YYYY-MM-DD */
   dataInicial: string
   dataFinal: string
-  status: StatusFrequencia | null
+  status: StatusFiltroRelatorio | null
 }
 
 const props = defineProps<{
@@ -40,7 +40,10 @@ const opcoesFuncionario = computed<OpcaoCampo[]>(() =>
   })),
 )
 
-const opcoesStatus: OpcaoCampo[] = STATUS_FREQUENCIA.map((s) => ({ valor: s, rotulo: ROTULO_STATUS[s] }))
+const opcoesStatus: OpcaoCampo[] = [
+  ...STATUS_FREQUENCIA.map((s) => ({ valor: s, rotulo: ROTULO_STATUS[s] })),
+  { valor: 'NAO_REGISTRADO', rotulo: 'Não registrado' },
+]
 
 function validar(): boolean {
   erros.funcionarioId = form.funcionarioId ? undefined : 'Selecione o funcionário.'
@@ -70,7 +73,7 @@ function gerar() {
     funcionarioId: Number(form.funcionarioId),
     dataInicial: dataBrParaIso(form.dataInicial),
     dataFinal: dataBrParaIso(form.dataFinal),
-    status: (form.status || null) as StatusFrequencia | null,
+    status: (form.status || null) as StatusFiltroRelatorio | null,
   })
 }
 </script>

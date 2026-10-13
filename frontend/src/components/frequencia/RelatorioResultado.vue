@@ -6,12 +6,12 @@ import RelatorioDocumento from './RelatorioDocumento.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useImpressao } from '../../composables/useImpressao'
 import { useToast } from '../../composables/useToast'
-import type { RelatorioFrequencia, StatusFrequencia } from '../../types'
+import type { RelatorioCompleto, StatusFiltroRelatorio } from '../../types'
 import { formatarDataHora } from '../../utils/datas'
 
 const props = defineProps<{
-  relatorio: RelatorioFrequencia
-  statusFiltro?: StatusFrequencia | null
+  relatorio: RelatorioCompleto
+  statusFiltro?: StatusFiltroRelatorio | null
 }>()
 
 const emit = defineEmits<{ voltar: [] }>()
@@ -24,7 +24,7 @@ const { imprimir } = useImpressao()
 const emitidoEm = formatarDataHora()
 const emitidoPor = computed(() => usuario.value?.nomeCompleto ?? 'Usuário')
 
-const semRegistros = computed(() => props.relatorio.registros.length === 0)
+const semRegistros = computed(() => props.relatorio.linhas.length === 0)
 
 /** "Relatorio-Frequencia-Valdir-Silva-2026-07-01_2026-07-31": sugestão de nome ao salvar o PDF. */
 const nomeArquivo = computed(() => {
@@ -34,7 +34,7 @@ const nomeArquivo = computed(() => {
     .replace(/[^A-Za-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
   const { dataInicial, dataFinal } = props.relatorio.periodo
-  return `Relatorio-Frequencia-${pessoa}-${dataInicial.slice(0, 10)}_${dataFinal.slice(0, 10)}`
+  return `Relatorio-Frequencia-${pessoa}-${dataInicial}_${dataFinal}`
 })
 
 function imprimirRelatorio(destino: 'impressora' | 'pdf') {

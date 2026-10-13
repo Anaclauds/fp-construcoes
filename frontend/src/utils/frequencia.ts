@@ -1,4 +1,13 @@
-import type { Frequencia, Indicadores, StatusFrequencia } from '../types'
+import type {
+  Frequencia,
+  Indicadores,
+  LinhaRelatorio,
+  RelatorioCompleto,
+  RelatorioFrequencia,
+  StatusFiltroRelatorio,
+  StatusFrequencia,
+} from '../types'
+import { adicionarDias, hojeIso } from './datas'
 
 export const STATUS_FREQUENCIA: readonly StatusFrequencia[] = [
   'PRESENTE',
@@ -86,5 +95,69 @@ export function paraLinhaFolha(registro: Frequencia): LinhaFolha {
     funcao: registro.funcionario.funcao,
     status: registro.status,
     observacao: registro.observacao ?? '',
+  }
+}
+
+/** Rótulo do filtro de status do relatório (inclui "Não registrado"). */
+export function rotuloFiltroRelatorio(filtro: StatusFiltroRelatorio): string {
+  return filtro === 'NAO_REGISTRADO' ? 'Não registrado' : ROTULO_STATUS[filtro]
+}
+
+/**
+ * Completa o relatório da API (só dias lançados) com os dias sem lançamento do período,
+ * de dataInicial até o menor entre dataFinal e hoje. Dias futuros ficam de fora.
+ * Com filtro de status, só as linhas daquele status (e taxa de presença indisponível).
+ */
+export function montarRelatorio(
+  api: RelatorioFrequencia,
+  filtro: StatusFiltroRelatorio | null,
+  hoje: string = hojeIso(),
+): RelatorioCompleto {
+  const inicio = api.periodo.dataInicial.slice(0, 10)
+  const final = api.periodo.dataFinal.slice(0, 10)
+  const fim = final < hoje ? final : hoje
+
+  const porData = new Map<string, Frequencia>()
+  for (const registro of api.registros) porData.set(registro.data.slice(0, 10), registro)
+
+  // Com filtro de status da API, os dias faltantes não pertencem ao resultado.
+  const completar = filtro === null || filtro === 'NAO_REGISTRADO'
+  const linhas: LinhaRelatorio[] = []
+  if (completar) {
+    for (let dia = inicio; dia <= fim; dia = adicionarDias(dia, 1)) {
+      const registro = porData.get(dia)
+      linhas.push({
+        data: dia,
+        status: registro?.status ?? null,
+        observacao: registro?.observacao?.trim() ?? '',
+      })
+    }
+  } else {
+    for (const [dia, registro] of [...porData].sort(([a], [b]) => a.localeCompare(b))) {
+      if (dia >= inicio && dia <= fim) {
+        linhas.push({ data: dia, status: registro.status, observacao: registro.observacao?.trim() ?? '' })
+      }
+    }
+  }
+
+  const visiveis = filtro === 'NAO_REGISTRADO' ? linhas.filter((l) => l.status === null) : linhas
+  const contar = (status: StatusFrequencia | null) => visiveis.filter((l) => l.status === status).length
+  const presentes = contar('PRESENTE')
+
+  return {
+    funcionario: api.funcionario,
+    periodo: { dataInicial: inicio, dataFinal: final },
+    linhas: visiveis,
+    indicadores: {
+      presentes,
+      meioPeriodo: contar('MEIO_PERIODO'),
+      faltasJustificadas: contar('FALTA_JUSTIFICADA'),
+      faltasNaoJustificadas: contar('FALTA_NAO_JUSTIFICADA'),
+      naoRegistrados: contar(null),
+      totalDias: visiveis.length,
+      taxaPresenca: filtro ? null : linhas.length ? Math.round((presentes / linhas.length) * 100) : 0,
+    },
+    periodoFuturo: inicio > hoje,
+    temDiasFuturos: final > hoje,
   }
 }

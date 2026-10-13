@@ -72,3 +72,38 @@ export interface FiltrosRelatorio {
   dataFinal: string
   status?: StatusFrequencia
 }
+
+/** Filtro de status do relatório; NAO_REGISTRADO existe só no front (dias sem lançamento). */
+export type StatusFiltroRelatorio = StatusFrequencia | 'NAO_REGISTRADO'
+
+export interface LinhaRelatorio {
+  /** YYYY-MM-DD */
+  data: string
+  /** null = dia sem lançamento ("Não registrado"). */
+  status: StatusFrequencia | null
+  observacao: string
+}
+
+export interface IndicadoresRelatorio {
+  presentes: number
+  meioPeriodo: number
+  faltasJustificadas: number
+  faltasNaoJustificadas: number
+  naoRegistrados: number
+  /** Dias listados no relatório. */
+  totalDias: number
+  /** Percentual inteiro; null quando há filtro de status ("—"). */
+  taxaPresenca: number | null
+}
+
+/** Relatório já completado no front: cada dia do período (até hoje) vira uma linha. */
+export interface RelatorioCompleto {
+  funcionario: FuncionarioFrequencia
+  periodo: { dataInicial: string; dataFinal: string }
+  linhas: LinhaRelatorio[]
+  indicadores: IndicadoresRelatorio
+  /** O período inteiro está depois de hoje. */
+  periodoFuturo: boolean
+  /** Parte do período está depois de hoje e ficou de fora. */
+  temDiasFuturos: boolean
+}

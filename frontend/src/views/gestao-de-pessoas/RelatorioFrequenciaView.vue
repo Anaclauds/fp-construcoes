@@ -7,7 +7,9 @@ import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
 import { useTodosFuncionarios } from '../../composables/useTodosFuncionarios'
 import { extrairMensagemErro } from '../../services/api'
 import { buscarRelatorio } from '../../services/frequencias.service'
-import type { RelatorioFrequencia, StatusFrequencia } from '../../types'
+import type { RelatorioCompleto, StatusFiltroRelatorio } from '../../types'
+import { hojeIso } from '../../utils/datas'
+import { montarRelatorio } from '../../utils/frequencia'
 
 const router = useRouter()
 
@@ -19,8 +21,8 @@ const {
   carregar,
 } = useTodosFuncionarios()
 
-const relatorio = shallowRef<RelatorioFrequencia | null>(null)
-const statusFiltro = shallowRef<StatusFrequencia | null>(null)
+const relatorio = shallowRef<RelatorioCompleto | null>(null)
+const statusFiltro = shallowRef<StatusFiltroRelatorio | null>(null)
 const gerando = shallowRef(false)
 const erro = shallowRef<string | null>(null)
 
@@ -28,12 +30,21 @@ async function gerar(filtros: FiltrosEscolhidos) {
   gerando.value = true
   erro.value = null
   try {
-    relatorio.value = await buscarRelatorio({
-      funcionarioId: filtros.funcionarioId,
-      dataInicial: filtros.dataInicial,
-      dataFinal: filtros.dataFinal,
-      ...(filtros.status ? { status: filtros.status } : {}),
+    const hoje = hojeIso()
+    const { funcionarioId, dataInicial, dataFinal, status } = filtros
+    // A API só conhece os status lançados e não devolve dias futuros: "Não registrado" é completado aqui.
+    const resposta = await buscarRelatorio({
+      funcionarioId,
+      dataInicial,
+      // Período todo no futuro: segue o original só para a API devolver o funcionário (sem registros).
+      dataFinal: dataFinal < hoje || dataInicial > hoje ? dataFinal : hoje,
+      ...(status && status !== 'NAO_REGISTRADO' ? { status } : {}),
     })
+    relatorio.value = montarRelatorio(
+      { ...resposta, periodo: { dataInicial, dataFinal } },
+      status,
+      hoje,
+    )
     statusFiltro.value = filtros.status
   } catch (e) {
     erro.value = extrairMensagemErro(e)

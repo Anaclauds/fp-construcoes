@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import logoFp from '../../assets/images/logo-fp.png'
-import type { RelatorioFrequencia, StatusFrequencia } from '../../types'
+import type { RelatorioCompleto, StatusFiltroRelatorio } from '../../types'
 import { diaDaSemana } from '../../utils/datas'
 import { isoParaDataBr, rotuloLegivel } from '../../utils/formatadores'
-import { ROTULO_STATUS, classeStatus } from '../../utils/frequencia'
+import { ROTULO_STATUS, classeStatus, rotuloFiltroRelatorio } from '../../utils/frequencia'
 
 const props = defineProps<{
-  relatorio: RelatorioFrequencia
+  relatorio: RelatorioCompleto
   /** "16/07/2026 às 14:32". */
   emitidoEm: string
   emitidoPor: string
   /** Status escolhido no filtro; com filtro, a taxa de presença deixa de fazer sentido. */
-  statusFiltro?: StatusFrequencia | null
+  statusFiltro?: StatusFiltroRelatorio | null
   /** Versão da folha A4 (sem moldura de pré-visualização). */
   impressao?: boolean
 }>()
@@ -22,28 +22,35 @@ const periodo = computed(
 )
 
 const linhas = computed(() =>
-  props.relatorio.registros.map((registro) => ({
-    chave: registro.id ?? registro.data,
-    data: isoParaDataBr(registro.data),
-    diaSemana: diaDaSemana(registro.data),
-    status: registro.status,
-    observacao: registro.observacao?.trim() || '',
+  props.relatorio.linhas.map((linha) => ({
+    chave: linha.data,
+    data: isoParaDataBr(linha.data),
+    diaSemana: diaDaSemana(linha.data),
+    status: linha.status,
+    observacao: linha.observacao,
   })),
 )
 
 const totais = computed(() => {
   const i = props.relatorio.indicadores
-  return `${i.presentes} presentes · ${i.meioPeriodo} meio período · ${i.faltasJustificadas} f. justif. · ${i.faltasNaoJustificadas} f. n. justif.`
+  return `${i.presentes} presentes · ${i.meioPeriodo} meio período · ${i.faltasJustificadas} f. justif. · ${i.faltasNaoJustificadas} f. n. justif. · ${i.naoRegistrados} não registrados`
 })
 
-const taxa = computed(() =>
-  props.statusFiltro ? '—' : `${props.relatorio.indicadores.taxaPresenca}%`,
-)
+const taxa = computed(() => {
+  const t = props.relatorio.indicadores.taxaPresenca
+  return t === null ? '—' : `${t}%`
+})
 
 const totalDias = computed(() => {
-  const n = props.relatorio.registros.length
-  return `Total: ${n} ${n === 1 ? 'dia registrado' : 'dias registrados'}`
+  const n = props.relatorio.indicadores.totalDias
+  return `Total: ${n} ${n === 1 ? 'dia' : 'dias'}`
 })
+
+const mensagemVazia = computed(() =>
+  props.relatorio.periodoFuturo
+    ? 'O período escolhido ainda não começou.'
+    : 'Nenhum registro de frequência no período.',
+)
 </script>
 
 <template>
@@ -98,7 +105,13 @@ const totalDias = computed(() => {
           v-if="statusFiltro"
           class="documento-funcao"
         >
-          Filtro: {{ ROTULO_STATUS[statusFiltro] }}
+          Filtro: {{ rotuloFiltroRelatorio(statusFiltro) }}
+        </p>
+        <p
+          v-if="relatorio.temDiasFuturos && !relatorio.periodoFuturo"
+          class="documento-nota"
+        >
+          Dias após hoje não entram no relatório.
         </p>
       </div>
       <div class="documento-taxa">
@@ -157,7 +170,7 @@ const totalDias = computed(() => {
               colspan="4"
               class="documento-vazio"
             >
-              Nenhum registro de frequência no período.
+              {{ mensagemVazia }}
             </td>
           </tr>
         </tbody>
@@ -303,6 +316,13 @@ dd {
 .documento-funcao {
   color: #4a5565;
   font-size: 13px;
+}
+
+.documento-nota {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 11.5px;
+  font-style: italic;
 }
 
 .documento-taxa {
