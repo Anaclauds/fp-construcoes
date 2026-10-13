@@ -18,6 +18,7 @@ const OPCOES_CADASTRO: OpcaoFiltro<FiltroStatus>[] = [
 <script setup lang="ts" generic="V extends string = FiltroStatus">
 import { computed, useId } from 'vue'
 import buscaIcon from '../../assets/icons/icone-busca.svg'
+import GrupoChips from './GrupoChips.vue'
 
 const props = defineProps<{
   placeholder?: string
@@ -61,26 +62,14 @@ const chips = computed(() => props.opcoes ?? (OPCOES_CADASTRO as OpcaoFiltro<str
       >
     </div>
 
-    <div
-      class="card-busca-status"
-      role="group"
-      aria-label="Filtrar por status"
-    >
-      <span
-        class="card-busca-status-rotulo"
-        aria-hidden="true"
-      >{{ rotuloFiltro ?? 'Status:' }}</span>
-      <button
-        v-for="opcao in chips"
-        :key="opcao.valor"
-        type="button"
-        class="chip"
-        :class="{ 'chip--ativo': status === opcao.valor }"
-        :aria-pressed="status === opcao.valor"
-        @click="status = opcao.valor"
-      >
-        {{ opcao.rotulo }}
-      </button>
+    <div class="card-busca-filtros">
+      <GrupoChips
+        v-model="status"
+        :rotulo="rotuloFiltro ?? 'Status:'"
+        :opcoes="chips"
+      />
+      <!-- Segundo filtro opcional (ex.: Tipo + Status em Clientes). -->
+      <slot name="filtros-extra" />
     </div>
   </section>
 </template>
@@ -138,46 +127,12 @@ input:focus {
   box-shadow: var(--fp-foco);
 }
 
-.card-busca-status {
+.card-busca-filtros {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
   justify-content: flex-end;
-}
-
-.card-busca-status-rotulo {
-  margin-right: 2px;
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.chip {
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  background-color: #f5f5f5;
-
-  color: #666;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chip:hover:not(.chip--ativo) {
-  background-color: #ececec;
-}
-
-.chip--ativo {
-  background-color: var(--fp-verde);
-  color: #fff;
-}
-
-.chip:focus-visible {
-  outline: none;
-  box-shadow: var(--fp-foco);
+  gap: 8px 24px;
 }
 
 @media (max-width: 700px) {

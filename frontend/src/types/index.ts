@@ -1,4 +1,5 @@
 export type * from './auth'
+export type * from './cliente'
 export type * from './funcionario'
 export type * from './frequencia'
 export type * from './paginado'
