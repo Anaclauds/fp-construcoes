@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import UsuariosView from '../../views/gestao-de-pessoas/UsuariosView.vue'
 import UsuarioNovoView from '../../views/gestao-de-pessoas/UsuarioNovoView.vue'
 import FuncionariosView from '../../views/gestao-de-pessoas/FuncionariosView.vue'
+import FuncionarioNovoView from '../../views/gestao-de-pessoas/FuncionarioNovoView.vue'
 import FrequenciaView from '../../views/gestao-de-pessoas/FrequenciaView.vue'
 import RelatorioFrequenciaView from '../../views/gestao-de-pessoas/RelatorioFrequenciaView.vue'
 
@@ -24,6 +25,12 @@ const gestaoDePessoasRoutes: RouteRecordRaw[] = [
     name: 'funcionarios',
     component: FuncionariosView,
     meta: { permissao: { modulo: 'GESTAO_FUNCIONARIOS', acao: 'visualizar' } },
+  },
+  {
+    path: '/funcionarios/novo',
+    name: 'funcionarioNovo',
+    component: FuncionarioNovoView,
+    meta: { permissao: { modulo: 'GESTAO_FUNCIONARIOS', acao: 'gerenciar' } },
   },
   {
     path: '/frequencia',
