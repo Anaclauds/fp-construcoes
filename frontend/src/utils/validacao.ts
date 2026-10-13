@@ -28,6 +28,35 @@ export function validarSenhas(senha: string, confirmarSenha: string, obrigatoria
   return erros
 }
 
+export interface ErrosAlterarSenha {
+  senhaAtual?: string
+  novaSenha?: string
+  confirmarNovaSenha?: string
+}
+
+/** Valida o formulário "Alterar Senha": obrigatórios, mínimo de caracteres, confirmação igual e nova diferente da atual. */
+export function validarAlterarSenha(senhaAtual: string, novaSenha: string, confirmarNovaSenha: string): ErrosAlterarSenha {
+  const erros: ErrosAlterarSenha = {}
+
+  if (senhaAtual === '') erros.senhaAtual = 'Informe a senha atual.'
+
+  if (novaSenha === '') {
+    erros.novaSenha = 'Informe a nova senha.'
+  } else if (novaSenha.length < TAMANHO_MINIMO_SENHA) {
+    erros.novaSenha = `A nova senha deve ter no mínimo ${TAMANHO_MINIMO_SENHA} caracteres.`
+  } else if (novaSenha === senhaAtual) {
+    erros.novaSenha = 'A nova senha deve ser diferente da senha atual.'
+  }
+
+  if (confirmarNovaSenha === '') {
+    erros.confirmarNovaSenha = 'Confirme a nova senha.'
+  } else if (!erros.novaSenha && novaSenha !== confirmarNovaSenha) {
+    erros.confirmarNovaSenha = 'As senhas não conferem.'
+  }
+
+  return erros
+}
+
 /** CPF com 11 dígitos, não repetidos, e dígitos verificadores corretos. */
 export function cpfValido(valor: string): boolean {
   const d = valor.replace(/\D/g, '')
@@ -58,6 +87,34 @@ export function dataBrNoFuturo(valor: string): boolean {
   const hoje = new Date()
   const ref = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
   return Date.UTC(ano, mes - 1, dia) > ref
+}
+
+export const IDADE_MINIMA_ANOS = 14
+
+/** Soma anos a uma data DD/MM/AAAA (já validada) e devolve o instante em UTC; 29/02 vira 01/03 em ano não bissexto. */
+function somarAnosBr(valor: string, anos: number): number {
+  const [dia, mes, ano] = valor.split('/').map(Number) as [number, number, number]
+  return Date.UTC(ano + anos, mes - 1, dia)
+}
+
+function hojeUtc(): number {
+  const hoje = new Date()
+  return Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+}
+
+/** True se a pessoa nascida em `nascimento` (DD/MM/AAAA válida) ainda não fez 14 anos hoje. */
+export function menorQueIdadeMinima(nascimento: string): boolean {
+  return somarAnosBr(nascimento, IDADE_MINIMA_ANOS) > hojeUtc()
+}
+
+/** True se `contratacao` é anterior à data de `nascimento` (ambas DD/MM/AAAA válidas). */
+export function anteriorAoNascimento(contratacao: string, nascimento: string): boolean {
+  return somarAnosBr(contratacao, 0) < somarAnosBr(nascimento, 0)
+}
+
+/** True se `contratacao` é anterior ao 14º aniversário de `nascimento` (ambas DD/MM/AAAA válidas). */
+export function antesDaIdadeMinima(contratacao: string, nascimento: string): boolean {
+  return somarAnosBr(contratacao, 0) < somarAnosBr(nascimento, IDADE_MINIMA_ANOS)
 }
 
 /** Telefone brasileiro: DDD + 8 ou 9 dígitos. */

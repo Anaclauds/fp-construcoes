@@ -20,7 +20,16 @@ import {
   UFS,
   montarOpcoes,
 } from '../utils/opcoes-funcionario'
-import { cpfValido, dataBrNoFuturo, dataBrValida, telefoneValido } from '../utils/validacao'
+import {
+  IDADE_MINIMA_ANOS,
+  anteriorAoNascimento,
+  antesDaIdadeMinima,
+  cpfValido,
+  dataBrNoFuturo,
+  dataBrValida,
+  menorQueIdadeMinima,
+  telefoneValido,
+} from '../utils/validacao'
 
 /** Valores exatamente como aparecem nos campos da tela (com máscara). */
 export interface CamposFuncionario {
@@ -141,6 +150,9 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
   if (c.dataNascimento === '') erros.dataNascimento = 'Informe a data de nascimento.'
   else if (!dataBrValida(c.dataNascimento)) erros.dataNascimento = 'Data inválida. Use DD/MM/AAAA.'
   else if (dataBrNoFuturo(c.dataNascimento)) erros.dataNascimento = 'A data de nascimento não pode ser futura.'
+  else if (menorQueIdadeMinima(c.dataNascimento)) {
+    erros.dataNascimento = `O funcionário deve ter pelo menos ${IDADE_MINIMA_ANOS} anos.`
+  }
 
   obrigatorio('sexo', 'Selecione o sexo.')
 
@@ -168,6 +180,12 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
 
   if (c.dataContratacao === '') erros.dataContratacao = 'Informe a data de contratação.'
   else if (!dataBrValida(c.dataContratacao)) erros.dataContratacao = 'Data inválida. Use DD/MM/AAAA.'
+  else if (dataBrNoFuturo(c.dataContratacao)) erros.dataContratacao = 'A data de contratação não pode ser futura.'
+  else if (dataBrValida(c.dataNascimento) && anteriorAoNascimento(c.dataContratacao, c.dataNascimento)) {
+    erros.dataContratacao = 'A data de contratação não pode ser anterior ao nascimento.'
+  } else if (dataBrValida(c.dataNascimento) && antesDaIdadeMinima(c.dataContratacao, c.dataNascimento)) {
+    erros.dataContratacao = `A contratação só é possível a partir dos ${IDADE_MINIMA_ANOS} anos do funcionário.`
+  }
 
   obrigatorio('nomeContatoEmergencia', 'Informe o nome do contato.', 150)
   if (c.contatoEmergencia === '') erros.contatoEmergencia = 'Informe o telefone de emergência.'
@@ -179,6 +197,12 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
     for (const chave of CAMPOS_FORMATO) {
       if (digitos(c[chave]) === base[chave]) delete erros[chave]
     }
+
+    // Datas antigas que não cumprem a regra de idade também seguem sem travar enquanto não forem mexidas.
+    const nascimentoIgual = dataBrParaIso(c.dataNascimento) === base.dataNascimento
+    if (nascimentoIgual) delete erros.dataNascimento
+    // A contratação depende do nascimento: só some o erro se nenhum dos dois mudou.
+    if (nascimentoIgual && dataBrParaIso(c.dataContratacao) === base.dataContratacao) delete erros.dataContratacao
   }
 
   return erros
