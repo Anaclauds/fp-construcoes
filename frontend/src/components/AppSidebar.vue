@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import gestaoPessoasIcon from '../assets/icons/gestao-pessoas.svg'
+import comercialVendasIcon from '../assets/icons/comercial-vendas.svg'
+import projetosServicosIcon from '../assets/icons/projetos-servicos.svg'
+import estoqueSuprimentosIcon from '../assets/icons/estoque-suprimentos.svg'
+import financeiroIcon from '../assets/icons/financeiro.svg'
+import barraLateralIcon from '../assets/icons/barra-lateral.svg'
 
 const route = useRoute()
 
@@ -30,6 +36,16 @@ const menuPorRota: Record<string, string> = {
 
 }
 
+const sidebarExpandida = ref(true)
+
+function alternarSidebar() {
+  sidebarExpandida.value = !sidebarExpandida.value
+
+  if (!sidebarExpandida.value) {
+    menuAberto.value = null
+  }
+}
+
 function obterMenuDaRota(nomeRota: unknown) {
   if (typeof nomeRota !== 'string') {
     return null
@@ -52,13 +68,28 @@ function alternarMenu(menu: string) {
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside
+    class="sidebar"
+    :class="{ 'sidebar--comprimida': !sidebarExpandida }"
+  >
+    <button
+      type="button"
+      class="sidebar-toggle"
+      @click="alternarSidebar"
+      aria-label="Alternar menu lateral"
+    >
+      <img
+        :src="barraLateralIcon"
+        alt=""
+      >
+    </button>
+
     <div class="sidebar-profile">
       <div class="profile-avatar">
         FP
       </div>
 
-      <div>
+      <div v-if="sidebarExpandida">
         <p class="profile-name">Francisco Pereira</p>
         <span class="profile-role">Administrador</span>
       </div>
@@ -69,7 +100,15 @@ function alternarMenu(menu: string) {
         type="button"
         class="sidebar-item"
         @click="alternarMenu('gestaoPessoas')">
-        Gestão de Pessoas
+        <img
+          :src="gestaoPessoasIcon"
+          class="sidebar-icon"
+          alt=""
+        >
+
+        <span v-if="sidebarExpandida">
+          Gestão de Pessoas
+        </span>
       </button>
 
       <ul
@@ -104,11 +143,18 @@ function alternarMenu(menu: string) {
         type="button"
         class="sidebar-item"
         @click="alternarMenu('comercialVendas')">
-        Comercial e Vendas
+        <img
+          :src="comercialVendasIcon"
+          class="sidebar-icon"
+          alt=""
+        >
+        <span v-if="sidebarExpandida">
+          Comercial e Vendas
+        </span>
       </button>
 
       <ul
-        v-if="menuAberto === 'comercialVendas'"
+        v-if="sidebarExpandida && menuAberto === 'comercialVendas'"
         class="sidebar-submenu">
         <li>
             <RouterLink :to="{ name: 'clientes' }">
@@ -131,11 +177,18 @@ function alternarMenu(menu: string) {
         type="button"
         class="sidebar-item"
         @click="alternarMenu('projetosServicos')">
-        Projetos e Serviços
+        <img
+          :src="projetosServicosIcon"
+          class="sidebar-icon"
+          alt=""
+        >
+        <span v-if="sidebarExpandida">
+          Projetos e Serviços
+        </span>
       </button>
 
       <ul
-        v-if="menuAberto === 'projetosServicos'"
+        v-if="sidebarExpandida && menuAberto === 'projetosServicos'"
         class="sidebar-submenu">
         <li>
             <RouterLink :to="{ name: 'projetos' }">
@@ -154,11 +207,18 @@ function alternarMenu(menu: string) {
         type="button"
         class="sidebar-item"
         @click="alternarMenu('estoqueSuprimentos')">
-        Estoque e Suprimentos
+        <img
+          :src="estoqueSuprimentosIcon"
+          class="sidebar-icon"
+          alt=""
+        >
+        <span v-if="sidebarExpandida">
+          Estoque e Suprimentos
+        </span>
       </button>
 
       <ul
-        v-if="menuAberto === 'estoqueSuprimentos'"
+        v-if="sidebarExpandida && menuAberto === 'estoqueSuprimentos'"
         class="sidebar-submenu">
         <li>
             <RouterLink :to="{ name: 'equipamentos' }">
@@ -187,11 +247,18 @@ function alternarMenu(menu: string) {
         type="button"
         class="sidebar-item"
         @click="alternarMenu('financeiro')">
-        Financeiro
+        <img
+          :src="financeiroIcon"
+          class="sidebar-icon"
+          alt=""
+        >
+        <span v-if="sidebarExpandida">
+          Financeiro
+        </span>
       </button>
 
       <ul
-        v-if="menuAberto === 'financeiro'"
+        v-if="sidebarExpandida && menuAberto === 'financeiro'"
         class="sidebar-submenu">
         <li>
         <RouterLink :to="{ name: 'despesas' }">
@@ -219,6 +286,8 @@ function alternarMenu(menu: string) {
   min-height: 100vh;
   flex-shrink: 0;
 
+  position: relative;
+
   display: flex;
   flex-direction: column;
 
@@ -226,6 +295,48 @@ function alternarMenu(menu: string) {
   color: white;
 
   padding: 16px;
+
+  transition: width 0.3s ease;
+}
+
+.sidebar--comprimida {
+  width: 80px;
+}
+
+.sidebar--comprimida {
+  width: 80px;
+}
+
+.sidebar--comprimida .sidebar-item {
+  justify-content: center;
+}
+
+.sidebar--comprimida .sidebar-profile {
+  justify-content: center;
+}
+
+.sidebar--comprimida .sidebar-nav {
+  align-items: center;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 0;
+  right: 6px;
+
+  width: 45px;
+  height: 45px;
+
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  cursor: pointer;
+}
+
+.sidebar-toggle img {
+  width: 45px;
+  height: 45px;
 }
 
 .sidebar-profile {
@@ -270,11 +381,21 @@ function alternarMenu(menu: string) {
   background: none;
   color: white;
 
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
   text-align: left;
   font-size: 20px;
   font-weight: 600;
 
   cursor: pointer;
+}
+
+.sidebar-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
 }
 
 .sidebar-footer {
@@ -295,7 +416,7 @@ function alternarMenu(menu: string) {
 .sidebar-submenu {
   list-style: none;
   margin: 8px 0 0;
-  padding-left: 32px;
+  padding-left: 56px;
 
   display: flex;
   flex-direction: column;

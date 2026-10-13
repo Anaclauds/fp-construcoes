@@ -1,4 +1,26 @@
 <template>
-  <h2>Início</h2>
-  <p>Página inicial do sistema</p>
+  <section class="home">
+    <img
+      class="home-logo"
+      src="../../assets/images/logo-fp.png"
+      alt="FP Construções"
+    >
+  </section>
 </template>
+
+<style scoped>
+.home {
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-logo {
+  max-width: 561px;
+  width: 45%;
+  height: auto;
+}
+</style>
