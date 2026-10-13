@@ -11,7 +11,13 @@ import type { RelatorioFrequencia, StatusFrequencia } from '../../types'
 
 const router = useRouter()
 
-const { funcionarios, carregando: carregandoFuncionarios, erro: erroFuncionarios, carregar } = useTodosFuncionarios()
+const {
+  funcionarios,
+  carregando: carregandoFuncionarios,
+  erro: erroFuncionarios,
+  somenteAtivos,
+  carregar,
+} = useTodosFuncionarios()
 
 const relatorio = shallowRef<RelatorioFrequencia | null>(null)
 const statusFiltro = shallowRef<StatusFrequencia | null>(null)
@@ -72,6 +78,13 @@ onMounted(carregar)
         </button>
       </p>
 
+      <p
+        v-if="somenteAtivos"
+        class="aviso-lista"
+      >
+        Sem acesso ao cadastro de funcionários: a lista mostra apenas os funcionários ativos.
+      </p>
+
       <RelatorioFiltros
         :funcionarios="funcionarios"
         :carregando-funcionarios="carregandoFuncionarios"
@@ -102,6 +115,12 @@ onMounted(carregar)
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.aviso-lista {
+  margin: 0;
+  color: #717182;
+  font-size: 13px;
 }
 
 .erro {

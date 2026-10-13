@@ -3,7 +3,8 @@ import { computed, reactive } from 'vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoData from '../ui/CampoData.vue'
 import CampoFormulario, { type OpcaoCampo } from '../ui/CampoFormulario.vue'
-import type { Funcionario, StatusFrequencia } from '../../types'
+import type { FuncionarioOpcao } from '../../composables/useTodosFuncionarios'
+import type { StatusFrequencia } from '../../types'
 import { dataBrParaIso } from '../../utils/formatadores'
 import { ROTULO_STATUS, STATUS_FREQUENCIA } from '../../utils/frequencia'
 import { dataBrValida } from '../../utils/validacao'
@@ -17,7 +18,7 @@ export interface FiltrosEscolhidos {
 }
 
 const props = defineProps<{
-  funcionarios: Funcionario[]
+  funcionarios: FuncionarioOpcao[]
   carregandoFuncionarios?: boolean
   gerando?: boolean
   /** Erro devolvido ao gerar (ex.: 400 da API). */

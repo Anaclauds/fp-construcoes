@@ -23,6 +23,7 @@ const { temPermissao } = useAuth()
 const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('FREQUENCIA', 'gerenciar'))
+const podeVerRelatorio = computed(() => temPermissao('FREQUENCIA', 'visualizar'))
 
 const { data, irParaData } = useDataDaRota('frequencia')
 const { registros, indicadores, carregando, erro, carregar } = useFolhaFrequencia(data)
@@ -118,13 +119,23 @@ onMounted(carregar)
           class="resumo"
           aria-live="polite"
         >{{ resumo }}</span>
-        <BotaoFp
-          v-if="podeGerenciar"
-          tamanho="pagina"
-          @click="router.push({ name: 'frequenciaEditar', query: { data } })"
-        >
-          Editar Frequência
-        </BotaoFp>
+        <div class="acoes">
+          <BotaoFp
+            v-if="podeVerRelatorio"
+            variante="secundario"
+            tamanho="pagina"
+            @click="router.push({ name: 'relatorioFrequencia' })"
+          >
+            Emitir relatório
+          </BotaoFp>
+          <BotaoFp
+            v-if="podeGerenciar"
+            tamanho="pagina"
+            @click="router.push({ name: 'frequenciaEditar', query: { data } })"
+          >
+            Editar Frequência
+          </BotaoFp>
+        </div>
       </template>
     </FolhaFrequenciaTabela>
 
@@ -147,6 +158,12 @@ onMounted(carregar)
 </template>
 
 <style scoped>
+.acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .resumo {
   color: var(--fp-texto-titulo-campo);
   font-size: 14px;
