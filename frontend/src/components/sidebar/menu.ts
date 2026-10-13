@@ -41,7 +41,7 @@ export const gruposMenu: GrupoMenu[] = [
     itens: [
       { rotulo: 'Cliente', rota: 'clientes', modulo: 'CLIENTES', rotasRelacionadas: ['clienteNovo'] },
       { rotulo: 'Orçamento', rota: 'orcamentos', modulo: 'ORCAMENTOS', rotasRelacionadas: ['orcamentoNovo'] },
-      { rotulo: 'Cobrança', rota: 'cobrancas', modulo: 'COBRANCAS' },
+      { rotulo: 'Cobrança', rota: 'cobrancas', modulo: 'COBRANCAS', rotasRelacionadas: ['cobrancaDetalhes'] },
     ],
   },
   {

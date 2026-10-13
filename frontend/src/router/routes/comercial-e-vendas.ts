@@ -5,6 +5,7 @@ import ClienteNovoView from '../../views/comercial-e-vendas/ClienteNovoView.vue'
 import OrcamentosView from '../../views/comercial-e-vendas/OrcamentosView.vue'
 import OrcamentoNovoView from '../../views/comercial-e-vendas/OrcamentoNovoView.vue'
 import CobrancasView from '../../views/comercial-e-vendas/CobrancasView.vue'
+import CobrancaDetalhesView from '../../views/comercial-e-vendas/CobrancaDetalhesView.vue'
 
 const comercialEVendasRoutes: RouteRecordRaw[] = [
   {
@@ -35,6 +36,12 @@ const comercialEVendasRoutes: RouteRecordRaw[] = [
     path: '/cobrancas',
     name: 'cobrancas',
     component: CobrancasView,
+    meta: { permissao: { modulo: 'COBRANCAS', acao: 'visualizar' } },
+  },
+  {
+    path: '/cobrancas/projeto/:projetoId',
+    name: 'cobrancaDetalhes',
+    component: CobrancaDetalhesView,
     meta: { permissao: { modulo: 'COBRANCAS', acao: 'visualizar' } },
   },
 ]
