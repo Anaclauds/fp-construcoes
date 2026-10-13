@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from 'axios'
-import { limparSessao, token } from './sessao'
+import { useToast } from '../composables/useToast'
+import { limparSessao, marcarSessaoExpirada, token } from './sessao'
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -20,7 +21,11 @@ api.interceptors.response.use(
     const ehLogin = isAxiosError(erro) && erro.config?.url?.includes('/auth/login')
 
     if (isAxiosError(erro) && erro.response?.status === 401 && !ehLogin) {
+      // Várias chamadas em andamento podem falhar juntas: só a primeira avisa e redireciona.
+      const tinhaSessao = token.value !== null
+      marcarSessaoExpirada()
       limparSessao()
+      if (tinhaSessao) useToast().mostrarToast('Sua sessão expirou. Entre novamente.', 'erro')
 
       // Import dinâmico evita dependência circular com o router.
       const { default: router } = await import('../router')
@@ -49,6 +54,21 @@ export interface ErroApi {
   funcionariosPendentes: number[]
 }
 
+const MENSAGEM_SERVIDOR = 'Erro no servidor. Tente novamente em instantes.'
+const MENSAGEM_DADOS_INVALIDOS = 'Dados inválidos. Verifique os campos.'
+
+// Mensagens padrão (em inglês) do class-validator, que não devem chegar ao usuário.
+const PADRAO_VALIDATION_PIPE =
+  /should not be empty|must be (longer|shorter) than|must be an? |must be one of|should not exist/i
+
+/** Mantém as mensagens em português da API; as do ValidationPipe viram uma frase genérica. */
+function traduzirMensagem(message: string | string[] | undefined, padrao: string): string {
+  if (message === undefined || message === '') return padrao
+  const lista = Array.isArray(message) ? message : [message]
+  const portugues = lista.filter((m) => !PADRAO_VALIDATION_PIPE.test(m))
+  return portugues.length > 0 ? portugues.join(' ') : MENSAGEM_DADOS_INVALIDOS
+}
+
 /** Normaliza o erro no formato do Nest (message string ou string[]). */
 export function extrairErro(erro: unknown): ErroApi {
   const padrao = 'Não foi possível concluir a operação. Tente novamente.'
@@ -57,11 +77,11 @@ export function extrairErro(erro: unknown): ErroApi {
     if (!erro.response) {
       return { mensagem: 'Sem conexão com o servidor.', status: null, funcionariosPendentes: [] }
     }
+    const status = erro.response.status
     const { message, funcionariosPendentes } = erro.response.data ?? {}
-    const mensagem = Array.isArray(message) ? message.join(' ') : (message ?? padrao)
     return {
-      mensagem,
-      status: erro.response.status,
+      mensagem: status >= 500 ? MENSAGEM_SERVIDOR : traduzirMensagem(message, padrao),
+      status,
       funcionariosPendentes: funcionariosPendentes ?? [],
     }
   }

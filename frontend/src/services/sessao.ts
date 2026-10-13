@@ -34,8 +34,11 @@ function lerUsuario(): AuthUser | null {
 // Estado único da sessão, compartilhado por api.ts e useAuth.
 export const token = shallowRef<string | null>(ler(CHAVE_TOKEN))
 export const usuario = shallowRef<AuthUser | null>(lerUsuario())
+// Verdadeiro quando a API recusou o token (401): telas com alterações pendentes liberam a saída para o login.
+export const sessaoExpirada = shallowRef(false)
 
 export function salvarSessao(novoToken: string, novoUsuario: AuthUser) {
+  sessaoExpirada.value = false
   token.value = novoToken
   usuario.value = novoUsuario
   gravar(CHAVE_TOKEN, novoToken)
@@ -52,4 +55,8 @@ export function limparSessao() {
   usuario.value = null
   gravar(CHAVE_TOKEN, null)
   gravar(CHAVE_USUARIO, null)
+}
+
+export function marcarSessaoExpirada() {
+  sessaoExpirada.value = true
 }

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { registrarGuards } from './guards'
 import LoginView from '../views/login/LoginView.vue'
 import HomeView from '../views/home/HomeView.vue'
+import NaoEncontradoView from '../views/erro/NaoEncontradoView.vue'
 import comercialEVendasRoutes from './routes/comercial-e-vendas'
 import projetosEServicosRoutes from './routes/projetos-e-servicos'
 import gestaoDePessoasRoutes from './routes/gestao-de-pessoas'
@@ -27,7 +28,14 @@ const router = createRouter({
     ...projetosEServicosRoutes,
     ...gestaoDePessoasRoutes,
     ...estoqueESuprimentosRoutes,
-    ...financeiroRoutes
+    ...financeiroRoutes,
+
+    // Qualquer endereço desconhecido; precisa ficar por último.
+    {
+      path: '/:caminho(.*)*',
+      name: 'naoEncontrada',
+      component: NaoEncontradoView,
+    },
   ],
 })
 

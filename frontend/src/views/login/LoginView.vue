@@ -25,13 +25,20 @@ function destinoSeguro(redirect: unknown) {
   if (url.origin !== window.location.origin) return home
 
   const rota = router.resolve(url.pathname + url.search + url.hash)
-  return rota.matched.length > 0 && rota.name !== 'login' ? rota.fullPath : home
+  return rota.matched.length > 0 && rota.name !== 'login' && rota.name !== 'naoEncontrada' ? rota.fullPath : home
 }
 
 async function entrar() {
   if (carregando.value) return
   if (!cpf.value.trim() || !senha.value) {
     erro.value = 'Preencha o usuário e a senha.'
+    return
+  }
+
+  // CPF: 11 dígitos, aceitando só a pontuação usual. Letras e tamanhos errados nem chegam à API.
+  const digitosCpf = cpf.value.replace(/\D/g, '')
+  if (/[^\d.\-\s]/.test(cpf.value) || digitosCpf.length !== 11) {
+    erro.value = 'Informe um CPF válido.'
     return
   }
 

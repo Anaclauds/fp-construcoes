@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, shallowRef, type Ref } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+import { sessaoExpirada } from '../services/sessao'
 
 /**
  * Impede perder alterações sem querer: ao sair da rota (ou trocar a query, como a data) com `sujo`
@@ -25,7 +26,8 @@ export function useAvisoAlteracoes(sujo: Ref<boolean>) {
     resolver = null
   }
 
-  const guarda = () => (sujo.value ? perguntar() : true)
+  // Sessão expirada (401): não há o que salvar mesmo, então a saída para o login não pede confirmação.
+  const guarda = () => (sujo.value && !sessaoExpirada.value ? perguntar() : true)
   onBeforeRouteLeave(guarda)
   onBeforeRouteUpdate(guarda)
 
