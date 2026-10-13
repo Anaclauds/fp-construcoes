@@ -1,3 +1,13 @@
+/* Tokens do Figma (arquivo TCC). */
+:root {
+  --fp-verde: #1a6647;
+  --fp-texto: #000;
+  --fp-texto-suave: rgba(0, 0, 0, 0.5);
+  --fp-raio: 10px;
+
+  --bs-body-font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }

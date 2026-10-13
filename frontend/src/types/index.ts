@@ -1,0 +1,5 @@
+export type * from './auth'
+export type * from './funcionario'
+export type * from './frequencia'
+export type * from './paginado'
+export type * from './usuario'

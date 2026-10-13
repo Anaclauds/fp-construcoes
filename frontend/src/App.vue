@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { computed } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
 import AppSidebar from './components/sidebar/AppSidebar.vue'
+
+const route = useRoute()
+const exibirSidebar = computed(() => !route.meta.publica)
 </script>
 
 <template>
-  <div class="app-layout">
+  <!-- Rotas públicas (login) ocupam a tela inteira, sem sidebar. -->
+  <RouterView v-if="!exibirSidebar" />
+
+  <div
+    v-else
+    class="app-layout"
+  >
     <AppSidebar />
 
     <main class="app-content">

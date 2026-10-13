@@ -10,21 +10,25 @@ const gestaoDePessoasRoutes: RouteRecordRaw[] = [
     path: '/usuarios',
     name: 'usuarios',
     component: UsuariosView,
+    meta: { permissao: { modulo: 'GESTAO_USUARIOS', acao: 'visualizar' } },
   },
   {
     path: '/funcionarios',
     name: 'funcionarios',
     component: FuncionariosView,
+    meta: { permissao: { modulo: 'GESTAO_FUNCIONARIOS', acao: 'visualizar' } },
   },
   {
     path: '/frequencia',
     name: 'frequencia',
     component: FrequenciaView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'visualizar' } },
   },
   {
     path: '/relatorio-frequencia',
     name: 'relatorioFrequencia',
     component: RelatorioFrequenciaView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'visualizar' } },
   },
 ]
 
