@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue'
 import ModalConfirmacao from '../ui/ModalConfirmacao.vue'
+import { useAuth } from '../../composables/useAuth'
 import { extrairMensagemErro } from '../../services/api'
 import { desativarUsuario, reativarUsuario } from '../../services/usuarios.service'
 import type { Usuario } from '../../types'
@@ -16,9 +17,13 @@ const emit = defineEmits<{
   concluido: [acao: 'desativar' | 'reativar']
 }>()
 
+const { usuario: logado } = useAuth()
+
 const processando = shallowRef(false)
 const erro = shallowRef<string | null>(null)
 const desativando = computed(() => props.acao === 'desativar')
+// Desativar a própria conta encerra a sessão: o aviso precisa ser mais forte.
+const propriaConta = computed(() => desativando.value && logado.value?.sub === props.usuario.id)
 
 async function confirmar() {
   processando.value = true
@@ -41,13 +46,18 @@ async function confirmar() {
     :titulo="desativando ? 'Desativar Usuário' : 'Ativar Usuário'"
     :subtitulo="usuario.funcionario.nomeCompleto"
     :variante="desativando ? 'perigo' : 'sucesso'"
+:titulo-aviso="propriaConta ? 'Esta é a sua conta' : undefined"
     :texto-confirmar="desativando ? 'Confirmar Desativação' : 'Confirmar Ativação'"
     :carregando="processando"
     :erro="erro"
     @confirmar="confirmar"
     @fechar="emit('fechar')"
   >
-    <template v-if="desativando">
+    <template v-if="propriaConta">
+      Esta é a sua conta: <strong>você perderá o acesso imediatamente</strong> e será desconectado. Outro
+      administrador precisará reativá-la.
+    </template>
+    <template v-else-if="desativando">
       O usuário <strong>{{ usuario.funcionario.nomeCompleto }}</strong> perderá o acesso ao sistema. O
       registro será mantido e pode ser reativado a qualquer momento.
     </template>

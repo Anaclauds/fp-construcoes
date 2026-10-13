@@ -6,11 +6,13 @@ import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
 import CampoFormulario from '../../components/ui/CampoFormulario.vue'
 import LinkVoltar from '../../components/ui/LinkVoltar.vue'
+import ModalDescartar from '../../components/ui/ModalDescartar.vue'
+import { useAvisoAlteracoes } from '../../composables/useAvisoAlteracoes'
 import { useFuncionariosSemUsuario } from '../../composables/useFuncionariosSemUsuario'
 import { useToast } from '../../composables/useToast'
 import { extrairErro } from '../../services/api'
 import { criarUsuario } from '../../services/usuarios.service'
-import { formatarCpf } from '../../utils/formatadores'
+import { formatarCpf, rotuloLegivel } from '../../utils/formatadores'
 import { permissoesParaPayload, type MapaPermissoes } from '../../utils/permissoes'
 import { validarSenhas } from '../../utils/validacao'
 
@@ -27,6 +29,18 @@ const permissoes = shallowRef<MapaPermissoes>({})
 const erros = reactive<{ funcionario?: string; senha?: string; confirmarSenha?: string }>({})
 const erroApi = shallowRef<string | null>(null)
 const salvando = shallowRef(false)
+const salvo = shallowRef(false)
+
+// Qualquer dado preenchido conta como cadastro em andamento (depois de salvar, não).
+const preenchido = computed(
+  () =>
+    !salvo.value &&
+    (funcionarioId.value !== '' ||
+      senha.value !== '' ||
+      confirmarSenha.value !== '' ||
+      permissoesParaPayload(permissoes.value).length > 0),
+)
+const aviso = useAvisoAlteracoes(preenchido)
 
 const opcoesFuncionario = computed(() =>
   funcionarios.value.map((f) => ({ valor: String(f.id), rotulo: f.nomeCompleto })),
@@ -59,6 +73,7 @@ async function salvar() {
       confirmarSenha: confirmarSenha.value,
       permissoes: permissoesParaPayload(permissoes.value),
     })
+    salvo.value = true
     mostrarToast('Salvo com sucesso!')
     await router.push({ name: 'usuarios' })
   } catch (e) {
@@ -111,7 +126,7 @@ onMounted(carregar)
           rotulo="Função:"
           somente-leitura
           placeholder="Selecione um funcionário"
-          :model-value="selecionado?.funcao ?? ''"
+          :model-value="rotuloLegivel(selecionado?.funcao)"
         />
         <CampoFormulario
           rotulo="Status:"
@@ -141,7 +156,7 @@ onMounted(carregar)
           rotulo="Confirme a senha:"
           tipo="senha"
           obrigatorio
-          placeholder="Digite a senha inicial"
+          placeholder="Digite a senha novamente"
           autocomplete="new-password"
           :erro="erros.confirmarSenha"
         />
@@ -175,6 +190,12 @@ onMounted(carregar)
         </BotaoFp>
       </div>
     </form>
+
+    <ModalDescartar
+      :aberto="aviso.aberto.value"
+      @confirmar="aviso.responder(true)"
+      @fechar="aviso.responder(false)"
+    />
   </section>
 </template>
 

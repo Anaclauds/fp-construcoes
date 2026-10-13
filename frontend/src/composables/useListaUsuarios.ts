@@ -3,6 +3,8 @@ import type { FiltroStatus } from '../components/ui/CardBuscaFiltro.vue'
 import { extrairMensagemErro } from '../services/api'
 import { listarUsuarios } from '../services/usuarios.service'
 import type { FiltrosUsuarios, Usuario } from '../types'
+import { termoDeBusca } from '../utils/formatadores'
+import { statusDoUsuario } from '../utils/usuarios'
 import { useDebounce } from './useDebounce'
 import { usePaginacaoLocal } from './usePaginacaoLocal'
 
@@ -30,12 +32,14 @@ export function useListaUsuarios() {
     erro.value = null
 
     const filtros: FiltrosUsuarios = {}
-    const termo = buscaAplicada.value.trim()
+    const termo = termoDeBusca(buscaAplicada.value.trim())
     if (termo) filtros.busca = termo
-    if (status.value !== 'TODOS') filtros.status = status.value
 
     try {
-      const lista = await listarUsuarios(filtros)
+      // O filtro de status é local: usuário de funcionário inativo conta como inativo (ver statusDoUsuario).
+      const lista = (await listarUsuarios(filtros)).filter(
+        (usuario) => status.value === 'TODOS' || statusDoUsuario(usuario) === status.value,
+      )
       if (requisicao === ultimaRequisicao) usuarios.value = lista
     } catch (e) {
       if (requisicao === ultimaRequisicao) {

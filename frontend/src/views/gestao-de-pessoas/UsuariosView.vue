@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UsuarioModalEditar from '../../components/usuarios/UsuarioModalEditar.vue'
 import UsuarioModalStatus from '../../components/usuarios/UsuarioModalStatus.vue'
 import UsuarioModalVisualizar from '../../components/usuarios/UsuarioModalVisualizar.vue'
@@ -15,14 +15,16 @@ import { useAuth } from '../../composables/useAuth'
 import { useListaUsuarios } from '../../composables/useListaUsuarios'
 import { useToast } from '../../composables/useToast'
 import type { Usuario } from '../../types'
-import { formatarCpf } from '../../utils/formatadores'
+import { formatarCpf, rotuloLegivel } from '../../utils/formatadores'
+import { funcionarioInativo, statusDoUsuario } from '../../utils/usuarios'
 
 type Modal =
   | { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; usuario: Usuario }
   | null
 
 const router = useRouter()
-const { temPermissao } = useAuth()
+const route = useRoute()
+const { usuario: logado, temPermissao, carregarUsuario, logout } = useAuth()
 const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('GESTAO_USUARIOS', 'gerenciar'))
@@ -48,14 +50,40 @@ function fecharModal() {
   modal.value = null
 }
 
+const ehUsuarioLogado = (alvo: Usuario) => alvo.id === logado.value?.sub
+
+/** Depois de editar a si mesmo, as permissões em memória estão velhas: recarrega e sai da tela se perdeu o acesso. */
+async function atualizarPermissoesPropria() {
+  try {
+    await carregarUsuario()
+  } catch {
+    return // sem rede: segue com os dados em cache; o guard tenta de novo na próxima navegação
+  }
+  const exigida = route.meta.permissao
+  if (exigida && !temPermissao(exigida.modulo, exigida.acao)) {
+    mostrarToast('Você não tem permissão para acessar esta tela.', 'erro')
+    await router.replace({ name: 'home' })
+  }
+}
+
 async function aoSalvar() {
+  const alvo = modal.value?.usuario
   fecharModal()
   mostrarToast('Salvo com sucesso!')
-  await carregar()
+  if (alvo && ehUsuarioLogado(alvo)) await atualizarPermissoesPropria()
+  if (route.name === 'usuarios') await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
+  const alvo = modal.value?.usuario
   fecharModal()
+  // Desativou a própria conta: o token deixa de valer, então encerra a sessão agora.
+  if (acao === 'desativar' && alvo && ehUsuarioLogado(alvo)) {
+    logout()
+    await router.replace({ name: 'login' })
+    mostrarToast('Sua conta foi desativada. Você foi desconectado.', 'info')
+    return
+  }
   mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
   await carregar()
 }
@@ -93,7 +121,7 @@ onMounted(carregar)
     <CardBuscaFiltro
       v-model:busca="busca"
       v-model:status="status"
-      placeholder="Buscar por nome, função ou cpf..."
+      placeholder="Buscar por nome, função ou CPF..."
     />
 
     <TabelaDados
@@ -113,13 +141,16 @@ onMounted(carregar)
         <span class="fp-celula-nome">{{ linha.funcionario.nomeCompleto }}</span>
       </template>
       <template #celula-funcao="{ linha }">
-        {{ linha.funcionario.funcao }}
+        {{ rotuloLegivel(linha.funcionario.funcao) }}
       </template>
       <template #celula-login="{ linha }">
         {{ formatarCpf(linha.login) }}
       </template>
       <template #celula-status="{ linha }">
-        <SeloStatus :status="linha.status" />
+        <SeloStatus
+          :status="statusDoUsuario(linha)"
+          :title="funcionarioInativo(linha) ? 'Funcionário inativo' : undefined"
+        />
       </template>
       <template #celula-acoes="{ linha }">
         <div class="acoes">
@@ -144,6 +175,8 @@ onMounted(carregar)
               v-else
               tipo="reativar"
               :alvo="linha.funcionario.nomeCompleto"
+              :disabled="funcionarioInativo(linha)"
+              :title="funcionarioInativo(linha) ? 'Reative o funcionário primeiro' : undefined"
               @click="abrir('reativar', linha)"
             />
           </template>

@@ -4,10 +4,11 @@ import AcessosPermitidos from '../ui/AcessosPermitidos.vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
+import ModalDescartar from '../ui/ModalDescartar.vue'
 import { extrairMensagemErro } from '../../services/api'
 import { atualizarUsuario } from '../../services/usuarios.service'
 import type { Usuario, UsuarioAtualizacao } from '../../types'
-import { formatarCpf } from '../../utils/formatadores'
+import { formatarCpf, rotuloLegivel } from '../../utils/formatadores'
 import { mapaDePermissoes, permissoesParaPayload, type MapaPermissoes } from '../../utils/permissoes'
 import { validarSenhas, type ErrosSenha } from '../../utils/validacao'
 
@@ -26,6 +27,25 @@ const permissoes = shallowRef<MapaPermissoes>(mapaDePermissoes(props.usuario.per
 const erros = reactive<ErrosSenha>({})
 const erroApi = shallowRef<string | null>(null)
 const salvando = shallowRef(false)
+const confirmandoSaida = shallowRef(false)
+
+const assinaturaPermissoes = (mapa: MapaPermissoes) =>
+  JSON.stringify(permissoesParaPayload(mapa).sort((a, b) => a.modulo.localeCompare(b.modulo)))
+const permissoesOriginais = assinaturaPermissoes(mapaDePermissoes(props.usuario.permissoes))
+
+// Nova senha digitada ou permissões diferentes das salvas.
+const alterado = computed(
+  () =>
+    senha.value !== '' ||
+    confirmarSenha.value !== '' ||
+    assinaturaPermissoes(permissoes.value) !== permissoesOriginais,
+)
+
+/** X, Esc, clique fora e Cancelar: com alterações pergunta antes de descartar. */
+function pedirFechar() {
+  if (alterado.value) confirmandoSaida.value = true
+  else emit('fechar')
+}
 
 const opcoesFuncionario = computed(() => [
   { valor: String(props.usuario.funcionarioId), rotulo: props.usuario.funcionario.nomeCompleto },
@@ -65,7 +85,7 @@ async function salvar() {
     icone="lapis"
     largura="699px"
     :bloqueado="salvando"
-    @fechar="emit('fechar')"
+    @fechar="pedirFechar"
   >
     <form
       :id="idFormulario"
@@ -89,7 +109,7 @@ async function salvar() {
       <CampoFormulario
         rotulo="Função"
         somente-leitura
-        :model-value="usuario.funcionario.funcao"
+        :model-value="rotuloLegivel(usuario.funcionario.funcao)"
       />
       <CampoFormulario
         rotulo="Login"
@@ -134,7 +154,7 @@ async function salvar() {
       <BotaoFp
         variante="secundario"
         :desabilitado="salvando"
-        @click="emit('fechar')"
+        @click="pedirFechar"
       >
         Cancelar
       </BotaoFp>
@@ -147,6 +167,14 @@ async function salvar() {
       </BotaoFp>
     </template>
   </ModalBase>
+
+  <ModalDescartar
+    :aberto="confirmandoSaida"
+    titulo="Descartar alterações?"
+    mensagem="As alterações feitas neste usuário serão perdidas."
+    @confirmar="emit('fechar')"
+    @fechar="confirmandoSaida = false"
+  />
 </template>
 
 <style scoped>

@@ -5,7 +5,8 @@ import BotaoFp from '../ui/BotaoFp.vue'
 import CampoLeitura from '../ui/CampoLeitura.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import type { Usuario } from '../../types'
-import { formatarCpf } from '../../utils/formatadores'
+import { formatarCpf, formatarDataHoraIso, rotuloLegivel } from '../../utils/formatadores'
+import { funcionarioInativo, statusDoUsuario } from '../../utils/usuarios'
 import { mapaDePermissoes } from '../../utils/permissoes'
 
 const props = defineProps<{
@@ -19,6 +20,14 @@ const emit = defineEmits<{
   editar: []
 }>()
 
+const ultimoAcesso = computed(() => formatarDataHoraIso(props.usuario.ultimoAcesso) || 'Nunca acessou')
+const rotuloStatusUsuario = computed(() =>
+  funcionarioInativo(props.usuario)
+    ? 'Inativo (funcionário inativo)'
+    : statusDoUsuario(props.usuario) === 'ATIVO'
+      ? 'Ativo'
+      : 'Inativo',
+)
 const permissoes = computed(() => mapaDePermissoes(props.usuario.permissoes))
 </script>
 
@@ -34,6 +43,15 @@ const permissoes = computed(() => mapaDePermissoes(props.usuario.permissoes))
       Dados de Acesso
     </h3>
 
+    <p
+      v-if="funcionarioInativo(usuario)"
+      class="aviso-inativo"
+      role="status"
+    >
+      O funcionário deste usuário está inativo, então o usuário também aparece como inativo. Reative o
+      funcionário primeiro para liberar o acesso.
+    </p>
+
     <dl class="dados">
       <CampoLeitura
         rotulo="Funcionário"
@@ -41,11 +59,19 @@ const permissoes = computed(() => mapaDePermissoes(props.usuario.permissoes))
       />
       <CampoLeitura
         rotulo="Função"
-        :valor="usuario.funcionario.funcao"
+        :valor="rotuloLegivel(usuario.funcionario.funcao)"
       />
       <CampoLeitura
         rotulo="Login (CPF)"
         :valor="formatarCpf(usuario.login)"
+      />
+      <CampoLeitura
+        rotulo="Último acesso"
+        :valor="ultimoAcesso"
+      />
+      <CampoLeitura
+        rotulo="Status"
+        :valor="rotuloStatusUsuario"
       />
     </dl>
 
@@ -100,6 +126,18 @@ const permissoes = computed(() => mapaDePermissoes(props.usuario.permissoes))
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 24px;
   margin: 0 0 20px;
+}
+
+.aviso-inativo {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #fcd34d;
+  border-radius: var(--fp-raio);
+  background-color: #fffbeb;
+
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .icone-lapis {
