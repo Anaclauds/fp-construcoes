@@ -59,7 +59,11 @@ export interface FuncionarioPayload {
   grauVinculo: string
 }
 
-export type FuncionarioAtualizacao = Partial<FuncionarioPayload>
+/** Como o payload de criação, mas apelido e complemento aceitam null para limpar o valor salvo. */
+export type FuncionarioAtualizacao = Partial<Omit<FuncionarioPayload, 'apelido' | 'complemento'>> & {
+  apelido?: string | null
+  complemento?: string | null
+}
 
 export interface FiltrosFuncionarios {
   busca?: string

@@ -3,6 +3,7 @@ import type { FiltroStatus } from '../components/ui/CardBuscaFiltro.vue'
 import { extrairMensagemErro } from '../services/api'
 import { listarFuncionarios } from '../services/funcionarios.service'
 import type { FiltrosFuncionarios, Funcionario } from '../types'
+import { termoDeBusca } from '../utils/formatadores'
 import { useDebounce } from './useDebounce'
 
 const POR_PAGINA = 8
@@ -29,7 +30,7 @@ export function useListaFuncionarios() {
     erro.value = null
 
     const filtros: FiltrosFuncionarios = { page: pagina.value, limit: POR_PAGINA }
-    const termo = buscaAplicada.value.trim()
+    const termo = termoDeBusca(buscaAplicada.value.trim())
     if (termo) filtros.busca = termo
     if (status.value !== 'TODOS') filtros.status = status.value
 

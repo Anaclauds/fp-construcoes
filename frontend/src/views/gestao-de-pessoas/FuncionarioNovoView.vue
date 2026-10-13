@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { shallowRef, useTemplateRef } from 'vue'
+import { computed, shallowRef, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 import FuncionarioFormulario from '../../components/funcionarios/FuncionarioFormulario.vue'
 import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
 import LinkVoltar from '../../components/ui/LinkVoltar.vue'
+import ModalDescartar from '../../components/ui/ModalDescartar.vue'
+import { useAvisoAlteracoes } from '../../composables/useAvisoAlteracoes'
 import { useFormularioFuncionario } from '../../composables/useFormularioFuncionario'
 import { useToast } from '../../composables/useToast'
 import { criarFuncionario } from '../../services/funcionarios.service'
@@ -15,6 +17,13 @@ const { mostrarToast } = useToast()
 const formulario = useTemplateRef('formulario')
 const form = useFormularioFuncionario()
 const salvando = shallowRef(false)
+const salvo = shallowRef(false)
+
+// Qualquer campo preenchido conta como cadastro em andamento (depois de salvar, não).
+const preenchido = computed(
+  () => !salvo.value && Object.values(form.campos).some((valor) => valor.trim() !== ''),
+)
+const aviso = useAvisoAlteracoes(preenchido)
 
 async function salvar() {
   if (!form.validar()) {
@@ -25,6 +34,7 @@ async function salvar() {
   salvando.value = true
   try {
     await criarFuncionario(form.paraPayload())
+    salvo.value = true
     mostrarToast('Salvo com sucesso!')
     await router.push({ name: 'funcionarios' })
   } catch (erro) {
@@ -74,6 +84,12 @@ async function salvar() {
         </BotaoFp>
       </div>
     </form>
+
+    <ModalDescartar
+      :aberto="aviso.aberto.value"
+      @confirmar="aviso.responder(true)"
+      @fechar="aviso.responder(false)"
+    />
   </section>
 </template>
 

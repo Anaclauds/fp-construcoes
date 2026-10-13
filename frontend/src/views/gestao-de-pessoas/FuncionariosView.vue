@@ -15,7 +15,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useListaFuncionarios } from '../../composables/useListaFuncionarios'
 import { useToast } from '../../composables/useToast'
 import type { Funcionario } from '../../types'
-import { formatarTelefone } from '../../utils/formatadores'
+import { formatarTelefone, rotuloLegivel } from '../../utils/formatadores'
 
 type Modal =
   | { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; funcionario: Funcionario }
@@ -93,7 +93,7 @@ onMounted(carregar)
     <CardBuscaFiltro
       v-model:busca="busca"
       v-model:status="status"
-      placeholder="Buscar por nome, função ou celular..."
+      placeholder="Buscar por nome, apelido, função, CPF ou celular..."
     />
 
     <TabelaDados
@@ -120,8 +120,8 @@ onMounted(carregar)
         <span class="celula-principal">{{ formatarTelefone(linha.celular) }}</span>
       </template>
       <template #celula-funcao="{ linha }">
-        <span class="celula-principal">{{ linha.funcao }}</span>
-        <span class="celula-secundaria">{{ linha.setorAtuacao }}</span>
+        <span class="celula-principal">{{ rotuloLegivel(linha.funcao) }}</span>
+        <span class="celula-secundaria">{{ rotuloLegivel(linha.setorAtuacao) }}</span>
       </template>
       <template #celula-status="{ linha }">
         <SeloStatus :status="linha.status" />

@@ -47,6 +47,8 @@ export interface CamposFuncionario {
   grauVinculo: string
 }
 
+type CampoEndereco = 'cidade' | 'estado' | 'rua' | 'bairro'
+
 export type ErrosFuncionario = Partial<Record<keyof CamposFuncionario, string>>
 
 const CHAVES: (keyof CamposFuncionario)[] = [
@@ -236,7 +238,9 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
     const atual = normalizar(campos)
     const alterados: Record<string, unknown> = {}
     for (const chave of Object.keys(atual) as (keyof Normalizado)[]) {
-      if (!base || atual[chave] !== base[chave]) alterados[chave] = atual[chave]
+      if (base && atual[chave] === base[chave]) continue
+      // Opcional esvaziado vai como null (a API limpa o campo); '' ficaria gravado como texto vazio.
+      alterados[chave] = (chave === 'apelido' || chave === 'complemento') && atual[chave] === '' ? null : atual[chave]
     }
     return alterados as FuncionarioAtualizacao
   }
@@ -246,6 +250,22 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
     const { mensagem, status } = extrairErro(erro)
     if (status === 409) erros.cpf = mensagem
     else erroGeral.value = mensagem
+  }
+
+  // Valores que a busca de CEP preencheu. Se o CEP não existir, só esses (e só se o usuário não os
+  // alterou depois) são apagados: o que foi digitado à mão fica.
+  let preenchidoPorCep: Partial<Record<CampoEndereco, string>> = {}
+
+  function limparEnderecoDoCep() {
+    for (const chave of Object.keys(preenchidoPorCep) as CampoEndereco[]) {
+      if (campos[chave] === preenchidoPorCep[chave]) campos[chave] = ''
+    }
+    preenchidoPorCep = {}
+  }
+
+  function preencherDoCep(chave: CampoEndereco, valor: string) {
+    campos[chave] = valor
+    preenchidoPorCep[chave] = valor
   }
 
   // Só a última consulta vale; se o CEP foi editado durante a chamada, o resultado é descartado.
@@ -262,15 +282,19 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
       if (digitos(campos.cep) !== cep) return
       if (!endereco) {
         erros.cep = 'CEP não encontrado.'
+        limparEnderecoDoCep()
         return
       }
       // CEPs genéricos (de cidade) vêm sem rua/bairro: o que não veio fica como está.
-      if (endereco.cidade) campos.cidade = endereco.cidade
-      if (endereco.estado && UFS.includes(endereco.estado)) campos.estado = endereco.estado
-      if (endereco.rua) campos.rua = endereco.rua
-      if (endereco.bairro) campos.bairro = endereco.bairro
+      if (endereco.cidade) preencherDoCep('cidade', endereco.cidade)
+      if (endereco.estado && UFS.includes(endereco.estado)) preencherDoCep('estado', endereco.estado)
+      if (endereco.rua) preencherDoCep('rua', endereco.rua)
+      if (endereco.bairro) preencherDoCep('bairro', endereco.bairro)
     } catch {
-      if (digitos(campos.cep) === cep) erros.cep = 'Não foi possível consultar o CEP. Preencha o endereço manualmente.'
+      if (digitos(campos.cep) === cep) {
+        erros.cep = 'Não foi possível consultar o CEP. Preencha o endereço manualmente.'
+        limparEnderecoDoCep()
+      }
     } finally {
       buscandoCep.value = false
     }

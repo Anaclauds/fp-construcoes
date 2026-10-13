@@ -53,7 +53,7 @@ defineExpose({ focarPrimeiroErro })
           v-model="form.campos.apelido"
           class="s4 m3"
           rotulo="Apelido:"
-          placeholder="Como prefere ser chamado"
+          placeholder="Apelido"
           autocomplete="off"
           :maxlength="80"
           :erro="form.erros.apelido"
@@ -144,7 +144,7 @@ defineExpose({ focarPrimeiroErro })
           rotulo="Estado:"
           tipo="select"
           obrigatorio
-          placeholder="Selecione o estado"
+          placeholder="UF"
           :opcoes="form.opcoes.value.estado"
           :erro="form.erros.estado"
         />
@@ -211,7 +211,7 @@ defineExpose({ focarPrimeiroErro })
           rotulo="Setor de atuação:"
           tipo="select"
           obrigatorio
-          placeholder="Selecione o setor de atuação"
+          placeholder="Selecione o setor"
           :opcoes="form.opcoes.value.setorAtuacao"
           :erro="form.erros.setorAtuacao"
         />
@@ -268,7 +268,7 @@ defineExpose({ focarPrimeiroErro })
           class="s6 m4"
           rotulo="Nome do contato:"
           obrigatorio
-          placeholder="Digite o nome do contato de emergência"
+          placeholder="Digite o nome do contato"
           autocomplete="off"
           :maxlength="150"
           :erro="form.erros.nomeContatoEmergencia"
@@ -279,7 +279,7 @@ defineExpose({ focarPrimeiroErro })
           rotulo="Grau de vínculo:"
           tipo="select"
           obrigatorio
-          placeholder="Selecione a relação de parentesco"
+          placeholder="Selecione o vínculo"
           :opcoes="form.opcoes.value.grauVinculo"
           :erro="form.erros.grauVinculo"
         />

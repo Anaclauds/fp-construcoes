@@ -9,6 +9,7 @@ import {
   formatarMoeda,
   formatarTelefone,
   isoParaDataBr,
+  rotuloLegivel,
 } from '../../utils/formatadores'
 
 defineProps<{
@@ -54,7 +55,7 @@ const emit = defineEmits<{
         />
         <CampoLeitura
           rotulo="Sexo"
-          :valor="funcionario.sexo"
+          :valor="rotuloLegivel(funcionario.sexo)"
         />
         <CampoLeitura
           rotulo="Celular"
@@ -108,15 +109,15 @@ const emit = defineEmits<{
       <dl class="dados">
         <CampoLeitura
           rotulo="Função"
-          :valor="funcionario.funcao"
+          :valor="rotuloLegivel(funcionario.funcao)"
         />
         <CampoLeitura
           rotulo="Setor de Atuação"
-          :valor="funcionario.setorAtuacao"
+          :valor="rotuloLegivel(funcionario.setorAtuacao)"
         />
         <CampoLeitura
           rotulo="Tipo de Contrato"
-          :valor="funcionario.tipoContrato"
+          :valor="rotuloLegivel(funcionario.tipoContrato)"
         />
         <CampoLeitura
           rotulo="Salário"
@@ -144,7 +145,7 @@ const emit = defineEmits<{
         />
         <CampoLeitura
           rotulo="Grau de Vínculo"
-          :valor="funcionario.grauVinculo"
+          :valor="rotuloLegivel(funcionario.grauVinculo)"
         />
       </dl>
     </section>

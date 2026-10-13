@@ -1,4 +1,5 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
+import { rotuloLegivel } from './formatadores'
 
 // O backend aceita texto livre nesses campos; as listas abaixo são as opções oferecidas na tela.
 export const SEXOS = ['Masculino', 'Feminino', 'Outro', 'Prefiro não informar']
@@ -35,5 +36,6 @@ export const UFS = [
  */
 export function montarOpcoes(lista: string[], valorAtual = ''): OpcaoCampo[] {
   const base = valorAtual && !lista.includes(valorAtual) ? [...lista, valorAtual] : lista
-  return base.map((valor) => ({ valor, rotulo: valor }))
+  // Valor legado em CAIXA_ALTA aparece legível; o valor salvo (value) não muda.
+  return base.map((valor) => ({ valor, rotulo: rotuloLegivel(valor) }))
 }
