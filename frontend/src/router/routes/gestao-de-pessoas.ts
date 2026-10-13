@@ -5,6 +5,7 @@ import UsuarioNovoView from '../../views/gestao-de-pessoas/UsuarioNovoView.vue'
 import FuncionariosView from '../../views/gestao-de-pessoas/FuncionariosView.vue'
 import FuncionarioNovoView from '../../views/gestao-de-pessoas/FuncionarioNovoView.vue'
 import FrequenciaView from '../../views/gestao-de-pessoas/FrequenciaView.vue'
+import FrequenciaEdicaoView from '../../views/gestao-de-pessoas/FrequenciaEdicaoView.vue'
 import RelatorioFrequenciaView from '../../views/gestao-de-pessoas/RelatorioFrequenciaView.vue'
 
 const gestaoDePessoasRoutes: RouteRecordRaw[] = [
@@ -37,6 +38,12 @@ const gestaoDePessoasRoutes: RouteRecordRaw[] = [
     name: 'frequencia',
     component: FrequenciaView,
     meta: { permissao: { modulo: 'FREQUENCIA', acao: 'visualizar' } },
+  },
+  {
+    path: '/frequencia/editar',
+    name: 'frequenciaEditar',
+    component: FrequenciaEdicaoView,
+    meta: { permissao: { modulo: 'FREQUENCIA', acao: 'gerenciar' } },
   },
   {
     path: '/relatorio-frequencia',

@@ -42,6 +42,80 @@ body {
   font-weight: 600;
 }
 
+/*
+  Cores por status de frequência. O elemento recebe a classe (ver classeStatus em utils/frequencia.ts)
+  e os componentes usam --st-fundo / --st-borda / --st-texto.
+*/
+.fp-status--presente {
+  --st-fundo: #dcfce7;
+  --st-borda: #86efac;
+  --st-texto: #008236;
+}
+
+.fp-status--meio-periodo {
+  --st-fundo: #fef3c7;
+  --st-borda: #fcd34d;
+  --st-texto: #b45309;
+}
+
+.fp-status--falta-justificada {
+  --st-fundo: #dbeafe;
+  --st-borda: #93c5fd;
+  --st-texto: #1d4ed8;
+}
+
+.fp-status--falta-nao-justificada {
+  --st-fundo: #fee2e2;
+  --st-borda: #fca5a5;
+  --st-texto: #b91c1c;
+}
+
+.fp-status--nenhum {
+  --st-fundo: #f3f4f6;
+  --st-borda: #d1d5db;
+  --st-texto: #6b7280;
+}
+
+/* Linha da tabela que ainda precisa de justificativa (frequência). */
+.fp-linha-pendente td {
+  background-color: #fffbeb;
+}
+
+/* Área do relatório que só existe na impressão (ver RelatorioResultado.vue). */
+.fp-area-impressao {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 12mm 16mm;
+
+    /* Numeração das páginas do relatório (Chrome/Edge 131+); navegadores sem suporte ignoram. */
+    @bottom-right {
+      content: 'Pág. ' counter(page) ' de ' counter(pages);
+      color: #6b7280;
+      font-family: 'Poppins', system-ui, sans-serif;
+      font-size: 9pt;
+    }
+  }
+
+  #app {
+    display: none !important;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .fp-area-impressao {
+    display: block;
+  }
+}
+
 .fp-sr-only {
   position: absolute;
   width: 1px;
