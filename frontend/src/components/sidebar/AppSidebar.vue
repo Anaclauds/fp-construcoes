@@ -6,6 +6,7 @@ import barraLateralIcon from '../../assets/icons/menu-barra-lateral.svg'
 import meusDadosIcon from '../../assets/icons/menu-meus-dados.svg'
 import sairIcon from '../../assets/icons/menu-sair.svg'
 import SidebarGroup from './SidebarGroup.vue'
+import { rotuloLegivel } from '../../utils/formatadores'
 import { grupoDaRota, gruposMenu } from './menu'
 
 const route = useRoute()
@@ -13,7 +14,7 @@ const router = useRouter()
 const { usuario, funcao, iniciais, logout, temPermissao, carregarFuncao } = useAuth()
 
 // A função vem de /auth/profile (o /auth/me não traz); sem ela, mostra o texto padrão.
-const funcaoUsuario = computed(() => funcao.value ?? 'Usuário')
+const funcaoUsuario = computed(() => rotuloLegivel(funcao.value) || 'Usuário')
 
 onMounted(carregarFuncao)
 
@@ -170,7 +171,8 @@ function alternarGrupo(id: string) {
 <style scoped>
 /* 384px no frame de 1632px; encolhe junto com a janela para não espremer o conteúdo. */
 .sidebar {
-  --sidebar-fonte: clamp(18px, 1.47vw, 24px);
+  /* 23px em 1632px, 16px em 1280px, sem passar de 23px: os rótulos dos grupos cabem inteiros a partir de ~1200px. */
+  --sidebar-fonte: clamp(14px, calc(2.27vw - 13px), 23px);
 
   width: clamp(300px, 23.53vw, 384px);
   height: 100vh;
@@ -256,9 +258,13 @@ function alternarGrupo(id: string) {
 .profile-name {
   font-size: var(--sidebar-fonte);
   font-weight: 600;
-  white-space: nowrap;
+  /* Nomes longos quebram em até 2 linhas em vez de ficar cortados. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .profile-role {

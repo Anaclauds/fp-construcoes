@@ -52,7 +52,10 @@ const perigo = computed(() => props.variante === 'perigo')
       <slot />
     </div>
 
-    <p class="confirmacao-pergunta">
+    <p
+      v-if="pergunta"
+      class="confirmacao-pergunta"
+    >
       {{ pergunta }}
     </p>
 

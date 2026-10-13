@@ -126,4 +126,11 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
 .botao-acao--reativar:hover {
   filter: brightness(1.12);
 }
+
+.botao-acao:disabled,
+.botao-acao:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
 </style>

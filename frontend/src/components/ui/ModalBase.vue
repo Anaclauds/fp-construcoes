@@ -5,6 +5,9 @@ export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta'
 // Escopo de módulo: modais abertos em sequência (Visualizar -> Editar) compartilham o bloqueio de rolagem.
 let modaisAbertos = 0
 
+// Pilha de modais abertos: só o do topo responde a Esc e Tab (ex.: confirmação aberta sobre um formulário).
+const pilha: symbol[] = []
+
 function atualizarContador(delta: number) {
   modaisAbertos = Math.max(0, modaisAbertos + delta)
   document.body.style.overflow = modaisAbertos > 0 ? 'hidden' : ''
@@ -37,6 +40,9 @@ const dialogo = shallowRef<HTMLElement | null>(null)
 const SELETOR_FOCAVEL =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+const meuId = Symbol('modal')
+const noTopo = () => pilha[pilha.length - 1] === meuId
+
 let elementoAnterior: HTMLElement | null = null
 let travouRolagem = false
 function pedirFechar() {
@@ -57,6 +63,9 @@ async function aoAbrir() {
     travouRolagem = true
     atualizarContador(1)
   }
+  if (!pilha.includes(meuId)) pilha.push(meuId)
+  // No document, não no cartão: se o foco cair no <body> (botão desabilitado ao salvar), Esc e Tab continuam valendo.
+  document.addEventListener('keydown', aoTeclar)
   await nextTick()
   // Foco no próprio diálogo (leitor de tela anuncia o título) sem pré-selecionar nenhum campo;
   // o primeiro Tab leva ao primeiro elemento do modal.
@@ -64,6 +73,9 @@ async function aoAbrir() {
 }
 
 function aoFechar() {
+  document.removeEventListener('keydown', aoTeclar)
+  const posicao = pilha.indexOf(meuId)
+  if (posicao >= 0) pilha.splice(posicao, 1)
   if (travouRolagem) {
     travouRolagem = false
     atualizarContador(-1)
@@ -82,7 +94,26 @@ onBeforeUnmount(() => {
   if (props.aberto) aoFechar()
 })
 
+/** Foco fora do cartão (ex.: no <body> depois que o botão focado foi desabilitado): devolve ao diálogo. */
+function devolverFoco() {
+  const ativo = document.activeElement
+  const dentro = ativo instanceof HTMLElement && dialogo.value?.contains(ativo) && !(ativo as HTMLButtonElement).disabled
+  if (props.aberto && noTopo() && !dentro) dialogo.value?.focus()
+}
+
+// Começou ou terminou de salvar: o botão clicado muda de estado e o foco some; traz de volta ao diálogo.
+watch(
+  () => props.bloqueado,
+  async () => {
+    await nextTick()
+    devolverFoco()
+  },
+  { flush: 'post' },
+)
+
 function aoTeclar(evento: KeyboardEvent) {
+  if (!noTopo()) return
+
   if (evento.key === 'Escape') {
     evento.stopPropagation()
     pedirFechar()
@@ -99,6 +130,12 @@ function aoTeclar(evento: KeyboardEvent) {
     const primeiro = lista[0]!
     const ultimo = lista[lista.length - 1]!
     const ativo = document.activeElement
+    // Foco fora do cartão: o Tab entra no diálogo em vez de seguir para a página de trás.
+    if (!(ativo instanceof HTMLElement) || !dialogo.value?.contains(ativo)) {
+      evento.preventDefault()
+      ;(evento.shiftKey ? ultimo : primeiro).focus()
+      return
+    }
     if (evento.shiftKey && (ativo === primeiro || ativo === dialogo.value)) {
       evento.preventDefault()
       ultimo.focus()
@@ -129,7 +166,6 @@ function aoClicarFundo(evento: MouseEvent) {
       class="modal-fundo"
       @mousedown="aoPressionarFundo"
       @click="aoClicarFundo"
-      @keydown="aoTeclar"
     >
       <div
         ref="dialogo"

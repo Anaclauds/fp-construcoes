@@ -28,6 +28,10 @@ const { toasts, fecharToast } = useToast()
               d="M5 12.5l4.5 4.5L19 7.5"
             />
             <path
+              v-else-if="toast.tipo === 'info'"
+              d="M12 11v5.5M12 7.5h.01"
+            />
+            <path
               v-else
               d="M7 7l10 10M17 7L7 17"
             />
@@ -55,8 +59,12 @@ const { toasts, fecharToast } = useToast()
 <style scoped>
 .notificacoes {
   position: fixed;
-  right: 24px;
+  /* Centro inferior: área livre entre o "Mostrando X de Y"/Cancelar (esquerda) e a paginação/
+     Salvar (direita); não cobre o botão de ação do topo nem os filtros. */
   bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
   z-index: 2000;
 
   display: flex;
@@ -96,6 +104,10 @@ const { toasts, fecharToast } = useToast()
 
 .notificacao--erro .notificacao-icone {
   background-color: var(--fp-vermelho);
+}
+
+.notificacao--info .notificacao-icone {
+  background-color: #2563eb;
 }
 
 .notificacao-icone svg {

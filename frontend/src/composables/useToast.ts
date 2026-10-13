@@ -3,7 +3,7 @@ import { shallowRef } from 'vue'
 export interface Toast {
   id: number
   mensagem: string
-  tipo: 'sucesso' | 'erro'
+  tipo: 'sucesso' | 'erro' | 'info'
 }
 
 // Estado em escopo de módulo: qualquer tela dispara, o ToastContainer (em App.vue) exibe.

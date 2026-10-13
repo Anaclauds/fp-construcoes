@@ -81,3 +81,51 @@ export function dataBrParaIso(valor: string): string {
   const [dia, mes, ano] = valor.split('/')
   return `${ano}-${mes}-${dia}`
 }
+
+// Palavras de valores legados em caixa alta que perderam o acento ao virar enum.
+const ACENTOS_LEGADOS: Record<string, string> = {
+  nao: 'não',
+  periodo: 'período',
+  servico: 'serviço',
+  funcao: 'função',
+  conjuge: 'cônjuge',
+  autonomo: 'autônomo',
+  temporario: 'temporário',
+  estagio: 'estágio',
+}
+
+/**
+ * Valor legado em CAIXA_ALTA ("NAO_INFORMADO", "ADMINISTRADOR") -> texto legível ("Não informado",
+ * "Administrador"). Valores já escritos normalmente e siglas de até 4 letras passam sem mudança. Só exibição: nunca regrave o resultado.
+ */
+export function rotuloLegivel(valor: string | null | undefined): string {
+  if (!valor) return ''
+  if (!/^[A-ZÀ-Ý0-9_ ]+$/.test(valor) || !/[A-ZÀ-Ý]/.test(valor)) return valor
+  // Siglas curtas (CLT, PJ, UF) são nomes próprios: ficam como estão.
+  if (!valor.includes('_') && valor.length <= 4) return valor
+  const palavras = valor
+    .toLowerCase()
+    .split(/[_ ]+/)
+    .filter(Boolean)
+    .map((p) => ACENTOS_LEGADOS[p] ?? p)
+  const texto = palavras.join(' ')
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+/** ISO com hora ("2026-07-16T14:32:00.000Z") -> "16/07/2026 14:32" no relógio local; inválido -> vazio. */
+export function formatarDataHoraIso(valor: string | null | undefined): string {
+  if (!valor) return ''
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return ''
+  const dois = (n: number) => String(n).padStart(2, '0')
+  return `${dois(data.getDate())}/${dois(data.getMonth() + 1)}/${data.getFullYear()} ${dois(data.getHours())}:${dois(data.getMinutes())}`
+}
+
+/**
+ * Termo de busca digitado com máscara de CPF/celular ("470.785.102-91", "(69) 99612-4387") -> só dígitos,
+ * que é como a API guarda. Termos com letras ou com menos de 3 dígitos seguem como foram digitados.
+ */
+export function termoDeBusca(termo: string): string {
+  const semMascara = termo.replace(/[.\-() /]/g, '')
+  return /^\d{3,}$/.test(semMascara) ? semMascara : termo
+}
