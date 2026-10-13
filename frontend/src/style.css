@@ -1,9 +1,22 @@
 /* Tokens do Figma (arquivo TCC). */
 :root {
   --fp-verde: #1a6647;
+  --fp-verde-10: rgba(26, 102, 71, 0.1);
+  --fp-verde-20: rgba(26, 102, 71, 0.2);
+  --fp-verde-30: rgba(26, 102, 71, 0.3);
   --fp-texto: #000;
   --fp-texto-suave: rgba(0, 0, 0, 0.5);
+  --fp-texto-corpo: #555;
+  --fp-texto-titulo-campo: #364153;
+  --fp-cinza-borda: #e5e7eb;
+  --fp-cinza-fundo: #f9fafb;
+  --fp-cinza-rotulo: #999;
+  --fp-vermelho: #e7000b;
+  --fp-vermelho-escuro: #b91c1c;
+  --fp-obrigatorio: #e7000b;
   --fp-raio: 10px;
+  --fp-sombra-card: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --fp-foco: 0 0 0 3px rgba(26, 102, 71, 0.35);
 
   --bs-body-font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -21,4 +34,31 @@ body,
 
 body {
   min-width: 320px;
+}
+
+/* Nome em destaque nas células de tabela (usado dentro dos slots de TabelaDados). */
+.fp-celula-nome {
+  color: var(--fp-verde);
+  font-weight: 600;
+}
+
+.fp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

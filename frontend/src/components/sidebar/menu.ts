@@ -1,12 +1,18 @@
-import gestaoPessoasIcon from '../../assets/icons/gestao-pessoas.svg'
-import comercialVendasIcon from '../../assets/icons/comercial-vendas.svg'
-import projetosServicosIcon from '../../assets/icons/projetos-servicos.svg'
-import estoqueSuprimentosIcon from '../../assets/icons/estoque-suprimentos.svg'
-import financeiroIcon from '../../assets/icons/financeiro.svg'
+import gestaoPessoasIcon from '../../assets/icons/menu-gestao-pessoas.svg'
+import comercialVendasIcon from '../../assets/icons/menu-comercial-vendas.svg'
+import projetosServicosIcon from '../../assets/icons/menu-projetos-servicos.svg'
+import estoqueSuprimentosIcon from '../../assets/icons/menu-estoque-suprimentos.svg'
+import financeiroIcon from '../../assets/icons/menu-financeiro.svg'
+
+import type { ModuloSistema } from '../../types'
 
 export interface ItemMenu {
   rotulo: string
   rota: string
+  /** Módulo exigido para ver o item; sem valor, o item é sempre exibido. */
+  modulo?: ModuloSistema
+  /** Rotas internas do item (ex.: página de cadastro) que mantêm o item ativo no menu. */
+  rotasRelacionadas?: string[]
 }
 
 export interface GrupoMenu {
@@ -22,10 +28,10 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Gestão de Pessoas',
     icone: gestaoPessoasIcon,
     itens: [
-      { rotulo: 'Usuário', rota: 'usuarios' },
-      { rotulo: 'Funcionário', rota: 'funcionarios' },
-      { rotulo: 'Frequência', rota: 'frequencia' },
-      { rotulo: 'Relatório de Frequência', rota: 'relatorioFrequencia' },
+      { rotulo: 'Usuário', rota: 'usuarios', modulo: 'GESTAO_USUARIOS', rotasRelacionadas: ['usuarioNovo'] },
+      { rotulo: 'Funcionário', rota: 'funcionarios', modulo: 'GESTAO_FUNCIONARIOS', rotasRelacionadas: ['funcionarioNovo'] },
+      { rotulo: 'Frequência', rota: 'frequencia', modulo: 'FREQUENCIA', rotasRelacionadas: ['frequenciaEditar'] },
+      { rotulo: 'Relatório de Frequência', rota: 'relatorioFrequencia', modulo: 'FREQUENCIA' },
     ],
   },
   {
@@ -33,9 +39,9 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Comercial e Vendas',
     icone: comercialVendasIcon,
     itens: [
-      { rotulo: 'Cliente', rota: 'clientes' },
-      { rotulo: 'Orçamento', rota: 'orcamentos' },
-      { rotulo: 'Cobrança', rota: 'cobrancas' },
+      { rotulo: 'Cliente', rota: 'clientes', modulo: 'CLIENTES' },
+      { rotulo: 'Orçamento', rota: 'orcamentos', modulo: 'ORCAMENTOS' },
+      { rotulo: 'Cobrança', rota: 'cobrancas', modulo: 'COBRANCAS' },
     ],
   },
   {
@@ -43,8 +49,8 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Projetos e Serviços',
     icone: projetosServicosIcon,
     itens: [
-      { rotulo: 'Projeto', rota: 'projetos' },
-      { rotulo: 'Serviço', rota: 'servicos' },
+      { rotulo: 'Projeto', rota: 'projetos', modulo: 'PROJETOS' },
+      { rotulo: 'Serviço', rota: 'servicos', modulo: 'SERVICOS' },
     ],
   },
   {
@@ -52,10 +58,10 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Estoque e Suprimentos',
     icone: estoqueSuprimentosIcon,
     itens: [
-      { rotulo: 'Equipamento', rota: 'equipamentos' },
-      { rotulo: 'Material', rota: 'materiais' },
-      { rotulo: 'Estoque', rota: 'estoque' },
-      { rotulo: 'Fornecedor', rota: 'fornecedores' },
+      { rotulo: 'Equipamento', rota: 'equipamentos', modulo: 'EQUIPAMENTOS' },
+      { rotulo: 'Material', rota: 'materiais', modulo: 'MATERIAIS' },
+      { rotulo: 'Estoque', rota: 'estoque', modulo: 'ESTOQUE' },
+      { rotulo: 'Fornecedor', rota: 'fornecedores', modulo: 'FORNECEDORES' },
     ],
   },
   {
@@ -63,13 +69,16 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Financeiro',
     icone: financeiroIcon,
     itens: [
-      { rotulo: 'Despesa', rota: 'despesas' },
-      { rotulo: 'Caixa', rota: 'caixa' },
+      { rotulo: 'Despesa', rota: 'despesas', modulo: 'DESPESAS' },
+      { rotulo: 'Caixa', rota: 'caixa', modulo: 'CAIXA' },
     ],
   },
 ]
 
+export function itemPertenceARota(item: ItemMenu, nomeRota: unknown): boolean {
+  return typeof nomeRota === 'string' && (item.rota === nomeRota || !!item.rotasRelacionadas?.includes(nomeRota))
+}
+
 export function grupoDaRota(nomeRota: unknown): string | null {
-  if (typeof nomeRota !== 'string') return null
-  return gruposMenu.find((grupo) => grupo.itens.some((item) => item.rota === nomeRota))?.id ?? null
+  return gruposMenu.find((grupo) => grupo.itens.some((item) => itemPertenceARota(item, nomeRota)))?.id ?? null
 }

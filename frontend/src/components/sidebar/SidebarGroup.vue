@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
-import type { GrupoMenu } from './menu'
+import { RouterLink, useRoute } from 'vue-router'
+import setaIcon from '../../assets/icons/menu-seta-baixo.svg'
+import { itemPertenceARota, type GrupoMenu } from './menu'
 
 const props = defineProps<{
   grupo: GrupoMenu
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   alternar: [id: string]
 }>()
 
+const route = useRoute()
 const idSubmenu = `submenu-${props.grupo.id}`
 </script>
 
@@ -21,26 +23,32 @@ const idSubmenu = `submenu-${props.grupo.id}`
     <button
       type="button"
       class="sidebar-item"
-      :class="{ 'sidebar-item--ativo': ativo }"
+      :class="{ 'sidebar-item--ativo': ativo && !aberto }"
       :title="sidebarExpandida ? undefined : grupo.rotulo"
       :aria-label="sidebarExpandida ? undefined : grupo.rotulo"
       :aria-expanded="sidebarExpandida ? aberto : undefined"
       :aria-controls="sidebarExpandida ? idSubmenu : undefined"
       @click="emit('alternar', grupo.id)"
     >
-      <img
-        :src="grupo.icone"
-        class="sidebar-icon"
-        alt=""
-      >
+      <span class="sidebar-icon-caixa">
+        <img
+          :src="grupo.icone"
+          class="sidebar-icon"
+          alt=""
+        >
+      </span>
 
       <template v-if="sidebarExpandida">
         <span class="sidebar-item-label">{{ grupo.rotulo }}</span>
-        <span
+        <!-- A imagem aponta para cima: fechado gira para a direita, aberto para baixo. -->
+        <img
+          :src="setaIcon"
           class="sidebar-chevron"
           :class="{ 'sidebar-chevron--aberto': aberto }"
-          aria-hidden="true"
-        />
+          alt=""
+          width="16"
+          height="10"
+        >
       </template>
     </button>
 
@@ -56,6 +64,8 @@ const idSubmenu = `submenu-${props.grupo.id}`
         <RouterLink
           :to="{ name: item.rota }"
           class="sidebar-submenu-link"
+          :class="{ 'sidebar-submenu-link--ativo': itemPertenceARota(item, route.name) }"
+          :aria-current="itemPertenceARota(item, route.name) ? 'page' : undefined"
         >
           {{ item.rotulo }}
         </RouterLink>
@@ -67,20 +77,22 @@ const idSubmenu = `submenu-${props.grupo.id}`
 <style scoped>
 .sidebar-item {
   width: 100%;
-  border: 0;
-  border-radius: 10px;
-  background: none;
-  color: white;
+  min-height: 48px;
 
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 
-  padding: 10px 12px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
 
-  text-align: left;
-  font-size: 18px;
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--sidebar-fonte);
   font-weight: 600;
+  text-align: left;
 
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -91,76 +103,78 @@ const idSubmenu = `submenu-${props.grupo.id}`
 }
 
 .sidebar-item:focus-visible {
-  outline: 2px solid white;
+  outline: 2px solid #fff;
   outline-offset: 2px;
 }
 
 .sidebar-item--ativo {
-  background-color: rgba(255, 255, 255, 0.16);
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.sidebar-icon-caixa {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-icon {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .sidebar-item-label {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .sidebar-chevron {
-  width: 8px;
-  height: 8px;
   flex-shrink: 0;
-
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-
-  transform: rotate(45deg);
+  transform: rotate(90deg);
   transition: transform 0.2s ease;
 }
 
 .sidebar-chevron--aberto {
-  transform: rotate(-135deg);
+  transform: rotate(180deg);
 }
 
 .sidebar-submenu {
   list-style: none;
-  margin: 4px 0 8px;
-  padding-left: 58px;
-
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  margin: 0 0 4px;
+  /* Alinha com o texto do grupo: padding 10 + ícone 36 + gap 8. */
+  padding: 0 0 0 54px;
 }
 
 .sidebar-submenu-link {
   display: block;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 1px 8px;
+  margin-left: -8px;
+  border-radius: 8px;
 
-  color: rgba(255, 255, 255, 0.85);
+  color: #fff;
+  font-size: var(--sidebar-fonte);
+  font-weight: 600;
+  line-height: 1.3;
   text-decoration: none;
-  font-size: 16px;
 }
 
 .sidebar-submenu-link:hover {
-  color: white;
   background-color: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-submenu-link:focus-visible {
-  outline: 2px solid white;
+  outline: 2px solid #fff;
   outline-offset: 1px;
 }
 
-.sidebar-submenu-link.router-link-active {
-  color: white;
-  font-weight: 600;
-  background-color: rgba(255, 255, 255, 0.12);
+.sidebar-submenu-link--ativo {
+  background-color: rgba(255, 255, 255, 0.16);
 }
 </style>
