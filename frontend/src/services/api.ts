@@ -18,9 +18,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (resposta) => resposta,
   async (erro: unknown) => {
-    const ehLogin = isAxiosError(erro) && erro.config?.url?.includes('/auth/login')
+    // Nestas rotas o 401 é erro do formulário (credencial errada), não sessão expirada.
+    const ehErroDeCredencial =
+      isAxiosError(erro) && ['/auth/login', '/auth/password'].some((rota) => erro.config?.url?.includes(rota))
 
-    if (isAxiosError(erro) && erro.response?.status === 401 && !ehLogin) {
+    if (isAxiosError(erro) && erro.response?.status === 401 && !ehErroDeCredencial) {
       // Várias chamadas em andamento podem falhar juntas: só a primeira avisa e redireciona.
       const tinhaSessao = token.value !== null
       marcarSessaoExpirada()

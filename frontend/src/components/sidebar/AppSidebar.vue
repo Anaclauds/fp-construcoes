@@ -129,10 +129,10 @@ function alternarGrupo(id: string) {
     </nav>
 
     <div class="sidebar-footer">
-      <!-- Meus Dados ainda não tem rota. -->
-      <button
-        type="button"
+      <RouterLink
+        :to="{ name: 'meusDados' }"
         class="sidebar-footer-item"
+        :class="{ 'sidebar-footer-item--ativo': route.name === 'meusDados' }"
         :title="sidebarExpandida ? undefined : 'Meus Dados'"
         :aria-label="sidebarExpandida ? undefined : 'Meus Dados'"
       >
@@ -145,7 +145,7 @@ function alternarGrupo(id: string) {
           >
         </span>
         <span v-if="sidebarExpandida">Meus Dados</span>
-      </button>
+      </RouterLink>
 
       <button
         type="button"
@@ -330,6 +330,7 @@ function alternarGrupo(id: string) {
   font-family: inherit;
   font-size: var(--sidebar-fonte);
   font-weight: 700;
+  text-decoration: none;
   white-space: nowrap;
 
   cursor: pointer;
@@ -337,6 +338,12 @@ function alternarGrupo(id: string) {
 
 .sidebar-footer-item:hover {
   background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Tela atual: mesmo destaque dos itens ativos do menu. */
+.sidebar-footer-item--ativo,
+.sidebar-footer-item--ativo:hover {
+  background-color: rgba(255, 255, 255, 0.14);
 }
 
 .sidebar-footer-icone {

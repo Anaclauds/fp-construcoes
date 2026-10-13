@@ -1,6 +1,6 @@
 <script lang="ts">
 export type VarianteModal = 'verde' | 'vermelho' | 'aviso'
-export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta'
+export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta' | 'cadeado'
 
 // Escopo de módulo: modais abertos em sequência (Visualizar -> Editar) compartilham o bloqueio de rolagem.
 let modaisAbertos = 0
@@ -206,6 +206,19 @@ function aoClicarFundo(evento: MouseEvent) {
               viewBox="0 0 24 24"
             >
               <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
+            <svg
+              v-else-if="icone === 'cadeado'"
+              viewBox="0 0 24 24"
+            >
+              <rect
+                x="5"
+                y="11"
+                width="14"
+                height="9"
+                rx="2"
+              />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
             <svg
               v-else-if="icone === 'alerta'"

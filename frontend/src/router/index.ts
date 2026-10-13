@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { registrarGuards } from './guards'
 import LoginView from '../views/login/LoginView.vue'
 import HomeView from '../views/home/HomeView.vue'
+import MeusDadosView from '../views/meus-dados/MeusDadosView.vue'
 import NaoEncontradoView from '../views/erro/NaoEncontradoView.vue'
 import comercialEVendasRoutes from './routes/comercial-e-vendas'
 import projetosEServicosRoutes from './routes/projetos-e-servicos'
@@ -22,6 +23,12 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+    },
+    {
+      // Só exige login: todo usuário vê os próprios dados, sem permissão de módulo.
+      path: '/meus-dados',
+      name: 'meusDados',
+      component: MeusDadosView,
     },
 
     ...comercialEVendasRoutes,
