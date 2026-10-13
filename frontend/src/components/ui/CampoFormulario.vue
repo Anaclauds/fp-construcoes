@@ -40,6 +40,19 @@ const senhaVisivel = shallowRef(false)
 const typeInput = computed(() => (props.tipo === 'senha' && !senhaVisivel.value ? 'password' : 'text'))
 const bloqueado = computed(() => props.somenteLeitura || props.desabilitado)
 
+// Aviso discreto quando o texto chegou no limite (o navegador corta o excedente sem avisar).
+// Campos com máscara (CPF, telefone...) têm tamanho fixo e não precisam do aviso.
+const limiteAtingido = computed(
+  () =>
+    !!props.maxlength &&
+    !props.mascara &&
+    !bloqueado.value &&
+    props.tipo !== 'select' &&
+    valor.value.length >= props.maxlength,
+)
+const idLimite = `${id}-limite`
+const descricao = computed(() => [props.erro ? idErro : '', limiteAtingido.value ? idLimite : ''].filter(Boolean).join(' ') || undefined)
+
 function aoDigitar(evento: Event) {
   const input = evento.target as HTMLInputElement | HTMLTextAreaElement
   const formatado = props.mascara ? props.mascara(input.value) : input.value
@@ -117,7 +130,7 @@ function aoDigitar(evento: Event) {
         :maxlength="maxlength"
         :aria-required="obrigatorio || undefined"
         :aria-invalid="erro ? true : undefined"
-        :aria-describedby="erro ? idErro : undefined"
+        :aria-describedby="descricao"
         @input="aoDigitar"
       />
 
@@ -140,7 +153,7 @@ function aoDigitar(evento: Event) {
         :inputmode="inputmode"
         :aria-required="obrigatorio || undefined"
         :aria-invalid="erro ? true : undefined"
-        :aria-describedby="erro ? idErro : undefined"
+        :aria-describedby="descricao"
         @input="aoDigitar"
       >
 
@@ -193,6 +206,14 @@ function aoDigitar(evento: Event) {
       role="alert"
     >
       {{ erro }}
+    </p>
+    <!-- Região sempre presente para o leitor de tela anunciar o aviso quando ele aparece. -->
+    <p
+      :id="idLimite"
+      class="campo-limite"
+      aria-live="polite"
+    >
+      <template v-if="limiteAtingido">Limite de {{ maxlength }} caracteres atingido.</template>
     </p>
   </div>
 </template>
@@ -364,6 +385,18 @@ input.campo-input:read-only,
   stroke-width: 1.93;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.campo-limite {
+  margin: 0;
+  color: #717182;
+  font-size: 12.5px;
+}
+
+/* Sem aviso, a região (live) continua no DOM mas não ocupa espaço, nem o gap do campo. */
+.campo-limite:empty {
+  height: 0;
+  margin-top: -6px;
 }
 
 .campo-erro {
