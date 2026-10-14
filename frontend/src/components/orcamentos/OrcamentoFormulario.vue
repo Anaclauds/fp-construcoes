@@ -9,6 +9,7 @@ import OrcamentoCampoCliente from './OrcamentoCampoCliente.vue'
 import OrcamentoResumo from './OrcamentoResumo.vue'
 import OrcamentoSecaoMateriais from './OrcamentoSecaoMateriais.vue'
 import OrcamentoSecaoServicos from './OrcamentoSecaoServicos.vue'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 const props = defineProps<{
   form: FormularioOrcamento
@@ -55,7 +56,7 @@ const mensagemTroca = computed(() => {
 /** Leva o foco ao primeiro campo com erro (chamar depois de `form.validar()` falhar). */
 async function focarPrimeiroErro() {
   await nextTick()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"], [data-erro-foco="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value, '[aria-invalid="true"], [data-erro-foco="true"]')
 }
 
 defineExpose({ focarPrimeiroErro })
@@ -140,15 +141,16 @@ defineExpose({ focarPrimeiroErro })
       :materiais="form.resumo.value.materiais"
       :servicos="form.resumo.value.servicos"
       :total="form.resumo.value.total"
+      :acima-do-limite="form.resumo.value.acimaDoLimite"
     />
 
     <section class="secao secao--final">
       <CampoFormulario
         v-model="form.campos.prazo"
         class="campo-prazo"
-        rotulo="Prazo estimado de entrega:"
+        :rotulo="compacto ? 'Prazo estimado de entrega (dias):' : 'Prazo estimado de entrega:'"
         obrigatorio
-        dica="(em dias)"
+        :dica="compacto ? undefined : '(em dias)'"
         placeholder="Ex: 15 dias"
         inputmode="numeric"
         autocomplete="off"

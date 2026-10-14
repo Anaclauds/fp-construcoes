@@ -13,6 +13,7 @@ import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 const props = defineProps<{ orcamento: Orcamento }>()
 
@@ -27,7 +28,7 @@ const idFormulario = useId()
 const raiz = useTemplateRef<HTMLElement>('raiz')
 const form = useFormularioAprovacao()
 const funcionarios = useTodosFuncionarios()
-const { cliente, carregando: carregandoCliente } = useClienteCompleto(props.orcamento.clienteId)
+const { cliente, carregando: carregandoCliente, semAcesso: semAcessoClientes } = useClienteCompleto(props.orcamento.clienteId)
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
 
@@ -38,6 +39,22 @@ watch(cliente, (valor) => {
   if (valor) form.preencherComCliente(valor)
 })
 
+// Sem acesso ao cadastro do cliente (ou se a consulta falhar), ao menos cidade/UF vêm do próprio orçamento.
+const enderecoIndisponivel = computed(() => !carregandoCliente.value && cliente.value === null)
+watch(
+  enderecoIndisponivel,
+  (indisponivel) => {
+    if (indisponivel) form.preencherComCliente(props.orcamento.cliente)
+  },
+  { immediate: true },
+)
+
+const notaEnderecoIndisponivel = computed(() =>
+  semAcessoClientes.value
+    ? 'Endereço completo do cliente indisponível (sem acesso a Clientes) — preencha manualmente.'
+    : 'Endereço completo do cliente indisponível — preencha manualmente.',
+)
+
 const opcoesResponsavel = computed(() =>
   funcionarios.funcionarios.value
     .filter((f) => f.status === 'ATIVO')
@@ -47,7 +64,7 @@ const opcoesResponsavel = computed(() =>
 const placeholderResponsavel = computed(() => {
   if (funcionarios.semPermissao.value) return 'Sem permissão para listar funcionários'
   if (funcionarios.carregando.value) return 'Carregando funcionários...'
-  return 'Selecione o funcionário responsável'
+  return 'Selecione o funcionário responsável pela negociação'
 })
 
 const avisoResponsavel = computed(() => {
@@ -77,7 +94,7 @@ function pedirFechar() {
 
 async function focarPrimeiroErro() {
   await Promise.resolve()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 async function confirmar() {
@@ -106,7 +123,7 @@ async function confirmar() {
     aberto
     titulo="Aprovar Orçamento"
     icone="check"
-    largura="560px"
+    largura="500px"
     :bloqueado="salvando"
     @fechar="pedirFechar"
   >
@@ -189,6 +206,12 @@ async function confirmar() {
           class="endereco-nota"
         >
           Carregando o endereço do cliente...
+        </p>
+        <p
+          v-else-if="enderecoIndisponivel"
+          class="endereco-nota"
+        >
+          {{ notaEnderecoIndisponivel }}
         </p>
         <p
           v-else-if="form.enderecoDoCliente.value"

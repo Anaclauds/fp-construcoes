@@ -133,12 +133,18 @@ async function salvar() {
   margin-top: 8px;
 }
 
-/* Figma: "Nº Orçamento" e "Data" alinhados à direita, na altura do título da primeira seção. */
+/*
+  Figma: "Nº Orçamento" e "Data" alinhados à direita, na mesma linha do título "Identificação do Orçamento"
+  (primeira seção do formulário, que começa no topo). Saem do fluxo para ocupar essa linha.
+*/
 .numero-data {
+  position: absolute;
+  top: 4px;
+  right: 0;
   display: flex;
   justify-content: flex-end;
   gap: 24px;
-  margin: 0 0 -16px;
+  margin: 0;
 }
 
 .numero-data div {
@@ -169,5 +175,14 @@ async function salvar() {
   display: flex;
   justify-content: space-between;
   margin-top: 8px;
+}
+
+/* Formulário estreito: o título e o bloco não cabem lado a lado, então o bloco volta ao fluxo, acima do título. */
+@media (max-width: 900px) {
+  .numero-data {
+    position: static;
+    justify-content: flex-start;
+    margin-bottom: -8px;
+  }
 }
 </style>

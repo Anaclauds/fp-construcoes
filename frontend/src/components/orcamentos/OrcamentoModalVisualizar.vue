@@ -95,7 +95,7 @@ const itensMenu = computed<ItemMenuAcao[]>(() =>
     aberto
     titulo="Detalhes do Orçamento"
     icone="olho"
-    largura="700px"
+    largura="680px"
     @fechar="emit('fechar')"
   >
     <header class="topo">

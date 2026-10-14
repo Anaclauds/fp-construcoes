@@ -18,7 +18,7 @@ const props = defineProps<{ orcamento: Orcamento }>()
 
 const emit = defineEmits<{ concluido: [] }>()
 
-const { usuario } = useAuth()
+const { usuario, temPermissao } = useAuth()
 const { imprimir } = useImpressao()
 
 const area = useTemplateRef<HTMLElement>('area')
@@ -30,8 +30,10 @@ const emitidoPor = usuario.value?.nomeCompleto ?? 'Usuário'
 onMounted(async () => {
   // O endereço do cliente exige acesso ao módulo Clientes; sem ele o PDF usa cidade/UF do orçamento.
   try {
-    const cliente = await buscarCliente(props.orcamento.clienteId)
-    endereco.value = enderecoEmUmaLinha(cliente) || null
+    if (temPermissao('CLIENTES', 'visualizar')) {
+      const cliente = await buscarCliente(props.orcamento.clienteId)
+      endereco.value = enderecoEmUmaLinha(cliente) || null
+    }
   } catch {
     endereco.value = null
   }

@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { centavosParaMoeda } from '../../utils/orcamentos'
+import { LIMITE_VALOR_CENTAVOS, centavosParaMoeda } from '../../utils/orcamentos'
 
-defineProps<{
+const props = defineProps<{
   /** Valores em centavos, calculados como o backend (ver `calcularResumo`). */
   materiais: number
   servicos: number
   total: number
+  /** O total (ou algum item) passa do limite permitido: em vez do número enorme mostra "Acima do limite". */
+  acimaDoLimite?: boolean
 }>()
+
+const TEXTO_ACIMA = 'Acima do limite'
+
+/** Valor da linha em reais, ou o aviso quando passa do limite (o total mostra o aviso sempre que o resumo passa). */
+function texto(centavos: number, ehTotal = false): string {
+  return centavos > LIMITE_VALOR_CENTAVOS || (ehTotal && props.acimaDoLimite) ? TEXTO_ACIMA : centavosParaMoeda(centavos)
+}
 </script>
 
 <template>
@@ -24,16 +33,19 @@ defineProps<{
     <dl class="resumo-card">
       <div class="resumo-linha">
         <dt>Materiais:</dt>
-        <dd>{{ centavosParaMoeda(materiais) }}</dd>
+        <dd>{{ texto(materiais) }}</dd>
       </div>
       <div class="resumo-linha">
         <dt>Serviços:</dt>
-        <dd>{{ centavosParaMoeda(servicos) }}</dd>
+        <dd>{{ texto(servicos) }}</dd>
       </div>
       <div class="resumo-linha resumo-linha--total">
         <dt>TOTAL:</dt>
-        <dd aria-live="polite">
-          {{ centavosParaMoeda(total) }}
+        <dd
+          aria-live="polite"
+          :class="{ 'resumo-acima': total > LIMITE_VALOR_CENTAVOS || acimaDoLimite }"
+        >
+          {{ texto(total, true) }}
         </dd>
       </div>
     </dl>
@@ -89,6 +101,11 @@ defineProps<{
 .resumo-linha--total dt {
   font-size: 20px;
   font-weight: 700;
+}
+
+.resumo-linha--total dd.resumo-acima {
+  color: var(--fp-vermelho-escuro);
+  font-size: 18px;
 }
 
 .resumo-linha--total dd {

@@ -70,8 +70,11 @@ export function useFormularioAprovacao() {
     mensagemFalha: (e) => (e instanceof Error ? e.message : 'Não foi possível consultar o CEP.'),
   })
 
-  /** Preenche o endereço da obra com o do cliente, sem sobrescrever o que o usuário já digitou. */
-  function preencherComCliente(cliente: Cliente) {
+  /**
+   * Preenche o endereço da obra com o do cliente, sem sobrescrever o que o usuário já digitou.
+   * Sem acesso a Clientes só há cidade/UF (do orçamento): o resto fica para preencher à mão.
+   */
+  function preencherComCliente(cliente: Pick<Cliente, 'cidade' | 'estado'> & Partial<Cliente>) {
     const sugestao: Partial<CamposAprovacao> = {
       cep: cliente.cep ? mascararCep(cliente.cep) : '',
       rua: cliente.rua ?? '',

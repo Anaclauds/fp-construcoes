@@ -274,18 +274,21 @@ const prazo = computed(() => {
       </dl>
     </section>
 
-    <p class="documento-declaracao">
-      Este orçamento foi elaborado com base nas informações acima. O prazo estimado de entrega é de
-      {{ prazo }}. Ao assinar, o cliente declara estar de acordo com os itens, valores e condições apresentados.
-    </p>
+    <!-- Declaração e assinaturas ficam juntas e inteiras no fim do documento (nunca partidas entre páginas). -->
+    <div class="documento-fechamento">
+      <p class="documento-declaracao">
+        Este orçamento foi elaborado com base nas informações acima. O prazo estimado de entrega é de
+        {{ prazo }}. Ao assinar, o cliente declara estar de acordo com os itens, valores e condições apresentados.
+      </p>
 
-    <DocumentoAssinaturas
-      :assinaturas="[
-        { nome: orcamento.cliente.nome, papel: 'Cliente' },
-        { nome: 'FP Construções', papel: emitidoPor },
-      ]"
-      impressao
-    />
+      <DocumentoAssinaturas
+        :assinaturas="[
+          { nome: orcamento.cliente.nome, papel: 'Cliente' },
+          { nome: 'FP Construções', papel: emitidoPor },
+        ]"
+        impressao
+      />
+    </div>
 
     <footer class="documento-rodape">
       <span>FP Construções · Orçamento {{ numero }} gerado em {{ emitidoEm }}</span>
@@ -398,7 +401,7 @@ th {
   gap: 24px;
 
   margin-top: 14px;
-  break-inside: avoid;
+  /* Sem break-inside: observações longas continuam na página seguinte; só o quadro de valores é indivisível. */
 }
 
 .documento-observacoes {
@@ -421,6 +424,7 @@ th {
   gap: 4px 28px;
   margin-left: auto;
   min-width: 240px;
+  break-inside: avoid;
   padding: 10px 14px;
   border: 1px solid var(--fp-cinza-borda);
   border-radius: 6px;
@@ -465,6 +469,9 @@ th {
   color: #4a5565;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.documento-fechamento {
   break-inside: avoid;
 }
 
