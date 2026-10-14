@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { ErrosLinhaExtra, LinhaExtraServico } from '../../composables/useFormularioExtraProjeto'
 import type { OpcaoServico } from '../../types/orcamento'
 import { mascararMoeda } from '../../utils/formatadores'
-import { centavosParaMoeda, mascararDecimal, rotuloUnidade, textoParaEscala } from '../../utils/orcamentos'
+import { centavosParaMoeda, filtrarDecimal, normalizarDecimal, rotuloUnidade, textoParaEscala } from '../../utils/orcamentos'
 import { centavosDoCampoMoeda } from '../../utils/projetos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
@@ -22,7 +22,8 @@ const emit = defineEmits<{
   remover: [linha: LinhaExtraServico]
 }>()
 
-const mascararQuantidade = (valor: string) => mascararDecimal(valor, 3, 9)
+const mascararQuantidade = (valor: string) => filtrarDecimal(valor, 3, 9)
+const normalizarQuantidade = (valor: string) => normalizarDecimal(valor, 3, 9)
 
 const unidades = computed(() => new Map(props.opcoes.map((s) => [String(s.id), rotuloUnidade(s.unidadeMedida)])))
 
@@ -99,6 +100,7 @@ function editarCusto(linha: LinhaExtraServico, valor: string) {
           autocomplete="off"
           inputmode="decimal"
           :mascara="mascararQuantidade"
+          :normalizar="normalizarQuantidade"
           :erro="erros[linha.uid]?.quantidade"
         />
         <CampoFormulario

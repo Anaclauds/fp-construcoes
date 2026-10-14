@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { ErrosLinhaServico, LinhaServicoEtapa } from '../../composables/useFormularioEtapaProjeto'
 import type { OpcaoServico } from '../../types/orcamento'
 import { mascararMoeda } from '../../utils/formatadores'
-import { mascararDecimal, rotuloUnidade } from '../../utils/orcamentos'
+import { filtrarDecimal, normalizarDecimal, rotuloUnidade } from '../../utils/orcamentos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 
@@ -21,7 +21,8 @@ const emit = defineEmits<{
   remover: [linha: LinhaServicoEtapa]
 }>()
 
-const mascararQuantidade = (valor: string) => mascararDecimal(valor, 3, 9)
+const mascararQuantidade = (valor: string) => filtrarDecimal(valor, 3, 9)
+const normalizarQuantidade = (valor: string) => normalizarDecimal(valor, 3, 9)
 
 function opcoesDaLinha(linha: LinhaServicoEtapa) {
   const emUso = props.servicosEmUso(linha)
@@ -97,6 +98,7 @@ function editarCusto(linha: LinhaServicoEtapa, valor: string) {
           autocomplete="off"
           inputmode="decimal"
           :mascara="mascararQuantidade"
+          :normalizar="normalizarQuantidade"
           :erro="erros[linha.uid]?.quantidade"
         />
         <CampoFormulario

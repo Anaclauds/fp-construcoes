@@ -85,7 +85,7 @@ export function nomeArquivoOrcamento(orcamento: Pick<Orcamento, 'numero' | 'clie
 /** Maior valor de uma coluna DECIMAL(12,2), em centavos: acima disso a API devolve erro 500. */
 export const LIMITE_VALOR_CENTAVOS = 999_999_999_999
 
-export { mascararDecimal, textoParaEscala } from './decimal'
+export { filtrarDecimal, mascararDecimal, normalizarDecimal, textoParaEscala } from './decimal'
 
 /** Decimal da API ("12.50", "30.000", 4234) -> texto pt-BR sem zeros à direita ("12,5", "30", "4234"). */
 export function decimalApiParaTexto(valor: string | number, minimoCasas = 0): string {

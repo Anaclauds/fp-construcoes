@@ -26,6 +26,8 @@ const props = withDefaults(
     maxlength?: number
     /** Formata o texto a cada digitação (ex.: máscara de CPF); o valor do v-model já sai mascarado. */
     mascara?: (valor: string) => string
+    /** Forma final do texto ao sair do campo (blur), quando só o texto completo permite decidir (ex.: "1.000" -> "1000"). */
+    normalizar?: (valor: string) => string
     /** `decimal` abre o teclado numérico com vírgula (quantidades e valores com casas decimais). */
     inputmode?: 'text' | 'numeric' | 'decimal' | 'tel'
     /** Altura (em linhas) do campo `area`. */
@@ -68,6 +70,14 @@ function aoDigitar(evento: Event) {
   // Reescreve o DOM direto: se a máscara descartar o caractere, o v-model não mudaria e o texto digitado ficaria.
   if (formatado !== input.value) input.value = formatado
   valor.value = formatado
+}
+
+function aoSair(evento: Event) {
+  if (!props.normalizar) return
+  const input = evento.target as HTMLInputElement
+  const final = props.normalizar(input.value)
+  if (final !== input.value) input.value = final
+  if (final !== valor.value) valor.value = final
 }
 </script>
 
@@ -164,6 +174,7 @@ function aoDigitar(evento: Event) {
         :aria-invalid="erro ? true : undefined"
         :aria-describedby="descricao"
         @input="aoDigitar"
+        @blur="aoSair"
       >
 
       <div

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FormularioOrcamento, LinhaMaterial } from '../../composables/useFormularioOrcamento'
-import { centavosParaMoeda, mascararDecimal, rotuloUnidade, totalDoItem } from '../../utils/orcamentos'
+import { centavosParaMoeda, filtrarDecimal, normalizarDecimal, rotuloUnidade, totalDoItem } from '../../utils/orcamentos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
@@ -9,8 +9,10 @@ import BotaoAdicionarItem from './BotaoAdicionarItem.vue'
 
 const props = defineProps<{ form: FormularioOrcamento }>()
 
-const mascaraQuantidade = (valor: string) => mascararDecimal(valor, 3)
-const mascaraValor = (valor: string) => mascararDecimal(valor, 2)
+const mascaraQuantidade = (valor: string) => filtrarDecimal(valor, 3)
+const normalizarQuantidade = (valor: string) => normalizarDecimal(valor, 3, 9)
+const mascaraValor = (valor: string) => filtrarDecimal(valor, 2)
+const normalizarValor = (valor: string) => normalizarDecimal(valor, 2, 9)
 
 /** Opções de uma linha: materiais já usados em outras linhas aparecem desabilitados (sem repetição). */
 function opcoesDaLinha(linha: LinhaMaterial): OpcaoAutocomplete[] {
@@ -101,6 +103,7 @@ function total(linha: LinhaMaterial): string {
           inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraQuantidade"
+          :normalizar="normalizarQuantidade"
           :erro="form.errosMateriais[linha.chave]?.quantidade"
           @update:model-value="form.aoDigitarMaterial(linha, 'quantidade')"
         />
@@ -111,6 +114,7 @@ function total(linha: LinhaMaterial): string {
           inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraValor"
+          :normalizar="normalizarValor"
           :erro="form.errosMateriais[linha.chave]?.valorUnitario"
           @update:model-value="form.aoDigitarMaterial(linha, 'valorUnitario')"
         />

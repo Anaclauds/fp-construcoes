@@ -1,4 +1,4 @@
-import { mascararDecimal } from './decimal'
+import { filtrarDecimal, normalizarDecimal, textoParaEscala } from './decimal'
 import { normalizarTexto } from './formatadores'
 import { rotuloUnidade, simboloUnidade } from './materiais'
 import type { ProjetoUtilizandoMaterial } from '../types/estoque'
@@ -36,15 +36,16 @@ export function percentualDisponivel(atual: string | number, disponivel: string 
   return Math.max(0, Math.min(100, Math.round((d / a) * 100)))
 }
 
-/** Máscara de quantidade: mesma regra de orçamentos e projetos (9 inteiros, 3 decimais; "1.000" é mil). */
-export const mascararQuantidade = (valor: string): string => mascararDecimal(valor, 3, 9)
+/** Filtro por tecla da quantidade: mesma regra de orçamentos e projetos (9 inteiros, 3 decimais; ver utils/decimal.ts). */
+export const mascararQuantidade = (valor: string): string => filtrarDecimal(valor, 3, 9)
 
-/** "12,5" -> 12.5; vazio ou inválido -> null. */
+/** Forma final da quantidade ao sair do campo ("1.000" -> "1000", "12.5" -> "12,5"). */
+export const normalizarQuantidade = (valor: string): string => normalizarDecimal(valor, 3, 9)
+
+/** "12,5" -> 12.5; "1.000" -> 1000 (milhar); vazio ou inválido -> null. */
 export function quantidadeParaNumero(texto: string): number | null {
-  const t = texto.trim()
-  if (t === '' || !/^\d+(,\d{0,3})?$/.test(t)) return null
-  const n = Number(t.replace(',', '.'))
-  return Number.isFinite(n) ? n : null
+  const escala = textoParaEscala(texto, 3)
+  return escala === null ? null : escala / 1000
 }
 
 /** Número -> texto do campo ("12.5" -> "12,5"). */

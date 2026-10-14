@@ -4,7 +4,7 @@ import { useDetalheEstoque } from '../../composables/useDetalheEstoque'
 import { useFormularioAjusteEstoque, OPCOES_TIPO_AJUSTE } from '../../composables/useFormularioAjusteEstoque'
 import { ajustarEstoque } from '../../services/estoque.service'
 import type { ItemEstoque } from '../../types/estoque'
-import { LIMITE_JUSTIFICATIVA, mascararQuantidade } from '../../utils/estoque'
+import { LIMITE_JUSTIFICATIVA, mascararQuantidade, normalizarQuantidade } from '../../utils/estoque'
 import { focarPrimeiroErro } from '../../utils/foco'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
@@ -133,6 +133,7 @@ const tipoSelecionado = computed({
         inputmode="decimal"
         autocomplete="off"
         :mascara="mascararQuantidade"
+        :normalizar="normalizarQuantidade"
         :aviso="form.dicaMaximo.value"
         :erro="form.erros.quantidade"
       />
