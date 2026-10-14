@@ -4,12 +4,13 @@ import type { FormularioFuncionario } from '../../composables/useFormularioFunci
 import {
   mascararCep,
   mascararCpf,
-  mascararData,
   mascararMoeda,
   mascararTelefone,
 } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
+import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 defineProps<{
   form: FormularioFuncionario
@@ -22,7 +23,7 @@ const raiz = useTemplateRef<HTMLElement>('raiz')
 /** Leva o foco ao primeiro campo com erro (chamar depois de `form.validar()` falhar). */
 async function focarPrimeiroErro() {
   await nextTick()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 defineExpose({ focarPrimeiroErro })
@@ -68,14 +69,11 @@ defineExpose({ focarPrimeiroErro })
           :mascara="mascararCpf"
           :erro="form.erros.cpf"
         />
-        <CampoFormulario
+        <CampoData
           v-model="form.campos.dataNascimento"
           class="s3 m4"
           rotulo="Data de Nascimento:"
           obrigatorio
-          placeholder="DD/MM/AAAA"
-          inputmode="numeric"
-          :mascara="mascararData"
           :erro="form.erros.dataNascimento"
         />
         <CampoFormulario
@@ -235,14 +233,11 @@ defineExpose({ focarPrimeiroErro })
           :opcoes="form.opcoes.value.tipoContrato"
           :erro="form.erros.tipoContrato"
         />
-        <CampoFormulario
+        <CampoData
           v-model="form.campos.dataContratacao"
           class="s2 m6"
           rotulo="Data de contratação:"
           obrigatorio
-          placeholder="DD/MM/AAAA"
-          inputmode="numeric"
-          :mascara="mascararData"
           :erro="form.erros.dataContratacao"
         />
       </div>

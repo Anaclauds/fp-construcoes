@@ -104,6 +104,11 @@ body {
     display: none !important;
   }
 
+  /* Modais e avisos (teleportados para o body) também ficam de fora: só a área de impressão sai no papel. */
+  body > *:not(.fp-area-impressao) {
+    display: none !important;
+  }
+
   html,
   body {
     height: auto !important;

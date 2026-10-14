@@ -71,6 +71,21 @@ export function cpfValido(valor: string): boolean {
   return digito(d.slice(0, 9)) === Number(d[9]) && digito(d.slice(0, 10)) === Number(d[10])
 }
 
+/** CNPJ com 14 dígitos, não repetidos, e dígitos verificadores corretos. */
+export function cnpjValido(valor: string): boolean {
+  const d = valor.replace(/\D/g, '')
+  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false
+
+  const digito = (base: string) => {
+    const pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    const soma = [...base].reduce((acc, n, i) => acc + Number(n) * pesos[i]!, 0)
+    const resto = soma % 11
+    return resto < 2 ? 0 : 11 - resto
+  }
+
+  return digito(d.slice(0, 12)) === Number(d[12]) && digito(d.slice(0, 13)) === Number(d[13])
+}
+
 /** Data real no formato DD/MM/AAAA (rejeita 31/02, ano < 1900 etc.). */
 export function dataBrValida(valor: string): boolean {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor)
@@ -117,8 +132,13 @@ export function antesDaIdadeMinima(contratacao: string, nascimento: string): boo
   return somarAnosBr(contratacao, 0) < somarAnosBr(nascimento, IDADE_MINIMA_ANOS)
 }
 
-/** Telefone brasileiro: DDD + 8 ou 9 dígitos. */
+/**
+ * Telefone brasileiro: DDD + fixo de 8 dígitos (10 no total) ou celular de 9 dígitos (11 no total),
+ * e o número do celular sempre começa com 9.
+ */
 export function telefoneValido(valor: string): boolean {
   const d = valor.replace(/\D/g, '')
-  return (d.length === 10 || d.length === 11) && !d.startsWith('0')
+  if (d.startsWith('0')) return false
+  if (d.length === 10) return true
+  return d.length === 11 && d[2] === '9'
 }

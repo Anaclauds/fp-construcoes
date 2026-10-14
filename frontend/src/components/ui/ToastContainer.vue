@@ -74,14 +74,17 @@ const { toasts, fecharToast } = useToast()
 }
 
 .notificacao {
-  min-width: 280px;
-  min-height: 70px;
+  /* Figma (Salvo com sucesso! / Cobrança Realizada!): cartão de 309x84, ícone de 38px a 28px da borda. */
+  box-sizing: border-box;
+  width: 309px;
+  max-width: calc(100vw - 32px);
+  min-height: 84px;
 
   display: flex;
   align-items: center;
   gap: 12px;
 
-  padding: 16px 20px;
+  padding: 16px 14px 16px 27px; /* esquerda: 28px do Figma menos a borda; à direita sobra um pouco para o título não quebrar */
   border: 1px solid var(--fp-cinza-borda);
   border-radius: 14px;
   background-color: #fff;
@@ -123,14 +126,20 @@ const { toasts, fecharToast } = useToast()
 
 .notificacao-mensagem {
   flex: 1;
+  min-width: 0;
   color: #101828;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
+  line-height: 26px;
+  overflow-wrap: anywhere;
 }
 
 .notificacao-fechar {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  /* Figma: o X encosta no bloco de texto (190px de largura, sem folga entre os dois). */
+  margin-left: -12px;
 
   display: flex;
   align-items: center;

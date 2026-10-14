@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import logoFp from '../../assets/images/logo-fp.png'
 import type { RelatorioCompleto, StatusFiltroRelatorio } from '../../types'
 import { diaDaSemana } from '../../utils/datas'
 import { isoParaDataBr, rotuloLegivel } from '../../utils/formatadores'
 import { ROTULO_STATUS, classeStatus, rotuloFiltroRelatorio } from '../../utils/frequencia'
+import DocumentoAssinaturas from '../ui/DocumentoAssinaturas.vue'
+import DocumentoCabecalho from '../ui/DocumentoCabecalho.vue'
 
 const props = defineProps<{
   relatorio: RelatorioCompleto
@@ -58,29 +59,14 @@ const mensagemVazia = computed(() =>
     class="documento"
     :class="{ 'documento--impressao': impressao }"
   >
-    <header class="documento-topo">
-      <div class="documento-marca">
-        <img
-          :src="logoFp"
-          alt=""
-          class="documento-logo"
-        >
-        <div>
-          <p class="documento-empresa">
-            FP Construções
-          </p>
-          <h1 class="documento-titulo">
-            Relatório de Frequência
-          </h1>
-        </div>
-      </div>
-      <dl class="documento-emissao">
-        <dt>Emitido em</dt>
-        <dd>{{ emitidoEm }}</dd>
-        <dt>Emitido por</dt>
-        <dd>{{ emitidoPor }}</dd>
-      </dl>
-    </header>
+    <DocumentoCabecalho
+      titulo="Relatório de Frequência"
+      :dados="[
+        { rotulo: 'Emitido em', valor: emitidoEm },
+        { rotulo: 'Emitido por', valor: emitidoPor },
+      ]"
+      :impressao="impressao"
+    />
 
     <section class="documento-resumo">
       <div>
@@ -193,20 +179,13 @@ const mensagemVazia = computed(() =>
       são verdadeiras e estão de acordo com os registros do sistema de controle de ponto da FP Construções.
     </p>
 
-    <section class="documento-assinaturas">
-      <div class="documento-assinatura">
-        <span class="documento-assinatura-linha" />
-        <strong>{{ relatorio.funcionario.nomeCompleto }}</strong>
-        <span>Funcionário</span>
-        <span class="documento-assinatura-data">Data: ______ / ______ / __________</span>
-      </div>
-      <div class="documento-assinatura">
-        <span class="documento-assinatura-linha" />
-        <strong>{{ emitidoPor }}</strong>
-        <span>Responsável / Administrador</span>
-        <span class="documento-assinatura-data">Data: ______ / ______ / __________</span>
-      </div>
-    </section>
+    <DocumentoAssinaturas
+      :assinaturas="[
+        { nome: relatorio.funcionario.nomeCompleto, papel: 'Funcionário' },
+        { nome: emitidoPor, papel: 'Responsável / Administrador' },
+      ]"
+      :impressao="impressao"
+    />
 
     <footer class="documento-rodape">
       <span>FP Construções · Relatório gerado em {{ emitidoEm }}</span>
@@ -236,60 +215,6 @@ dd {
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-}
-
-.documento-topo {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--fp-verde);
-}
-
-.documento-marca {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.documento-logo {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-}
-
-.documento-empresa {
-  color: var(--fp-verde);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.documento-titulo {
-  margin: 0;
-  color: #111;
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.documento-emissao {
-  text-align: right;
-}
-
-.documento-emissao dt {
-  color: #6b7280;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}
-
-.documento-emissao dd {
-  margin-bottom: 8px;
-  color: #111;
-  font-size: 13px;
-  font-weight: 600;
 }
 
 .documento-resumo {
@@ -412,41 +337,6 @@ tfoot td {
   break-inside: avoid;
 }
 
-.documento-assinaturas {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 56px;
-
-  margin-top: 40px;
-  break-inside: avoid;
-}
-
-.documento-assinatura {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-
-  color: #4a5565;
-  font-size: 12px;
-}
-
-.documento-assinatura strong {
-  color: #111;
-  font-size: 13px;
-}
-
-.documento-assinatura-linha {
-  width: 100%;
-  margin-bottom: 6px;
-  border-top: 1px solid #333;
-}
-
-.documento-assinatura-data {
-  margin-top: 8px;
-  color: #6b7280;
-}
-
 .documento-rodape {
   display: flex;
   justify-content: space-between;
@@ -466,15 +356,6 @@ tfoot td {
   font-size: 11px;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-}
-
-.documento--impressao .documento-titulo {
-  font-size: 20px;
-}
-
-.documento--impressao .documento-logo {
-  width: 48px;
-  height: 48px;
 }
 
 .documento--impressao .documento-resumo {
@@ -497,10 +378,6 @@ tfoot td {
   font-size: 11px;
 }
 
-.documento--impressao .documento-assinaturas {
-  margin-top: 30px;
-}
-
 .documento--impressao .documento-rodape {
   margin-top: 18px;
 }
@@ -510,13 +387,10 @@ tfoot td {
     padding: 18px 16px;
   }
 
-  .documento-topo,
   .documento-resumo {
     grid-template-columns: 1fr;
-    flex-direction: column;
   }
 
-  .documento-emissao,
   .documento-taxa {
     text-align: left;
   }

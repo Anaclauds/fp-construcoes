@@ -19,6 +19,8 @@ const props = withDefaults(
     dica?: string
     /** Mensagem de erro de validação; liga o estado inválido do campo. */
     erro?: string
+    /** Aviso neutro abaixo do campo (ex.: "lista indisponível, digite manualmente"). */
+    aviso?: string
     opcoes?: OpcaoCampo[]
     autocomplete?: string
     maxlength?: number
@@ -51,7 +53,13 @@ const limiteAtingido = computed(
     valor.value.length >= props.maxlength,
 )
 const idLimite = `${id}-limite`
-const descricao = computed(() => [props.erro ? idErro : '', limiteAtingido.value ? idLimite : ''].filter(Boolean).join(' ') || undefined)
+const idAviso = `${id}-aviso`
+const descricao = computed(
+  () =>
+    [props.erro ? idErro : '', props.aviso ? idAviso : '', limiteAtingido.value ? idLimite : '']
+      .filter(Boolean)
+      .join(' ') || undefined,
+)
 
 function aoDigitar(evento: Event) {
   const input = evento.target as HTMLInputElement | HTMLTextAreaElement
@@ -92,7 +100,7 @@ function aoDigitar(evento: Event) {
         :disabled="bloqueado"
         :required="obrigatorio"
         :aria-invalid="erro ? true : undefined"
-        :aria-describedby="erro ? idErro : undefined"
+        :aria-describedby="descricao"
       >
         <option
           v-if="placeholder"
@@ -206,6 +214,13 @@ function aoDigitar(evento: Event) {
       role="alert"
     >
       {{ erro }}
+    </p>
+    <p
+      v-if="aviso"
+      :id="idAviso"
+      class="campo-aviso"
+    >
+      {{ aviso }}
     </p>
     <!-- Região sempre presente para o leitor de tela anunciar o aviso quando ele aparece. -->
     <p
@@ -397,6 +412,12 @@ input.campo-input:read-only,
 .campo-limite:empty {
   height: 0;
   margin-top: -6px;
+}
+
+.campo-aviso {
+  margin: 0;
+  color: #717182;
+  font-size: 12.5px;
 }
 
 .campo-erro {

@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T">
-import { computed } from 'vue'
+import { computed, onMounted, onUpdated, useTemplateRef } from 'vue'
 import anteriorIcon from '../../assets/icons/icone-pagina-anterior.svg'
 import proximaIcon from '../../assets/icons/icone-pagina-proxima.svg'
 
@@ -27,11 +27,20 @@ const props = withDefaults(
     rotulo?: string
     /** Classe extra da linha (ex.: destacar linhas com pendência). */
     classeLinha?: (linha: T) => string | undefined
+    /** A linha inteira é clicável (emite `abrir-linha`); a célula principal deve trazer um link/botão para o teclado. */
+    linhaClicavel?: boolean
   }>(),
-  { porPagina: 8, carregando: false, erro: null, textoVazio: 'Nenhum registro encontrado.', rotulo: 'Resultados' },
+  {
+    porPagina: 8,
+    carregando: false,
+    erro: null,
+    textoVazio: 'Nenhum registro encontrado.',
+    rotulo: 'Resultados',
+    linhaClicavel: false,
+  },
 )
 
-const emit = defineEmits<{ 'tentar-novamente': [] }>()
+const emit = defineEmits<{ 'tentar-novamente': []; 'abrir-linha': [linha: T] }>()
 
 const pagina = defineModel<number>('pagina', { default: 1 })
 
@@ -54,6 +63,45 @@ function ir(destino: number) {
   if (destino >= 1 && destino <= totalPaginas.value) pagina.value = destino
 }
 
+/** Lista sem nenhum registro (vazia ou com erro): sem "Mostrando 0 de 0" nem paginação. */
+const semRegistros = computed(() => props.total === 0 && props.linhas.length === 0)
+
+function aoClicarLinha(evento: MouseEvent, linha: T) {
+  if (!props.linhaClicavel) return
+  // Cliques em links/botões da própria linha mantêm o comportamento deles.
+  if ((evento.target as HTMLElement).closest('a, button, input, select, textarea, label')) return
+  emit('abrir-linha', linha)
+}
+
+// Texto longo é cortado com reticências; o texto completo fica no `title` (hover) de cada célula de texto.
+const SELETOR_TEXTO = '.celula-principal, .celula-secundaria, .celula-corte, .fp-celula-nome'
+const corpo = useTemplateRef<HTMLElement>('corpo')
+
+function atualizarTitulos() {
+  const raiz = corpo.value
+  if (!raiz) return
+  const alvos = [
+    ...raiz.querySelectorAll<HTMLElement>(SELETOR_TEXTO),
+    // Células simples (sem slot) não têm elementos filhos.
+    ...Array.from(raiz.querySelectorAll<HTMLElement>('tbody td')).filter((td) => td.childElementCount === 0),
+  ]
+  for (const alvo of alvos) {
+    // Título definido por quem usa a tabela vence o automático.
+    if (alvo.hasAttribute('title') && alvo.dataset.tituloAuto !== '1') continue
+    const texto = alvo.textContent?.trim() ?? ''
+    if (texto) {
+      if (alvo.title !== texto) alvo.title = texto
+      alvo.dataset.tituloAuto = '1'
+    } else {
+      alvo.removeAttribute('title')
+      delete alvo.dataset.tituloAuto
+    }
+  }
+}
+
+onMounted(atualizarTitulos)
+onUpdated(atualizarTitulos)
+
 function valorPadrao(linha: T, chave: string): string {
   const valor = (linha as Record<string, unknown>)[chave]
   return valor === null || valor === undefined ? '' : String(valor)
@@ -63,6 +111,7 @@ function valorPadrao(linha: T, chave: string): string {
 <template>
   <section class="tabela-card">
     <div
+      ref="corpo"
       class="tabela-corpo"
       :aria-busy="carregando"
     >
@@ -89,7 +138,8 @@ function valorPadrao(linha: T, chave: string): string {
           <tr
             v-for="linha in linhas"
             :key="chaveLinha(linha)"
-            :class="classeLinha?.(linha)"
+            :class="[classeLinha?.(linha), { 'tabela-linha--clicavel': linhaClicavel }]"
+            @click="aoClicarLinha($event, linha)"
           >
             <td
               v-for="coluna in colunas"
@@ -143,7 +193,7 @@ function valorPadrao(linha: T, chave: string): string {
       <slot name="rodape" />
     </footer>
     <footer
-      v-else
+      v-else-if="!semRegistros"
       class="tabela-rodape"
     >
       <span
@@ -245,6 +295,7 @@ th {
   letter-spacing: 0.27px;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 td {
@@ -259,8 +310,28 @@ td {
   white-space: nowrap;
 }
 
+td :deep(.fp-celula-nome) {
+  display: block;
+}
+
 tbody tr:hover td {
   background-color: #fbfcfb;
+}
+
+.tabela-linha--clicavel {
+  cursor: pointer;
+}
+
+/* Textos de célula (classes usadas pelas telas) cortam com reticências em vez de vazar ou sumir. */
+td :deep(.celula-principal),
+td :deep(.celula-secundaria),
+td :deep(.celula-corte),
+td :deep(.fp-celula-nome) {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabela-mensagem {

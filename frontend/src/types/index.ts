@@ -1,5 +1,8 @@
 export type * from './auth'
+export type * from './cobranca'
+export type * from './cliente'
 export type * from './funcionario'
 export type * from './frequencia'
+export type * from './orcamento'
 export type * from './paginado'
 export type * from './usuario'

@@ -4,7 +4,7 @@ import desativarIcon from '../../assets/icons/icone-desativar.svg'
 import editarIcon from '../../assets/icons/icone-editar.svg'
 import visualizarIcon from '../../assets/icons/icone-visualizar.svg'
 
-export type TipoAcao = 'visualizar' | 'editar' | 'desativar' | 'reativar'
+export type TipoAcao = 'visualizar' | 'editar' | 'desativar' | 'reativar' | 'aprovar' | 'baixar'
 
 const props = defineProps<{
   tipo: TipoAcao
@@ -19,6 +19,8 @@ const verbo: Record<TipoAcao, string> = {
   editar: 'Editar',
   desativar: 'Desativar',
   reativar: 'Reativar',
+  aprovar: 'Aprovar',
+  baixar: 'Baixar PDF',
 }
 
 const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}` : verbo[props.tipo]))
@@ -54,6 +56,16 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
       height="18"
       class="botao-acao-x"
     >
+    <svg
+      v-else-if="tipo === 'baixar'"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      aria-hidden="true"
+      class="botao-acao-baixar"
+    >
+      <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5M4.5 19.5h15" />
+    </svg>
     <svg
       v-else
       viewBox="0 0 16 16"
@@ -117,12 +129,24 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
   filter: brightness(0);
 }
 
+.botao-acao-baixar {
+  fill: none;
+  stroke: #666;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Aprovar e reativar: botão verde sólido com ✓ branco. */
+.botao-acao--aprovar,
+.botao-acao--aprovar:hover,
 .botao-acao--reativar,
 .botao-acao--reativar:hover {
   border-color: var(--fp-verde);
   background-color: var(--fp-verde);
 }
 
+.botao-acao--aprovar:hover,
 .botao-acao--reativar:hover {
   filter: brightness(1.12);
 }

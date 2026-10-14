@@ -1,6 +1,7 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
 import { consultarCep } from '../services/viacep.service'
+import { useBuscaCep } from './useBuscaCep'
 import type { Funcionario, FuncionarioAtualizacao, FuncionarioPayload } from '../types'
 import {
   dataBrParaIso,
@@ -55,8 +56,6 @@ export interface CamposFuncionario {
   contatoEmergencia: string
   grauVinculo: string
 }
-
-type CampoEndereco = 'cidade' | 'estado' | 'rua' | 'bairro'
 
 export type ErrosFuncionario = Partial<Record<keyof CamposFuncionario, string>>
 
@@ -157,7 +156,7 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
   obrigatorio('sexo', 'Selecione o sexo.')
 
   if (c.celular === '') erros.celular = 'Informe o celular.'
-  else if (!telefoneValido(c.celular)) erros.celular = 'Celular inválido. Use DDD + 8 ou 9 dígitos.'
+  else if (!telefoneValido(c.celular)) erros.celular = 'Celular inválido. Use DDD + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular).'
 
   if (c.cep === '') erros.cep = 'Informe o CEP.'
   else if (digitos(c.cep).length !== 8) erros.cep = 'CEP inválido. Use 8 dígitos.'
@@ -189,7 +188,7 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
 
   obrigatorio('nomeContatoEmergencia', 'Informe o nome do contato.', 150)
   if (c.contatoEmergencia === '') erros.contatoEmergencia = 'Informe o telefone de emergência.'
-  else if (!telefoneValido(c.contatoEmergencia)) erros.contatoEmergencia = 'Telefone inválido. Use DDD + 8 ou 9 dígitos.'
+  else if (!telefoneValido(c.contatoEmergencia)) erros.contatoEmergencia = 'Telefone inválido. Use DDD + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular).'
   obrigatorio('grauVinculo', 'Selecione o grau de vínculo.')
 
   // Na edição, valor igual ao já salvo não é revalidado: não trava o PATCH dos outros campos.
@@ -216,7 +215,6 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
   const campos = reactive<CamposFuncionario>(inicial ? camposDoFuncionario(inicial) : camposVazios())
   const erros = reactive<ErrosFuncionario>({})
   const erroGeral = shallowRef<string | null>(null)
-  const buscandoCep = shallowRef(false)
 
   const base: Normalizado | null = inicial ? normalizar(camposDoFuncionario(inicial)) : null
 
@@ -276,53 +274,7 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
     else erroGeral.value = mensagem
   }
 
-  // Valores que a busca de CEP preencheu. Se o CEP não existir, só esses (e só se o usuário não os
-  // alterou depois) são apagados: o que foi digitado à mão fica.
-  let preenchidoPorCep: Partial<Record<CampoEndereco, string>> = {}
-
-  function limparEnderecoDoCep() {
-    for (const chave of Object.keys(preenchidoPorCep) as CampoEndereco[]) {
-      if (campos[chave] === preenchidoPorCep[chave]) campos[chave] = ''
-    }
-    preenchidoPorCep = {}
-  }
-
-  function preencherDoCep(chave: CampoEndereco, valor: string) {
-    campos[chave] = valor
-    preenchidoPorCep[chave] = valor
-  }
-
-  // Só a última consulta vale; se o CEP foi editado durante a chamada, o resultado é descartado.
-  async function buscarCep() {
-    const cep = digitos(campos.cep)
-    if (cep.length !== 8) {
-      erros.cep = 'CEP inválido. Use 8 dígitos.'
-      return
-    }
-
-    buscandoCep.value = true
-    try {
-      const endereco = await consultarCep(cep)
-      if (digitos(campos.cep) !== cep) return
-      if (!endereco) {
-        erros.cep = 'CEP não encontrado.'
-        limparEnderecoDoCep()
-        return
-      }
-      // CEPs genéricos (de cidade) vêm sem rua/bairro: o que não veio fica como está.
-      if (endereco.cidade) preencherDoCep('cidade', endereco.cidade)
-      if (endereco.estado && UFS.includes(endereco.estado)) preencherDoCep('estado', endereco.estado)
-      if (endereco.rua) preencherDoCep('rua', endereco.rua)
-      if (endereco.bairro) preencherDoCep('bairro', endereco.bairro)
-    } catch {
-      if (digitos(campos.cep) === cep) {
-        erros.cep = 'Não foi possível consultar o CEP. Preencha o endereço manualmente.'
-        limparEnderecoDoCep()
-      }
-    } finally {
-      buscandoCep.value = false
-    }
-  }
+  const { buscandoCep, buscarCep } = useBuscaCep({ campos, erros, consultar: consultarCep, ufs: UFS })
 
   return { campos, erros, erroGeral, opcoes, buscandoCep, validar, paraPayload, paraAtualizacao, tratarErroApi, buscarCep }
 }
