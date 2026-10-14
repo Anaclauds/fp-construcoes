@@ -32,15 +32,21 @@ export async function atualizarDespesa(id: number, payload: DespesaAtualizacao):
   return data
 }
 
-/** Todos os materiais ativos (a API pagina em até 100 por chamada). Exige MATERIAIS (visualizar). */
-export async function listarMateriaisAtivos(): Promise<MaterialOpcaoDespesa[]> {
+/** Máximo de materiais lidos para a compra (PAGINAS_MAXIMAS x LIMITE_API). Acima disso a lista é cortada e a tela avisa. */
+export const LIMITE_MATERIAIS_COMPRA = PAGINAS_MAXIMAS * LIMITE_API
+
+/**
+ * Materiais ativos (a API pagina em até 100 por chamada). Exige MATERIAIS (visualizar).
+ * `truncado` indica que há mais materiais do que o limite lido: o seletor não mostra todos.
+ */
+export async function listarMateriaisAtivos(): Promise<{ itens: MaterialOpcaoDespesa[]; truncado: boolean }> {
   const itens: MaterialOpcaoDespesa[] = []
   for (let page = 1; page <= PAGINAS_MAXIMAS; page++) {
     const { data } = await api.get<Paginado<MaterialOpcaoDespesa>>('/materiais', {
       params: { status: 'ATIVO', page, limit: LIMITE_API },
     })
     itens.push(...data.data)
-    if (page >= data.meta.totalPages) break
+    if (page >= data.meta.totalPages) return { itens, truncado: false }
   }
-  return itens
+  return { itens, truncado: true }
 }

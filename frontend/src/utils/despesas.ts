@@ -121,7 +121,17 @@ const TRADUCOES: [RegExp, string][] = [
   ],
   [/tipo da despesa nao pode ser alterado/i, 'O tipo da despesa não pode ser alterado depois do cadastro.'],
   [/informe o valor da despesa diversa/i, 'Informe o valor da despesa.'],
+  // Texto previsto para o backend corrigido (docs G1/X10); o antigo responde 500 sem explicar.
+  [
+    /(saldo|estoque).*(passaria|ultrapassa|excede|acima).*limite|limite.*(saldo|estoque)/i,
+    'A quantidade levaria o estoque de um dos materiais além do limite permitido (999.999.999,999). Reduza a quantidade ou confira o saldo em Estoque.',
+  ],
 ]
+
+/** Dica quando a API falha sem explicar e o saldo dos materiais não pôde ser conferido (sem permissão de Estoque). */
+export function mensagemSaldoLimite(): string {
+  return 'Se a quantidade levar o estoque de algum material além de 999.999.999,999, a compra é recusada: confira o saldo em Estoque.'
+}
 
 export function mensagemDespesa(mensagem: string): string {
   const normalizada = semAcento(mensagem)
