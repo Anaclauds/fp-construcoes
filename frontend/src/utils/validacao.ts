@@ -1,3 +1,5 @@
+import { hojeIso } from './datas'
+
 export const TAMANHO_MINIMO_SENHA = 6
 
 export interface ErrosSenha {
@@ -99,9 +101,7 @@ export function dataBrValida(valor: string, anoMinimo = 1900): boolean {
 /** True se a data DD/MM/AAAA (já validada) é posterior a hoje. */
 export function dataBrNoFuturo(valor: string): boolean {
   const [dia, mes, ano] = valor.split('/').map(Number) as [number, number, number]
-  const hoje = new Date()
-  const ref = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
-  return Date.UTC(ano, mes - 1, dia) > ref
+  return Date.UTC(ano, mes - 1, dia) > hojeUtc()
 }
 
 export const IDADE_MINIMA_ANOS = 14
@@ -112,9 +112,10 @@ function somarAnosBr(valor: string, anos: number): number {
   return Date.UTC(ano + anos, mes - 1, dia)
 }
 
+/** Meia-noite UTC do "hoje" do negócio (mesmo dia de `hojeIso`, fuso America/Porto_Velho, como o backend). */
 function hojeUtc(): number {
-  const hoje = new Date()
-  return Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  const [ano, mes, dia] = hojeIso().split('-').map(Number) as [number, number, number]
+  return Date.UTC(ano, mes - 1, dia)
 }
 
 /** True se a pessoa nascida em `nascimento` (DD/MM/AAAA válida) ainda não fez 14 anos hoje. */

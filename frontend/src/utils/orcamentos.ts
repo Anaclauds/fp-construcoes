@@ -1,6 +1,7 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
 import type { Cliente, Orcamento, StatusDefinivel, StatusOrcamento, TipoOrcamento } from '../types'
-import { formatarCep, formatarMoeda, rotuloLegivel } from './formatadores'
+import { textoParaEscala } from './decimal'
+import { formatarCep, formatarMoeda, rotuloLegivel, semAcento } from './formatadores'
 
 export const ROTULO_TIPO_ORCAMENTO: Record<TipoOrcamento, string> = {
   SERRALHERIA: 'Serralheria',
@@ -56,7 +57,7 @@ export function rotuloUnidade(unidade: string): string {
 
 /** Endereço do cliente numa linha: "Rua X, 100 - Bairro - Cidade/UF (CEP 00000-000)". */
 export function enderecoEmUmaLinha(
-  cliente: Pick<Cliente, 'rua' | 'numero' | 'bairro' | 'cidade' | 'estado' | 'cep'>,
+  cliente: Pick<Cliente, 'cidade' | 'estado'> & Partial<Pick<Cliente, 'rua' | 'numero' | 'bairro' | 'cep'>>,
 ): string {
   const logradouro = [cliente.rua, cliente.numero].filter(Boolean).join(', ')
   const cidade = [cliente.cidade, cliente.estado].filter(Boolean).join('/')
@@ -84,25 +85,7 @@ export function nomeArquivoOrcamento(orcamento: Pick<Orcamento, 'numero' | 'clie
 /** Maior valor de uma coluna DECIMAL(12,2), em centavos: acima disso a API devolve erro 500. */
 export const LIMITE_VALOR_CENTAVOS = 999_999_999_999
 
-/** Digitação de decimal pt-BR: só dígitos e uma vírgula, no máximo `casas` casas e `inteiros` dígitos inteiros. */
-export function mascararDecimal(valor: string, casas: number, inteiros = 9): string {
-  const limpo = valor.replace(/[^\d.,]/g, '').replace(/\./g, ',')
-  const virgula = limpo.indexOf(',')
-  const parteInteira = (virgula < 0 ? limpo : limpo.slice(0, virgula)).slice(0, inteiros)
-  if (virgula < 0) return parteInteira
-  const fracao = limpo.slice(virgula + 1).replace(/,/g, '').slice(0, casas)
-  return `${parteInteira === '' ? '0' : parteInteira},${fracao}`
-}
-
-/** "2,5" -> 2500 (escala 3). Vazio, inválido ou com casas a mais devolve null. */
-export function textoParaEscala(texto: string, casas: number): number | null {
-  const t = texto.trim()
-  if (!/^\d+(,\d*)?$/.test(t)) return null
-  const [inteiro = '', fracao = ''] = t.split(',')
-  if (fracao.length > casas) return null
-  const numero = Number(inteiro + fracao.padEnd(casas, '0'))
-  return Number.isSafeInteger(numero) ? numero : null
-}
+export { mascararDecimal, textoParaEscala } from './decimal'
 
 /** Decimal da API ("12.50", "30.000", 4234) -> texto pt-BR sem zeros à direita ("12,5", "30", "4234"). */
 export function decimalApiParaTexto(valor: string | number, minimoCasas = 0): string {
@@ -175,7 +158,7 @@ export function centavosParaMoeda(centavos: number): string {
   return formatarMoeda(centavos / 100)
 }
 
-/** A API responde sem acentos; estas mensagens conhecidas ganham texto correto para o usuário. */
+/** Mensagens conhecidas da API (com ou sem acento; a comparação ignora acentos) ganham texto correto. */
 const TRADUCOES: [RegExp, string][] = [
   [/cliente ativo nao encontrado/i, 'Cliente ativo não encontrado. Escolha outro cliente.'],
   [/ao menos um material ou servico/i, 'Adicione ao menos um material ou serviço.'],
@@ -195,5 +178,6 @@ const TRADUCOES: [RegExp, string][] = [
 ]
 
 export function mensagemOrcamento(mensagem: string): string {
-  return TRADUCOES.find(([padrao]) => padrao.test(mensagem))?.[1] ?? mensagem
+  const normalizada = semAcento(mensagem)
+  return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }

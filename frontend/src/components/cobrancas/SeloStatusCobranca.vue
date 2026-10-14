@@ -8,6 +8,8 @@ const props = defineProps<{
   status: StatusProjetoCobranca | StatusCobranca | StatusParcela
   /** Texto do selo; sem ele usa o nome padrão do status. */
   rotulo?: string
+  /** Parcela em aberto/parcial já vencida (campo `vencida` da API): o selo vira "Vencida". */
+  vencida?: boolean
 }>()
 
 const SITUACAO: Record<string, Situacao> = {
@@ -30,7 +32,8 @@ const PADRAO: Record<string, string> = {
   CANCELADA: 'Cancelada',
 }
 
-const situacao = computed<Situacao>(() => SITUACAO[props.status] ?? 'aberto')
+const vencida = computed(() => props.vencida === true && (props.status === 'EM_ABERTO' || props.status === 'PARCIAL'))
+const situacao = computed<Situacao>(() => (vencida.value ? 'vencido' : (SITUACAO[props.status] ?? 'aberto')))
 </script>
 
 <template>
@@ -42,7 +45,7 @@ const situacao = computed<Situacao>(() => SITUACAO[props.status] ?? 'aberto')
       class="selo-status-ponto"
       aria-hidden="true"
     />
-    {{ rotulo ?? PADRAO[status] }}
+    {{ vencida ? PADRAO.VENCIDA : (rotulo ?? PADRAO[status]) }}
   </span>
 </template>
 

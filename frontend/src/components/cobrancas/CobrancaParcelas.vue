@@ -53,7 +53,10 @@ defineProps<{ parcelas: Parcela[] }>()
           <td class="direita">
             {{ formatarMoeda(restanteDaParcela(parcela)) }}
           </td>
-          <td><SeloStatusCobranca :status="parcela.status" /></td>
+          <td><SeloStatusCobranca
+              :status="parcela.status"
+              :vencida="parcela.vencida"
+            /></td>
         </tr>
       </tbody>
     </table>

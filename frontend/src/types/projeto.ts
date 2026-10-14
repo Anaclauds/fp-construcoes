@@ -56,6 +56,9 @@ export interface IndicadoresProjetos {
   totalProjetos: number
   emExecucao: number
   concluidos: number
+  /** Só vêm no backend atualizado; sem eles o front conta os planejados com uma consulta extra. */
+  planejados?: number
+  cancelados?: number
 }
 
 export interface ListaProjetos extends Paginado<ProjetoResumo> {
@@ -78,6 +81,8 @@ export interface ParcelaProjeto {
   vencimento: string
   valor: string
   status: StatusParcela
+  /** Só vem no backend atualizado. */
+  vencida?: boolean
 }
 
 export interface CobrancaProjeto {
@@ -118,6 +123,8 @@ export interface EtapaServicoRegistrada {
   valorUnitario: string
   custoInternoEstimado: string
   servico: ServicoResumido
+  /** Descrição própria do serviço na etapa; só vem no backend atualizado. */
+  descricao?: string | null
 }
 
 export interface EtapaMaterialClienteRegistrado {
@@ -152,6 +159,14 @@ export interface ExtraServicoRegistrado {
   quantidade: string
   custoUnitarioEstimado: string
   servico: ServicoResumido
+  /** Só vem no backend atualizado. */
+  descricao?: string | null
+}
+
+export interface ExtraGastoAvulso {
+  id?: number
+  descricao: string
+  valor: string
 }
 
 export interface ExtraRegistrado {
@@ -163,6 +178,8 @@ export interface ExtraRegistrado {
   materiais: ExtraMaterialRegistrado[]
   servicos: ExtraServicoRegistrado[]
   despesa: { id: number; valorTotal: string } | null
+  /** Só vem no backend atualizado. */
+  gastosAvulsos?: ExtraGastoAvulso[]
 }
 
 export interface OrcamentoDoProjetoDetalhe extends OrcamentoDoProjetoResumo {
@@ -170,13 +187,44 @@ export interface OrcamentoDoProjetoDetalhe extends OrcamentoDoProjetoResumo {
   servicos: ItemServicoOrcamento[]
 }
 
-/** `GET /projetos/:id`. */
+export interface MaterialSemSaldoProjeto {
+  id: number
+  nome: string
+  necessario: number
+  disponivel: number
+}
+
+/** Saldo do orçamento a medir (Construção Civil). */
+export interface MedicoesProjeto {
+  valorOrcamento: number
+  totalMedido: number
+  saldoAMedir: number
+}
+
+/** `GET /projetos/:id`. Os campos opcionais só vêm no backend atualizado. */
 export interface ProjetoDetalhe extends ProjetoBase {
   responsavel: ResponsavelProjeto & { status: string }
   orcamento: OrcamentoDoProjetoDetalhe
   etapas: EtapaRegistrada[]
   extras: ExtraRegistrado[]
   cobrancas: CobrancaProjeto[]
+  /** `false` quando falta saldo para reservar o estoque dos materiais (só em projeto planejado). */
+  estoqueSuficiente?: boolean
+  materiaisSemSaldo?: MaterialSemSaldoProjeto[]
+  medicoes?: MedicoesProjeto | null
+}
+
+/** Cobrança que o cancelamento do projeto cancelou ou manteve (resposta de `PATCH /status`). */
+export interface CancelamentoProjeto {
+  cobrancasCanceladas: { id: number; tipo: string; valorTotal: number; parcelasCanceladas: number }[]
+  cobrancasMantidas: { id: number; tipo: string; valorTotal: number; valorRecebido: number; motivo: string }[]
+  reservasLiberadas: number
+}
+
+/** Resposta de iniciar e de alterar status: o projeto mais, no backend atualizado, avisos e o resultado do cancelamento. */
+export type RespostaProjeto = ProjetoDetalhe & {
+  avisos?: string[]
+  cancelamento?: CancelamentoProjeto | null
 }
 
 /* ---------------------------------- Payloads ---------------------------------- */
@@ -203,6 +251,8 @@ export interface EtapaServicoPayload {
   valorUnitario: number
   /** Total da linha (não unitário). */
   custoInternoEstimado: number
+  /** Detalhe do serviço nesta etapa; só o backend atualizado aceita (o antigo recusa o campo, 400). */
+  descricao?: string
 }
 
 export interface EtapaMaterialClientePayload {
@@ -232,6 +282,13 @@ export interface ExtraServicoPayload {
   quantidade: number
   /** Custo unitário. */
   custoUnitarioEstimado: number
+  /** Só o backend atualizado aceita. */
+  descricao?: string
+}
+
+export interface ExtraGastoAvulsoPayload {
+  descricao: string
+  valor: number
 }
 
 export interface ExtraPayload {
@@ -240,6 +297,46 @@ export interface ExtraPayload {
   descricaoJustificativa: string
   materiais?: ExtraMaterialPayload[]
   servicos?: ExtraServicoPayload[]
+  /** Só o backend atualizado aceita; o antigo recusa o campo (400). */
+  gastosAvulsos?: ExtraGastoAvulsoPayload[]
+}
+
+/** `PATCH /projetos/:id`: só o que mudou. Datas em YYYY-MM-DD; `complementoObra: ''` limpa o complemento. */
+export interface EditarProjetoPayload {
+  responsavelId?: number
+  previsaoInicio?: string
+  previsaoConclusao?: string
+  cepObra?: string
+  cidadeObra?: string
+  estadoObra?: string
+  ruaObra?: string
+  numeroObra?: string
+  bairroObra?: string
+  complementoObra?: string
+}
+
+/** `PATCH /projetos/:id/etapas/:etapaId`. */
+export interface EditarEtapaPayload {
+  descricao?: string
+  dataRegistro?: string
+}
+
+/** `PATCH /projetos/:id/extras/:extraId`. */
+export interface EditarExtraPayload {
+  descricaoJustificativa?: string
+  dataRegistro?: string
+}
+
+/** Etapa ou extra a corrigir (descrição/justificativa e data; valores, serviços e materiais não mudam). */
+export interface RegistroEditavel {
+  tipo: 'etapa' | 'extra'
+  id: number
+  /** Descrição da etapa ou justificativa do extra. */
+  texto: string
+  /** YYYY-MM-DD (aceita ISO completo). */
+  data: string
+  /** Extra que já gerou despesa no caixa: a data é a competência do caixa e não muda. */
+  dataTravada: boolean
 }
 
 export type StatusFinalProjeto = Extract<StatusProjeto, 'CONCLUIDO' | 'CANCELADO'>

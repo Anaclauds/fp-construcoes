@@ -3,6 +3,7 @@ import { shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { extrairMensagemErro } from '../../services/api'
+import { cpfValido } from '../../utils/validacao'
 import logoFp from '../../assets/images/logo-fp.png'
 
 // Visual do frame "LOGIN" (Figma TCC, node 16:75). O usuário de acesso é o CPF.
@@ -38,6 +39,12 @@ async function entrar() {
   // CPF: 11 dígitos, aceitando só a pontuação usual. Letras e tamanhos errados nem chegam à API.
   const digitosCpf = cpf.value.replace(/\D/g, '')
   if (/[^\d.\-\s]/.test(cpf.value) || digitosCpf.length !== 11) {
+    erro.value = 'Informe um CPF válido.'
+    return
+  }
+  // Dígitos verificadores errados nem chegam à API. CPF de um dígito só repetido (ex.: o usuário inicial 000.000.000-00
+  // do seed) segue para o servidor, que decide: o login do sistema não precisa ser um CPF "de verdade".
+  if (!/^(\d)\1{10}$/.test(digitosCpf) && !cpfValido(digitosCpf)) {
     erro.value = 'Informe um CPF válido.'
     return
   }

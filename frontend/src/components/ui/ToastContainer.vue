@@ -16,7 +16,7 @@ const { toasts, fecharToast } = useToast()
         v-for="toast in toasts"
         :key="toast.id"
         class="notificacao"
-        :class="`notificacao--${toast.tipo}`"
+        :class="[`notificacao--${toast.tipo}`, { 'notificacao--detalhes': toast.detalhes }]"
       >
         <span
           class="notificacao-icone"
@@ -37,7 +37,14 @@ const { toasts, fecharToast } = useToast()
             />
           </svg>
         </span>
-        <span class="notificacao-mensagem">{{ toast.mensagem }}</span>
+        <span class="notificacao-texto">
+          <span class="notificacao-mensagem">{{ toast.mensagem }}</span>
+          <span
+            v-for="detalhe in toast.detalhes"
+            :key="detalhe"
+            class="notificacao-detalhe"
+          >{{ detalhe }}</span>
+        </span>
         <button
           type="button"
           class="notificacao-fechar"
@@ -124,8 +131,29 @@ const { toasts, fecharToast } = useToast()
   stroke-linejoin: round;
 }
 
-.notificacao-mensagem {
+.notificacao--detalhes {
+  width: 420px;
+}
+
+/* Texto longo (avisos do servidor) rola dentro do cartão em vez de cobrir a tabela. */
+.notificacao-texto {
   flex: 1;
+  min-width: 0;
+  max-height: min(40vh, 260px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notificacao-detalhe {
+  color: #4a5565;
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.notificacao-mensagem {
   min-width: 0;
   color: #101828;
   font-size: 18px;

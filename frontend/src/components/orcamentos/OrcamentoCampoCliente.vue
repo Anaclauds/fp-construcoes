@@ -3,8 +3,7 @@ import { computed, shallowRef } from 'vue'
 import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
 import type { FormularioOrcamento } from '../../composables/useFormularioOrcamento'
-import { useBuscaClienteAtivo } from '../../composables/useBuscaClienteAtivo'
-import type { Cliente } from '../../types'
+import { useBuscaClienteAtivo, type ClienteBusca } from '../../composables/useBuscaClienteAtivo'
 import { formatarCpfCnpj, formatarTelefone } from '../../utils/formatadores'
 import ClienteModalCadastroRapido from '../clientes/ClienteModalCadastroRapido.vue'
 import BotaoFp from '../ui/BotaoFp.vue'
@@ -27,7 +26,7 @@ const opcoes = computed<OpcaoAutocomplete[]>(() =>
   busca.clientes.value.map((cliente) => ({
     valor: String(cliente.id),
     rotulo: cliente.nome,
-    detalhe: [`${cliente.cidade}/${cliente.estado}`, formatarCpfCnpj(cliente.cpfCnpj) || formatarTelefone(cliente.telefone)]
+    detalhe: [`${cliente.cidade}/${cliente.estado}`, formatarCpfCnpj(cliente.cpfCnpj ?? '') || (cliente.telefone ? formatarTelefone(cliente.telefone) : '')]
       .filter(Boolean)
       .join(' · '),
   })),
@@ -49,21 +48,21 @@ const idSelecionado = computed({
 const apoio = computed(() => {
   const cliente = props.form.cliente.value
   if (!cliente || props.compacto) return undefined
-  return `${cliente.cidade}/${cliente.estado} · ${formatarTelefone(cliente.telefone)}`
+  return cliente.telefone ? `${cliente.cidade}/${cliente.estado} · ${formatarTelefone(cliente.telefone)}` : `${cliente.cidade}/${cliente.estado}`
 })
 
-function resumo(cliente: Cliente) {
+function resumo(cliente: ClienteBusca) {
   return {
     id: cliente.id,
     nome: cliente.nome,
     cidade: cliente.cidade,
     estado: cliente.estado,
-    telefone: cliente.telefone,
+    telefone: cliente.telefone ?? '',
   }
 }
 
 /** O cadastro rápido já mostrou o toast: só seleciona o cliente criado e fecha o modal. */
-function aoCriarCliente(cliente: Cliente) {
+function aoCriarCliente(cliente: ClienteBusca) {
   props.form.cliente.value = resumo(cliente)
   cadastrandoCliente.value = false
 }

@@ -37,6 +37,10 @@ const resumoRestantes = computed(() => {
   return `… + ${quantidade} ${quantidade === 1 ? 'parcela mensal' : 'parcelas mensais'} até ${isoParaDataBr(ultima.vencimento)}`
 })
 
+/** Vencimento nos dias 29 a 31: em meses mais curtos a parcela cai no último dia do mês (explicado na prévia). */
+const diaDoVencimento = computed(() => Number(props.resultado.parcelas[0]?.vencimento.slice(8, 10)) || 0)
+const notaMesCurto = computed(() => props.parcelado && seguintes.value.length > 0 && diaDoVencimento.value >= 29)
+
 const avisoAcrescimo = computed(() =>
   props.acrescimoHabilitado ? undefined : 'Disponível com cartão de crédito, cartão de débito ou boleto.',
 )
@@ -86,12 +90,20 @@ const avisoAcrescimo = computed(() =>
       </li>
     </ul>
 
+    <p
+      v-if="notaMesCurto"
+      class="seguintes-nota"
+    >
+      Em meses mais curtos o vencimento cai no último dia do mês.
+    </p>
+
     <div class="percentuais">
       <CampoFormulario
         v-model="campos.acrescimo"
         rotulo="Acréscimo (%)"
         placeholder="0"
         autocomplete="off"
+        inputmode="decimal"
         :mascara="mascararPercentual"
         :desabilitado="!acrescimoHabilitado"
         :erro="erros.acrescimo"
@@ -102,6 +114,7 @@ const avisoAcrescimo = computed(() =>
         rotulo="Desconto (%)"
         placeholder="0"
         autocomplete="off"
+        inputmode="decimal"
         :mascara="mascararPercentual"
         :erro="erros.desconto"
       />
@@ -131,6 +144,12 @@ const avisoAcrescimo = computed(() =>
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
+}
+
+.seguintes-nota {
+  margin: -8px 0 0;
+  color: #717182;
+  font-size: 12.5px;
 }
 
 /* Datas calculadas das parcelas seguintes: leitura, em colunas para não alongar o modal. */

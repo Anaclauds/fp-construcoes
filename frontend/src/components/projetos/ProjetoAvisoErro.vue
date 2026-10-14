@@ -2,12 +2,19 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
+import type { MaterialSemSaldo } from '../../services/api'
 
 const props = defineProps<{
   mensagem: string
   /** Falta de saldo no estoque: mostra atalhos (nova aba) para onde resolver sem perder o que foi preenchido. */
   estoque?: boolean
+  /** Materiais sem saldo (necessário x disponível), quando o servidor os detalha. */
+  materiais?: MaterialSemSaldo[]
+  /** Moldura de alerta amarela (aviso antes de agir) em vez da vermelha de erro. */
+  atencao?: boolean
 }>()
+
+const numero = (valor: number) => valor.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
 
 const router = useRouter()
 const { temPermissao } = useAuth()
@@ -24,11 +31,43 @@ const atalhos = computed(() => {
 <template>
   <div
     class="aviso-erro"
+    :class="{ 'aviso-erro--atencao': atencao }"
     role="alert"
   >
     <p class="aviso-erro-texto">
       {{ mensagem }}
     </p>
+    <table
+      v-if="materiais && materiais.length > 0"
+      class="aviso-erro-materiais"
+    >
+      <caption class="fp-sr-only">
+        Materiais sem saldo suficiente
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">
+            Material
+          </th>
+          <th scope="col">
+            Necessário
+          </th>
+          <th scope="col">
+            Disponível
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="material in materiais"
+          :key="material.id"
+        >
+          <td>{{ material.nome }}</td>
+          <td>{{ numero(material.necessario) }}</td>
+          <td>{{ numero(material.disponivel) }}</td>
+        </tr>
+      </tbody>
+    </table>
     <p
       v-if="atalhos.length > 0"
       class="aviso-erro-atalhos"
@@ -46,6 +85,37 @@ const atalhos = computed(() => {
 </template>
 
 <style scoped>
+.aviso-erro.aviso-erro--atencao {
+  border-color: #fcd34d;
+  background-color: #fffbeb;
+  color: #92400e;
+}
+
+.aviso-erro.aviso-erro--atencao .aviso-erro-atalhos a {
+  color: #92400e;
+}
+
+.aviso-erro-materiais {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.aviso-erro-materiais th,
+.aviso-erro-materiais td {
+  padding: 4px 8px;
+  border-top: 1px solid currentColor;
+  text-align: left;
+}
+
+.aviso-erro-materiais th:not(:first-child),
+.aviso-erro-materiais td:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .aviso-erro {
   padding: 10px 14px;
   border: 1px solid #fca5a5;

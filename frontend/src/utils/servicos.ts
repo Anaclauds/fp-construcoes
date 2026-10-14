@@ -1,5 +1,5 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
-import { mascararMoeda } from './formatadores'
+import { mascararMoeda, semAcento as semAcentoMensagem } from './formatadores'
 import { rotuloUnidade } from './orcamentos'
 
 /** Limites do cadastro. A descrição não tem limite no backend (coluna TEXT): o do front evita textos absurdos. */
@@ -67,8 +67,8 @@ export function opcoesUnidade(atual?: string): OpcaoCampo[] {
 export const mascararValorServico = (valor: string) => mascararMoeda(valor, 12)
 
 
-/** A API responde sem acentos; estas mensagens ganham texto correto. */
+/** A comparação ignora acentos: a API responde com ou sem. */
 export function mensagemServico(mensagem: string): string {
-  if (/servico nao encontrado/i.test(mensagem)) return 'Serviço não encontrado. Atualize a lista.'
+  if (/servico nao encontrado/i.test(semAcentoMensagem(mensagem))) return 'Serviço não encontrado. Atualize a lista.'
   return mensagem
 }

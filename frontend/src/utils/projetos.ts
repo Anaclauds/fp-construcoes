@@ -2,13 +2,14 @@ import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
 import type { FormaPagamento } from '../types/cobranca'
 import type { OpcaoServico } from '../types/orcamento'
 import type {
+  CancelamentoProjeto,
   EtapaRegistrada,
   ModalidadeCobrancaProjeto,
   ProjetoBase,
   StatusProjeto,
 } from '../types/projeto'
 import { ROTULO_FORMA_PAGAMENTO } from './cobrancas'
-import { formatarCep, moedaParaNumero, paraCentavos } from './formatadores'
+import { formatarCep, moedaParaNumero, paraCentavos, semAcento } from './formatadores'
 import { decimalApiParaTexto, textoParaEscala } from './orcamentos'
 
 /* ------------------------------------------------------------------------------------------------
@@ -115,7 +116,7 @@ export function formaValidaNaModalidade(forma: string, modalidade: ModalidadeCob
 /* ------------------------------------------------------------------------------------------------
    Cálculo da cobrança. Repete o backend (projetos.service buildCobrancaDto + cobrancas.service buildParcelas):
    tudo em centavos; desconto e acréscimo arredondados separadamente sobre a base; parcela = floor(total / n)
-   com o resto na última; vencimento i = primeiro vencimento + i meses (Date.setUTCMonth, como o servidor).
+   com o resto na última; vencimento i = primeiro vencimento + i meses, limitado ao último dia do mês (ver `adicionarMeses`).
 ------------------------------------------------------------------------------------------------ */
 
 /** Acima de LIMITE_VALOR_CENTAVOS (DECIMAL(12,2) da API, em utils/orcamentos) o backend responde 500. */
@@ -135,11 +136,19 @@ export function percentualDeTexto(texto: string): number | null {
   return centesimos / 100
 }
 
-/** Soma meses a uma data ISO do mesmo jeito do servidor (dia 31 + 1 mês "estoura" para o mês seguinte). */
+/**
+ * Soma meses a uma data ISO limitando ao último dia do mês, sempre a partir do dia original:
+ * 31/01 -> 28/02 -> 31/03 -> 30/04. É o cálculo do backend atualizado; o backend antigo "estourava" para o mês
+ * seguinte (31/01 + 1 mês = 03/03), então com ele a prévia só diverge nos vencimentos dos dias 29 a 31.
+ */
 export function adicionarMeses(iso: string, meses: number): string {
-  const data = new Date(utc(iso))
-  data.setUTCMonth(data.getUTCMonth() + meses)
-  return data.toISOString().slice(0, 10)
+  const [ano, mes, dia] = iso.slice(0, 10).split('-').map(Number) as [number, number, number]
+  const indice = mes - 1 + meses
+  const anoAlvo = ano + Math.floor(indice / 12)
+  const mesAlvo = ((indice % 12) + 12) % 12
+  const ultimoDia = new Date(Date.UTC(anoAlvo, mesAlvo + 1, 0)).getUTCDate()
+  const texto = (n: number, tamanho: number) => String(n).padStart(tamanho, '0')
+  return `${texto(anoAlvo, 4)}-${texto(mesAlvo + 1, 2)}-${texto(Math.min(dia, ultimoDia), 2)}`
 }
 
 export interface ParcelaCalculada {
@@ -245,7 +254,7 @@ export function quantidadeComUnidade(quantidade: string, unidade: string): strin
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Mensagens da API (sem acentos) -> texto para o usuário
+   Mensagens da API (com ou sem acento) -> texto para o usuário
 ------------------------------------------------------------------------------------------------ */
 
 const TRADUCOES: [RegExp, string][] = [
@@ -267,6 +276,13 @@ const TRADUCOES: [RegExp, string][] = [
   [/nao repita o mesmo servico/i, 'Não repita o mesmo serviço.'],
   [/nao repita o mesmo material/i, 'Não repita o mesmo material.'],
   [/ao menos um material ou servico extra/i, 'Adicione ao menos um material ou serviço ao extra.'],
+  [/somente projeto planejado ou em execucao pode ser alterado/i, 'Só é possível editar projetos planejados ou em execução. A lista foi atualizada.'],
+  [/responsavel inexistente ou inativo/i, 'O responsável escolhido não existe ou está inativo. Escolha outro funcionário.'],
+  [/previsao de conclusao nao pode ser anterior ao inicio/i, 'A previsão de conclusão não pode ser anterior ao início da obra.'],
+  [/informe ao menos um campo para alterar/i, 'Nenhuma alteração para salvar.'],
+  [/etapa com recebimento registrado nao pode ser alterada/i, 'Esta etapa não pode ser editada: a cobrança dela já tem recebimento registrado.'],
+  [/data de um extra que ja gerou despesa/i, 'A data deste extra não pode ser alterada porque ele já gerou despesa no caixa. Só a justificativa pode mudar.'],
+  [/(etapa|extra) nao encontrad[oa] neste projeto/i, 'Registro não encontrado neste projeto. Os detalhes foram atualizados.'],
   [/caixa da competencia.*fechado/i, 'O caixa do mês deste registro está fechado e o serviço adicional com custo precisa lançar a saída nele. Remova os serviços com custo ou registre o extra quando houver um caixa aberto.'],
 ]
 
@@ -274,15 +290,37 @@ const TRADUCOES: [RegExp, string][] = [
 const ESTOQUE_INSUFICIENTE = /estoque insuficiente para (.+?)\. disponivel: ([\d.,-]+)/i
 
 export function mensagemProjeto(mensagem: string): string {
-  const estoque = ESTOQUE_INSUFICIENTE.exec(mensagem)
+  const normalizada = semAcento(mensagem)
+  const estoque = ESTOQUE_INSUFICIENTE.exec(normalizada)
   if (estoque) {
     const disponivel = decimalApiParaTexto(estoque[2]!.replace(',', '.')) || estoque[2]!
     return `Estoque insuficiente para "${estoque[1]}" (disponível: ${disponivel}). Registre a compra do material ou ajuste o estoque e tente novamente.`
   }
-  return TRADUCOES.find(([padrao]) => padrao.test(mensagem))?.[1] ?? mensagem
+  return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
 /** A mensagem é de falta de saldo no estoque (para exibir o aviso com destaque e o atalho para o Estoque). */
 export function ehEstoqueInsuficiente(mensagem: string): boolean {
-  return /estoque insuficiente/i.test(mensagem)
+  return /estoque insuficiente/i.test(semAcento(mensagem))
+}
+
+/**
+ * Resultado do cancelamento do projeto (backend atualizado) em uma frase para o aviso. Vazio quando o servidor não
+ * informa nada (backend antigo) ou não havia cobrança nem reserva.
+ */
+export function resumoCancelamento(cancelamento: CancelamentoProjeto | null | undefined): string {
+  if (!cancelamento) return ''
+  const partes: string[] = []
+  const canceladas = cancelamento.cobrancasCanceladas.length
+  const mantidas = cancelamento.cobrancasMantidas.length
+  if (canceladas > 0) partes.push(`${plural(canceladas, 'cobrança cancelada', 'cobranças canceladas')}`)
+  if (mantidas > 0) {
+    partes.push(
+      `${plural(mantidas, 'cobrança mantida', 'cobranças mantidas')} por já ter${mantidas === 1 ? '' : 'em'} recebimento (acerte em Cobranças)`,
+    )
+  }
+  if (cancelamento.reservasLiberadas > 0) {
+    partes.push(`${plural(cancelamento.reservasLiberadas, 'reserva de estoque liberada', 'reservas de estoque liberadas')}`)
+  }
+  return partes.length > 0 ? `${partes.join('; ')}.` : ''
 }

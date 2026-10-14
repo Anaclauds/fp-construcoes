@@ -61,10 +61,10 @@ export const gruposMenu: GrupoMenu[] = [
     rotulo: 'Estoque e Suprimentos',
     icone: estoqueSuprimentosIcon,
     itens: [
-      { rotulo: 'Equipamento', rota: 'equipamentos', modulo: 'EQUIPAMENTOS' },
-      { rotulo: 'Material', rota: 'materiais', modulo: 'MATERIAIS' },
+      { rotulo: 'Equipamento', rota: 'equipamentos', modulo: 'EQUIPAMENTOS', rotasRelacionadas: ['equipamentoNovo'] },
+      { rotulo: 'Material', rota: 'materiais', modulo: 'MATERIAIS', rotasRelacionadas: ['materialNovo'] },
       { rotulo: 'Estoque', rota: 'estoque', modulo: 'ESTOQUE' },
-      { rotulo: 'Fornecedor', rota: 'fornecedores', modulo: 'FORNECEDORES' },
+      { rotulo: 'Fornecedor', rota: 'fornecedores', modulo: 'FORNECEDORES', rotasRelacionadas: ['fornecedorNovo'] },
     ],
   },
   {

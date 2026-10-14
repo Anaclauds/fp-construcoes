@@ -323,6 +323,12 @@ tbody tr:hover td {
 }
 
 /* Textos de célula (classes usadas pelas telas) cortam com reticências em vez de vazar ou sumir. */
+/* Valor com muitos dígitos (R$ 9.999.999.999,99; 999.999.999,999 un): fonte menor para caber antes de cortar. */
+td :deep(.celula-longa) {
+  font-size: 11px;
+  letter-spacing: -0.2px;
+}
+
 td :deep(.celula-principal),
 td :deep(.celula-secundaria),
 td :deep(.celula-corte),

@@ -3,7 +3,7 @@ import { extrairErro } from '../services/api'
 import type { Cobranca, FormaPagamento, Parcela, RecebimentoPayload } from '../types'
 import { mensagemCobranca, parcelaAbertaParaReceber, restanteDaParcela } from '../utils/cobrancas'
 import { hojeIso } from '../utils/datas'
-import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero } from '../utils/formatadores'
+import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero, semAcento } from '../utils/formatadores'
 import { dataBrValida } from '../utils/validacao'
 
 export interface CamposRecebimento {
@@ -115,16 +115,16 @@ export function useFormularioRecebimento(cobranca: Cobranca) {
   function tratarErroApi(erro: unknown) {
     const { mensagem, status } = extrairErro(erro)
     const texto = mensagemCobranca(mensagem)
-    if (/superior ao restante/i.test(mensagem)) {
+    if (/superior ao restante/i.test(semAcento(mensagem))) {
       erros.valor = texto
       return
     }
     // Caixa do mês fechado: o problema é a data escolhida, então o erro aparece (e recebe o foco) no campo Data.
-    if (/caixa da competencia .* fechado/i.test(mensagem)) {
+    if (/caixa da competencia .* fechado/i.test(semAcento(mensagem))) {
       erros.data = texto
       return
     }
-    if (/paga ou cancelada|nao pertence|nao encontrada/i.test(mensagem) || status === 404) desatualizado.value = true
+    if (/paga ou cancelada|nao pertence|nao encontrada/i.test(semAcento(mensagem)) || status === 404) desatualizado.value = true
     erroGeral.value = texto
   }
 

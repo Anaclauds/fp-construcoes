@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, shallowRef, useId, useTemplateRef } from 'vue'
+import { computed, nextTick, onMounted, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioIniciarProjeto } from '../../composables/useFormularioIniciarProjeto'
-import { iniciarProjeto } from '../../services/projetos.service'
+import { buscarProjeto, iniciarProjeto } from '../../services/projetos.service'
 import type { ProjetoResumo } from '../../types/projeto'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { centavosParaMoeda, formatarNumeroOrcamento } from '../../utils/orcamentos'
@@ -20,8 +20,8 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  /** Projeto iniciado; leva a mensagem para o aviso de sucesso. */
-  iniciado: [mensagem: string]
+  /** Projeto iniciado; leva a mensagem de sucesso e os avisos do servidor (se houver). */
+  iniciado: [mensagem: string, avisos: string[]]
   /** O backend indicou que o projeto mudou (já iniciado...): a lista precisa recarregar. */
   desatualizado: []
 }>()
@@ -93,13 +93,41 @@ async function irParaEtapa(destino: 1 | 2) {
   raiz.value?.querySelector<HTMLElement>('input:not([tabindex="-1"]), select, button[role="radio"]')?.focus()
 }
 
+const verificandoEstoque = shallowRef(false)
+
+/**
+ * Confere o saldo de estoque antes de pedir qualquer dado: o detalhe do projeto (backend atualizado) diz se os
+ * materiais do orçamento têm saldo para reservar. No backend antigo o campo não existe e nada é bloqueado
+ * (a falta de saldo só aparece como erro ao confirmar). Falha na consulta também não bloqueia.
+ */
+async function verificarEstoque() {
+  verificandoEstoque.value = true
+  try {
+    const detalhe = await buscarProjeto(props.projeto.id)
+    const faltando = detalhe.estoqueSuficiente === false ? (detalhe.materiaisSemSaldo ?? []) : []
+    form.semEstoque.value = faltando.length > 0
+    form.materiaisSemSaldo.value = faltando
+    if (!form.semEstoque.value) form.erroGeral.value = null
+  } catch {
+    form.semEstoque.value = false
+  } finally {
+    verificandoEstoque.value = false
+  }
+}
+
+onMounted(verificarEstoque)
+
+const textoSemEstoque =
+  'Não há estoque suficiente para reservar os materiais deste projeto. Registre a compra em Despesas (ou ajuste o estoque) e verifique novamente.'
+
 async function enviar() {
   enviando.value = true
   try {
-    await iniciarProjeto(props.projeto.id, form.paraPayload())
+    const resposta = await iniciarProjeto(props.projeto.id, form.paraPayload())
     emit(
       'iniciado',
       form.geraCobranca ? 'Projeto iniciado e cobrança gerada!' : 'Projeto iniciado com sucesso!',
+      resposta.avisos ?? [],
     )
   } catch (erro) {
     const onde = form.tratarErroApi(erro)
@@ -112,7 +140,7 @@ async function enviar() {
 }
 
 async function confirmar() {
-  if (enviando.value) return
+  if (enviando.value || form.semEstoque.value) return
 
   if (etapa.value === 1) {
     if (!form.validarCronograma()) {
@@ -154,6 +182,26 @@ const textoConfirmar = computed(() => {
       novalidate
       @submit.prevent="confirmar"
     >
+      <div
+        v-if="form.semEstoque.value"
+        class="sem-estoque"
+      >
+        <ProjetoAvisoErro
+          :mensagem="textoSemEstoque"
+          :materiais="form.materiaisSemSaldo.value"
+          estoque
+          atencao
+        />
+        <BotaoFp
+          variante="secundario"
+          tamanho="compacto"
+          :carregando="verificandoEstoque"
+          @click="verificarEstoque"
+        >
+          Verificar novamente
+        </BotaoFp>
+      </div>
+
       <template v-if="etapa === 1">
         <ProjetoQuadroResumo
           titulo="Informações do Projeto"
@@ -257,6 +305,7 @@ const textoConfirmar = computed(() => {
         v-if="form.erroGeral.value"
         :mensagem="form.erroGeral.value"
         :estoque="form.erroEstoque.value"
+        :materiais="form.materiaisSemSaldo.value"
       />
     </form>
 
@@ -286,6 +335,7 @@ const textoConfirmar = computed(() => {
         type="submit"
         :form="idFormulario"
         :carregando="enviando"
+        :desabilitado="form.semEstoque.value"
       >
         {{ textoConfirmar }}
       </BotaoFp>
@@ -302,6 +352,16 @@ const textoConfirmar = computed(() => {
 </template>
 
 <style scoped>
+.sem-estoque {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sem-estoque > :last-child {
+  align-self: flex-start;
+}
+
 .iniciar {
   display: flex;
   flex-direction: column;

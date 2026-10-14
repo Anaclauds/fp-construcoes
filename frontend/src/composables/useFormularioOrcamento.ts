@@ -3,12 +3,14 @@ import { extrairErro } from '../services/api'
 import type {
   ClienteDoOrcamento,
   MaterialPayload,
+  OpcaoMaterial,
   Orcamento,
   OrcamentoAtualizacao,
   OrcamentoPayload,
   ServicoPayload,
   TipoOrcamento,
 } from '../types'
+import { semAcento } from '../utils/formatadores'
 import {
   LIMITE_VALOR_CENTAVOS,
   calcularResumo,
@@ -135,7 +137,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
   const erroGeral = shallowRef<string | null>(null)
 
   // Itens do orçamento que já não estão na lista de ativos continuam selecionáveis (o dado não se perde).
-  const materiaisExtras = (inicial?.materiais ?? []).map((m) => ({
+  const materiaisExtras = (inicial?.materiais ?? []).map((m): OpcaoMaterial => ({
     id: m.material.id,
     codigo: m.material.codigo,
     nome: m.material.nome,
@@ -432,7 +434,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
   function tratarErroApi(erro: unknown) {
     const { mensagem, status } = extrairErro(erro)
     const texto = mensagemOrcamento(mensagem)
-    if (status === 404 && /cliente/i.test(mensagem)) erros.cliente = texto
+    if (status === 404 && /cliente/i.test(semAcento(mensagem))) erros.cliente = texto
     else erroGeral.value = texto
   }
 

@@ -26,7 +26,8 @@ const props = withDefaults(
     maxlength?: number
     /** Formata o texto a cada digitação (ex.: máscara de CPF); o valor do v-model já sai mascarado. */
     mascara?: (valor: string) => string
-    inputmode?: 'text' | 'numeric' | 'tel'
+    /** `decimal` abre o teclado numérico com vírgula (quantidades e valores com casas decimais). */
+    inputmode?: 'text' | 'numeric' | 'decimal' | 'tel'
     /** Altura (em linhas) do campo `area`. */
     linhas?: number
   }>(),

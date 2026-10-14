@@ -6,7 +6,7 @@ import type {
   StatusCobranca,
   TipoCobranca,
 } from '../types'
-import { paraCentavos } from './formatadores'
+import { paraCentavos, semAcento } from './formatadores'
 
 export const ROTULO_TIPO_COBRANCA: Record<TipoCobranca, string> = {
   ENTRADA: 'Entrada',
@@ -86,7 +86,7 @@ export function nomeDeQuemRegistrou(
   return registrado?.funcionario?.nomeCompleto ?? registrado?.login ?? ''
 }
 
-/** A API responde sem acentos; estas mensagens conhecidas ganham texto correto para o usuário. */
+/** Mensagens conhecidas da API (com ou sem acento; a comparação ignora acentos) ganham texto correto. */
 const TRADUCOES: [RegExp, string][] = [
   [/caixa da competencia .* fechado/i, 'O caixa do mês desta data está fechado. Escolha uma data de outro mês.'],
   [/cobranca paga ou cancelada/i, 'Esta cobrança já foi paga ou cancelada.'],
@@ -97,9 +97,10 @@ const TRADUCOES: [RegExp, string][] = [
 ]
 
 export function mensagemCobranca(mensagem: string): string {
-  const superior = mensagem.match(/valor superior ao restante da parcela: R\$ ([\d.,]+)/i)
+  const normalizada = semAcento(mensagem)
+  const superior = normalizada.match(/valor superior ao restante da parcela: R\$ ([\d.,]+)/i)
   if (superior) return `Valor superior ao restante da parcela (R$ ${superior[1]!.replace('.', ',')}).`
-  return TRADUCOES.find(([padrao]) => padrao.test(mensagem))?.[1] ?? mensagem
+  return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
 /** A API gera "Cobranca final N" e "Medicao N" sem acento; exibe a forma correta. */

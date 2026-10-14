@@ -3,7 +3,7 @@ import { extrairErro } from '../services/api'
 import type { OpcaoServico } from '../types/orcamento'
 import type { EtapaPayload, ProjetoResumo } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
-import { formatarMoeda, paraCentavos } from '../utils/formatadores'
+import { formatarMoeda, paraCentavos, semAcento } from '../utils/formatadores'
 import { centavosParaMoeda, escalaParaNumero, LIMITE_VALOR_CENTAVOS, textoParaEscala } from '../utils/orcamentos'
 import {
   centavosDoCampoMoeda,
@@ -193,7 +193,10 @@ export function useFormularioEtapaProjeto(
       cobranca.alterado.value,
   )
 
-  /** Descrição enviada: texto da etapa + a descrição opcional de cada serviço (a API não tem campo para ela). */
+  /**
+   * Descrição no formato antigo: texto da etapa + a descrição opcional de cada serviço anexada. O backend atualizado
+   * tem campo próprio (`servicos[].descricao`); este formato é o do antigo e serve também para medir o limite do texto.
+   */
   function descricaoFinal(): string {
     const detalhes = linhas
       .filter((l) => l.descricao.trim() !== '')
@@ -265,8 +268,11 @@ export function useFormularioEtapaProjeto(
     return valido && cobrancaValida
   }
 
-  /** Corpo do POST /etapas (assume formulário válido). */
-  function paraPayload(): EtapaPayload {
+  /**
+   * Corpo do POST /etapas (assume formulário válido). Por padrão a descrição de cada serviço vai em
+   * `servicos[].descricao`; com `legado` ela é anexada à descrição da etapa (backend antigo, que recusa o campo).
+   */
+  function paraPayload(legado = false): EtapaPayload {
     const materiaisCliente = materiais
       .filter((m) => !linhaMaterialVazia(m))
       .map((m) => ({
@@ -275,7 +281,7 @@ export function useFormularioEtapaProjeto(
         unidadeMedida: m.unidade.trim(),
       }))
     return {
-      descricao: descricaoFinal(),
+      descricao: legado ? descricaoFinal() : descricao.value.trim(),
       dataRegistro: hojeIso(),
       valorCobrado: subtotal.value / 100,
       servicos: linhas.map((l) => ({
@@ -283,6 +289,7 @@ export function useFormularioEtapaProjeto(
         quantidade: escalaParaNumero(textoParaEscala(l.quantidade, 3) ?? 0, 3),
         valorUnitario: (centavosDoCampoMoeda(l.valorUnitario) ?? 0) / 100,
         custoInternoEstimado: (centavosDoCampoMoeda(l.custo) ?? 0) / 100,
+        ...(!legado && l.descricao.trim() !== '' ? { descricao: l.descricao.trim() } : {}),
       })),
       ...(materiaisCliente.length > 0 ? { materiaisCliente } : {}),
       ...cobranca.paraPayload(),
@@ -293,7 +300,7 @@ export function useFormularioEtapaProjeto(
     const { mensagem } = extrairErro(erro)
     erroGeral.value = mensagemProjeto(mensagem)
     erroEstoque.value = ehEstoqueInsuficiente(mensagem)
-    if (/registros de execucao|projeto nao encontrado|etapas de medicao/i.test(mensagem)) desatualizado.value = true
+    if (/registros de execucao|projeto nao encontrado|etapas de medicao/i.test(semAcento(mensagem))) desatualizado.value = true
   }
 
   return {

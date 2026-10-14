@@ -1,9 +1,10 @@
 import { computed, reactive, shallowRef, watch, type Ref } from 'vue'
-import { extrairErro } from '../services/api'
+import { extrairErro, type MaterialSemSaldo } from '../services/api'
+import { suporte } from '../services/compatibilidade'
 import type { OpcaoMaterial, OpcaoServico } from '../types/orcamento'
 import type { ExtraPayload } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
-import { formatarMoeda, paraCentavos } from '../utils/formatadores'
+import { formatarMoeda, paraCentavos, semAcento } from '../utils/formatadores'
 import { escalaParaNumero, LIMITE_VALOR_CENTAVOS, textoParaEscala } from '../utils/orcamentos'
 import {
   centavosDoCampoMoeda,
@@ -42,6 +43,24 @@ export interface ErrosLinhaExtra {
   quantidade?: string
   custo?: string
 }
+
+/** Gasto sem material nem serviço cadastrado (aluguel de equipamento, frete...). Só o backend atualizado o aceita. */
+export interface LinhaGastoAvulso {
+  uid: number
+  descricao: string
+  /** Moeda mascarada ("R$ 180,50"). */
+  valor: string
+}
+
+export interface ErrosLinhaGasto {
+  descricao?: string
+  valor?: string
+}
+
+const LIMITE_DESCRICAO_GASTO = 255
+
+const novaLinhaGasto = (): LinhaGastoAvulso => ({ uid: proximoUid++, descricao: '', valor: '' })
+const gastoVazio = (l: LinhaGastoAvulso) => l.descricao.trim() === '' && centavosDoCampoMoeda(l.valor) === null
 
 const novaLinhaMaterial = (): LinhaExtraMaterial => ({
   uid: proximoUid++,
@@ -82,6 +101,9 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
   const descricao = shallowRef('')
   const materiais = reactive<LinhaExtraMaterial[]>([novaLinhaMaterial()])
   const servicos = reactive<LinhaExtraServico[]>([novaLinhaServico()])
+  const gastos = reactive<LinhaGastoAvulso[]>([novaLinhaGasto()])
+  const errosGastos = reactive<Record<number, ErrosLinhaGasto>>({})
+  const materiaisSemSaldo = shallowRef<MaterialSemSaldo[]>([])
   const erroDescricao = shallowRef<string | undefined>(undefined)
   const erroItens = shallowRef<string | undefined>(undefined)
   const errosMateriais = reactive<Record<number, ErrosLinhaExtra>>({})
@@ -125,11 +147,13 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
 
   watch(descricao, () => (erroDescricao.value = undefined))
   watch(
-    () => [...materiais.map((l) => `${l.materialId}|${l.quantidade}|${l.custo}`), ...servicos.map((l) => `${l.servicoId}|${l.quantidade}|${l.custo}`)],
+    () => [...materiais.map((l) => `${l.materialId}|${l.quantidade}|${l.custo}`), ...servicos.map((l) => `${l.servicoId}|${l.quantidade}|${l.custo}`), ...gastos.map((l) => `${l.descricao}|${l.valor}`)],
     () => {
       erroItens.value = undefined
       erroGeral.value = null
       erroEstoque.value = false
+      materiaisSemSaldo.value = []
+      for (const linha of gastos) if (errosGastos[linha.uid]) errosGastos[linha.uid] = {}
       for (const linha of materiais) if (errosMateriais[linha.uid]) errosMateriais[linha.uid] = {}
       for (const linha of servicos) if (errosServicos[linha.uid]) errosServicos[linha.uid] = {}
     },
@@ -167,6 +191,21 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
     delete errosServicos[linha.uid]
   }
 
+  function adicionarGasto() {
+    gastos.push(novaLinhaGasto())
+  }
+
+  function removerGasto(linha: LinhaGastoAvulso) {
+    const posicao = gastos.indexOf(linha)
+    if (posicao < 0) return
+    if (gastos.length > 1) gastos.splice(posicao, 1)
+    else Object.assign(gastos[0]!, novaLinhaGasto(), { uid: linha.uid })
+    delete errosGastos[linha.uid]
+  }
+
+  /** Gastos avulsos preenchidos, só quando o backend os aceita (depois da primeira recusa o bloco some). */
+  const gastosPreenchidos = () => (suporte.gastosAvulsos ? gastos.filter((l) => !gastoVazio(l)) : [])
+
   /** Custo estimado dos materiais e dos serviços adicionais, em centavos. */
   const custoMateriais = computed(() =>
     materiais.filter((l) => !materialVazio(l)).reduce((total, l) => total + custoTotalDaLinha(l.quantidade, l.custo), 0),
@@ -175,11 +214,22 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
     servicos.filter((l) => !servicoVazio(l)).reduce((total, l) => total + custoTotalDaLinha(l.quantidade, l.custo), 0),
   )
 
-  const alterado = computed(
-    () => descricao.value.trim() !== '' || materiais.some((l) => !materialVazio(l)) || servicos.some((l) => !servicoVazio(l)),
+  const custoGastos = computed(() =>
+    gastosPreenchidos().reduce((total, l) => total + (centavosDoCampoMoeda(l.valor) ?? 0), 0),
   )
 
-  /** Justificativa enviada + a descrição opcional de cada serviço (a API não tem campo para ela). */
+  const alterado = computed(
+    () =>
+      descricao.value.trim() !== '' ||
+      materiais.some((l) => !materialVazio(l)) ||
+      servicos.some((l) => !servicoVazio(l)) ||
+      gastosPreenchidos().length > 0,
+  )
+
+  /**
+   * Justificativa no formato antigo: a descrição opcional de cada serviço anexada ao texto. O backend atualizado tem
+   * campo próprio (`servicos[].descricao`); este formato é o do antigo e mede o limite do texto nos dois casos.
+   */
   function descricaoFinal(): string {
     const detalhes = servicos
       .filter((l) => l.descricao.trim() !== '')
@@ -239,21 +289,41 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
       if (Object.keys(erros).length > 0) valido = false
     }
 
-    if (valido && custoMateriais.value + custoServicos.value > LIMITE_VALOR_CENTAVOS) {
+    for (const linha of gastos) {
+      const erros: ErrosLinhaGasto = {}
+      if (suporte.gastosAvulsos && !gastoVazio(linha)) {
+        const texto = linha.descricao.trim()
+        const valor = centavosDoCampoMoeda(linha.valor)
+        if (texto === '') erros.descricao = 'Descreva o gasto.'
+        else if (texto.length > LIMITE_DESCRICAO_GASTO) erros.descricao = `Use no máximo ${LIMITE_DESCRICAO_GASTO} caracteres.`
+        if (valor === null || valor < 1) erros.valor = 'Informe um valor maior que zero.'
+        else if (valor > LIMITE_VALOR_CENTAVOS) erros.valor = MENSAGEM_LIMITE_VALOR
+      }
+      errosGastos[linha.uid] = erros
+      if (Object.keys(erros).length > 0) valido = false
+    }
+
+    if (valido && custoMateriais.value + custoServicos.value + custoGastos.value > LIMITE_VALOR_CENTAVOS) {
       erroItens.value = 'O custo total do extra passa do limite de R$ 9.999.999.999,99. Reduza quantidades ou custos.'
       valido = false
     }
 
-    const temItem = materiais.some((l) => !materialVazio(l)) || servicos.some((l) => !servicoVazio(l))
+    const temItem =
+      materiais.some((l) => !materialVazio(l)) || servicos.some((l) => !servicoVazio(l)) || gastosPreenchidos().length > 0
     if (!temItem) {
-      erroItens.value = 'Adicione ao menos um material ou serviço ao extra.'
+      erroItens.value = suporte.gastosAvulsos
+        ? 'Adicione ao menos um material, serviço ou gasto avulso ao extra.'
+        : 'Adicione ao menos um material ou serviço ao extra.'
       valido = false
     }
     return valido
   }
 
-  /** Corpo do POST /extras (assume formulário válido). */
-  function paraPayload(): ExtraPayload {
+  /**
+   * Corpo do POST /extras (assume formulário válido). Por padrão a descrição de cada serviço vai em
+   * `servicos[].descricao`; com `legado` ela é anexada à justificativa (backend antigo, que recusa o campo).
+   */
+  function paraPayload(legado = false): ExtraPayload {
     const materiaisPayload = materiais
       .filter((l) => !materialVazio(l))
       .map((l) => ({
@@ -267,26 +337,39 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
         servicoId: Number(l.servicoId),
         quantidade: escalaParaNumero(textoParaEscala(l.quantidade, 3) ?? 0, 3),
         custoUnitarioEstimado: (centavosDoCampoMoeda(l.custo) ?? 0) / 100,
+        ...(!legado && l.descricao.trim() !== '' ? { descricao: l.descricao.trim() } : {}),
       }))
+    const gastosPayload = gastosPreenchidos().map((l) => ({
+      descricao: l.descricao.trim(),
+      valor: (centavosDoCampoMoeda(l.valor) ?? 0) / 100,
+    }))
     return {
       dataRegistro: hojeIso(),
-      descricaoJustificativa: descricaoFinal(),
+      descricaoJustificativa: legado ? descricaoFinal() : descricao.value.trim(),
       ...(materiaisPayload.length > 0 ? { materiais: materiaisPayload } : {}),
       ...(servicosPayload.length > 0 ? { servicos: servicosPayload } : {}),
+      ...(gastosPayload.length > 0 ? { gastosAvulsos: gastosPayload } : {}),
     }
   }
 
   function tratarErroApi(erro: unknown) {
-    const { mensagem } = extrairErro(erro)
+    const { mensagem, materiais: semSaldo } = extrairErro(erro)
+    materiaisSemSaldo.value = semSaldo
     erroGeral.value = mensagemProjeto(mensagem)
     erroEstoque.value = ehEstoqueInsuficiente(mensagem)
-    if (/registros de execucao|projeto nao encontrado/i.test(mensagem)) desatualizado.value = true
+    if (/registros de execucao|projeto nao encontrado/i.test(semAcento(mensagem))) desatualizado.value = true
   }
 
   return {
     descricao,
     materiais,
     servicos,
+    gastos,
+    errosGastos,
+    materiaisSemSaldo,
+    custoGastos,
+    adicionarGasto,
+    removerGasto,
     erroDescricao,
     erroItens,
     errosMateriais,

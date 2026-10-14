@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioExtraProjeto } from '../../composables/useFormularioExtraProjeto'
 import { useOpcoesProjeto } from '../../composables/useOpcoesProjeto'
+import { suporte } from '../../services/compatibilidade'
 import { registrarExtra } from '../../services/projetos.service'
 import type { ProjetoResumo } from '../../types/projeto'
 import { focarPrimeiroErro } from '../../utils/foco'
@@ -12,6 +13,7 @@ import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
 import ProjetoAvisoErro from './ProjetoAvisoErro.vue'
+import ProjetoExtraGastos from './ProjetoExtraGastos.vue'
 import ProjetoExtraMateriais from './ProjetoExtraMateriais.vue'
 import ProjetoExtraServicos from './ProjetoExtraServicos.vue'
 import ProjetoQuadroResumo from './ProjetoQuadroResumo.vue'
@@ -44,9 +46,12 @@ const linhasResumo = computed(() => [
 const resumoCustos = computed(() => [
   { rotulo: 'Materiais adicionais (reserva de estoque)', valor: centavosParaMoeda(form.custoMateriais.value) },
   { rotulo: 'Serviços adicionais (despesa e saída no caixa)', valor: centavosParaMoeda(form.custoServicos.value) },
+  ...(suporte.gastosAvulsos
+    ? [{ rotulo: 'Gastos avulsos (despesa e saída no caixa)', valor: centavosParaMoeda(form.custoGastos.value) }]
+    : []),
 ])
 
-const custoTotal = computed(() => form.custoMateriais.value + form.custoServicos.value)
+const custoTotal = computed(() => form.custoMateriais.value + form.custoServicos.value + form.custoGastos.value)
 
 function pedirFechar() {
   if (form.alterado.value && !enviando.value) confirmandoSaida.value = true
@@ -67,7 +72,7 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarExtra(props.projeto.id, form.paraPayload())
+    await registrarExtra(props.projeto.id, form.paraPayload(), form.paraPayload(true))
     emit('registrado')
   } catch (erro) {
     form.tratarErroApi(erro)
@@ -145,6 +150,14 @@ async function confirmar() {
         @remover="form.removerServico"
       />
 
+      <ProjetoExtraGastos
+        v-if="suporte.gastosAvulsos"
+        :linhas="form.gastos"
+        :erros="form.errosGastos"
+        @adicionar="form.adicionarGasto"
+        @remover="form.removerGasto"
+      />
+
       <p
         v-if="form.erroItens.value"
         class="erro-itens"
@@ -167,6 +180,7 @@ async function confirmar() {
         v-if="form.erroGeral.value"
         :mensagem="form.erroGeral.value"
         :estoque="form.erroEstoque.value"
+        :materiais="form.materiaisSemSaldo.value"
       />
     </form>
 

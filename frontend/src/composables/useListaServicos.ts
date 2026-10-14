@@ -1,6 +1,6 @@
 import { shallowRef, watch } from 'vue'
 import type { FiltroStatus } from '../components/ui/CardBuscaFiltro.vue'
-import { extrairMensagemErro } from '../services/api'
+import { extrairMensagemErro, mensagemOriginal400 } from '../services/api'
 import { listarServicos } from '../services/servicos.service'
 import type { TipoOrcamento } from '../types'
 import type { FiltrosServicos, Servico } from '../types/servico'
@@ -26,10 +26,13 @@ async function listarTodos(filtros: FiltrosServicos): Promise<Servico[]> {
   return itens
 }
 
+/** O backend aceita `status=TODOS`? Desconhecido até a primeira consulta; o antigo responde 400 e fica lembrado. */
+let statusTodosSuportado: boolean | null = null
+
 /**
  * Lista de serviços com busca (debounce), filtros de categoria e status e paginação.
- * A API só lista um status por chamada (padrão ATIVO). Com Ativo ou Inativo a paginação é do servidor;
- * "Todos" busca os dois status, junta (ativos primeiro, cada grupo já ordenado pela API) e pagina aqui.
+ * Com Ativo, Inativo ou (backend atualizado) `status=TODOS` a paginação é do servidor. O backend antigo só lista um
+ * status por chamada (padrão ATIVO): nele "Todos" busca os dois, junta (ativos primeiro) e pagina aqui.
  */
 export function useListaServicos() {
   const busca = shallowRef('')
@@ -61,7 +64,21 @@ export function useListaServicos() {
       let totalItens: number
       let totalPaginas: number
 
-      if (status.value === 'TODOS') {
+      if (status.value === 'TODOS' && statusTodosSuportado !== false) {
+        try {
+          const resposta = await listarServicos({ ...filtros, status: 'TODOS', page: pagina.value, limit: POR_PAGINA })
+          statusTodosSuportado = true
+          itens = resposta.data
+          totalItens = resposta.meta.total
+          totalPaginas = resposta.meta.totalPages
+        } catch (e) {
+          // Backend antigo: "status" só aceita ATIVO ou INATIVO (400). Lembra e usa as duas chamadas.
+          // Só o backend antigo recusa o valor: o 400 cita o campo `status`. Outro 400 (ex.: busca inválida) é erro de verdade.
+          if (!/\bstatus\b/i.test(mensagemOriginal400(e))) throw e
+          statusTodosSuportado = false
+          return carregar()
+        }
+      } else if (status.value === 'TODOS') {
         const [ativos, inativos] = await Promise.all([
           listarTodos({ ...filtros, status: 'ATIVO' }),
           listarTodos({ ...filtros, status: 'INATIVO' }),

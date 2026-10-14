@@ -61,7 +61,8 @@ function querysIguais(a: LocationQuery, b: Record<string, string>): boolean {
  * ou voltar de outra tela reabre a lista como estava.
  *
  * Os cartões usam os indicadores globais da API (total, em execução, concluídos; ignoram os filtros).
- * "Planejados" não vem no payload: é lido de `GET /projetos?status=PLANEJADO&limit=1` (meta.total).
+ * "Planejados" vem em `indicadores.planejados` no backend atualizado; no antigo não existe e é lido de
+ * `GET /projetos?status=PLANEJADO&limit=1` (meta.total).
  */
 export function useListaProjetos() {
   const route = useRoute()
@@ -81,6 +82,8 @@ export function useListaProjetos() {
   const planejados = shallowRef<number | null>(null)
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
+  /** O backend devolve `indicadores.planejados`? Desconhecido (null) até a primeira resposta da lista. */
+  let planejadosNoIndicador: boolean | null = null
 
   const filtros = computed<FiltrosProjetos>(() => {
     const atuais: FiltrosProjetos = {}
@@ -107,6 +110,8 @@ export function useListaProjetos() {
       projetos.value = resposta.data
       total.value = resposta.meta.total
       indicadores.value = resposta.indicadores
+      planejadosNoIndicador = typeof resposta.indicadores.planejados === 'number'
+      if (planejadosNoIndicador) planejados.value = resposta.indicadores.planejados ?? null
       // A página deixou de existir (ex.: filtrou e sobrou menos): volta para a última.
       if (resposta.data.length === 0 && pagina.value > 1) {
         pagina.value = Math.max(1, resposta.meta.totalPages)
@@ -138,7 +143,13 @@ export function useListaProjetos() {
 
   /** Lista, indicadores e contagem de planejados (abertura da tela, "Tentar novamente" e depois de cada ação). */
   async function carregarTudo() {
-    await Promise.all([carregar(), carregarPlanejados()])
+    // Na primeira vez ainda não se sabe se a lista traz os planejados: espera a resposta antes de contar à parte.
+    if (planejadosNoIndicador === null) {
+      await carregar()
+      if (planejadosNoIndicador !== true) await carregarPlanejados()
+      return
+    }
+    await Promise.all([carregar(), planejadosNoIndicador ? Promise.resolve() : carregarPlanejados()])
   }
 
   function estadoAtual(): EstadoLista {

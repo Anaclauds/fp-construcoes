@@ -1,4 +1,6 @@
 <script lang="ts">
+import { reactive } from 'vue'
+
 export type VarianteModal = 'verde' | 'vermelho' | 'aviso'
 export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta' | 'cadeado' | 'mais'
 
@@ -6,7 +8,8 @@ export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta' | 'cadeado'
 let modaisAbertos = 0
 
 // Pilha de modais abertos: só o do topo responde a Esc e Tab (ex.: confirmação aberta sobre um formulário).
-const pilha: symbol[] = []
+// Reativa: o modal de baixo fica inerte (sem foco, clique ou leitura por leitor de tela) enquanto outro está por cima.
+const pilha = reactive<symbol[]>([])
 
 function atualizarContador(delta: number) {
   modaisAbertos = Math.max(0, modaisAbertos + delta)
@@ -15,7 +18,7 @@ function atualizarContador(delta: number) {
 </script>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, shallowRef, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, shallowRef, useId, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -42,6 +45,8 @@ const SELETOR_FOCAVEL =
 
 const meuId = Symbol('modal')
 const noTopo = () => pilha[pilha.length - 1] === meuId
+/** Há outro modal aberto por cima deste. */
+const coberto = computed(() => pilha.includes(meuId) && pilha[pilha.length - 1] !== meuId)
 
 let elementoAnterior: HTMLElement | null = null
 let travouRolagem = false
@@ -80,8 +85,11 @@ function aoFechar() {
     travouRolagem = false
     atualizarContador(-1)
   }
-  if (elementoAnterior?.isConnected) elementoAnterior.focus()
+  const anterior = elementoAnterior
   elementoAnterior = null
+  // Havia outro modal embaixo: o foco volta para ele, que só sai do inert no próximo ciclo de renderização.
+  if (pilha.length > 0) void nextTick(() => anterior?.isConnected && anterior.focus())
+  else if (anterior?.isConnected) anterior.focus()
 }
 
 watch(
@@ -164,6 +172,8 @@ function aoClicarFundo(evento: MouseEvent) {
     <div
       v-if="aberto"
       class="modal-fundo"
+      :inert="coberto"
+      :aria-hidden="coberto ? 'true' : undefined"
       @mousedown="aoPressionarFundo"
       @click="aoClicarFundo"
     >

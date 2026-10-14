@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useProjetoDetalhe } from '../../composables/useProjetoDetalhe'
-import type { ProjetoResumo } from '../../types/projeto'
+import { suporte } from '../../services/compatibilidade'
+import type { ProjetoResumo, RegistroEditavel } from '../../types/projeto'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { decimalApiParaTexto, formatarNumeroOrcamento, rotuloUnidade } from '../../utils/orcamentos'
 import { enderecoDaObra } from '../../utils/projetos'
@@ -26,6 +27,8 @@ const emit = defineEmits<{
   etapa: []
   extra: []
   status: []
+  editar: []
+  editarRegistro: [registro: RegistroEditavel]
 }>()
 
 const detalhe = useProjetoDetalhe(props.projeto.id)
@@ -77,8 +80,15 @@ const servicos = computed(() =>
   })),
 )
 
+/** Saldo do orçamento a medir (Construção Civil); só o backend atualizado informa. */
+const medicoes = computed(() => detalhe.projeto.value?.medicoes ?? null)
+
 const emExecucao = computed(() => atual.value.status === 'EM_EXECUCAO')
 const planejado = computed(() => atual.value.status === 'PLANEJADO')
+
+// Editar projeto/etapa/extra depende de rotas que o backend antigo não tem: some depois do primeiro 404 de rota.
+const podeEditarProjeto = computed(() => props.podeGerenciar && suporte.edicaoProjeto && (planejado.value || emExecucao.value))
+const podeEditarRegistros = computed(() => props.podeGerenciar && suporte.edicaoProjeto && emExecucao.value)
 </script>
 
 <template>
@@ -217,10 +227,35 @@ const planejado = computed(() => atual.value.status === 'PLANEJADO')
         :recebimentos-da-parcela="detalhe.recebimentosDaParcela"
       />
 
+      <section
+        v-if="medicoes"
+        class="secao"
+      >
+        <h4 class="secao-titulo">
+          Medições
+        </h4>
+        <dl class="medicoes">
+          <CampoLeitura
+            rotulo="Valor do orçamento"
+            :valor="formatarMoeda(medicoes.valorOrcamento)"
+          />
+          <CampoLeitura
+            rotulo="Total medido"
+            :valor="formatarMoeda(medicoes.totalMedido)"
+          />
+          <CampoLeitura
+            rotulo="Saldo a medir"
+            :valor="formatarMoeda(medicoes.saldoAMedir)"
+          />
+        </dl>
+      </section>
+
       <ProjetoRegistrosObra
         class="secao"
         :etapas="detalhe.projeto.value.etapas"
         :extras="detalhe.projeto.value.extras"
+        :editavel="podeEditarRegistros"
+        @editar="emit('editarRegistro', $event)"
       />
     </template>
 
@@ -239,11 +274,25 @@ const planejado = computed(() => atual.value.status === 'PLANEJADO')
     >
       <div class="atalhos">
         <BotaoFp
+          v-if="podeEditarProjeto"
+          variante="link"
+          @click="emit('editar')"
+        >
+          Editar projeto
+        </BotaoFp>
+        <BotaoFp
           v-if="planejado"
           variante="link"
           @click="emit('iniciar')"
         >
           Iniciar projeto
+        </BotaoFp>
+        <BotaoFp
+          v-if="planejado && suporte.cancelarPlanejado"
+          variante="link"
+          @click="emit('status')"
+        >
+          Cancelar projeto
         </BotaoFp>
         <template v-if="emExecucao">
           <BotaoFp
@@ -280,6 +329,19 @@ const planejado = computed(() => atual.value.status === 'PLANEJADO')
 </template>
 
 <style scoped>
+.medicoes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .medicoes {
+    grid-template-columns: 1fr;
+  }
+}
+
 .topo {
   margin-bottom: 18px;
 }

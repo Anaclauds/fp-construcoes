@@ -96,7 +96,10 @@ function dataDoPagamento(parcelaId: number): string {
               </template>
             </span>
           </div>
-          <SeloStatusCobranca :status="parcela.status" />
+          <SeloStatusCobranca
+            :status="parcela.status"
+            :vencida="parcela.vencida"
+          />
           <span class="parcela-valor">{{ formatarMoeda(parcela.valor) }}</span>
         </li>
       </ul>

@@ -1,9 +1,11 @@
-import { api } from './api'
+import { api, endpointInexistente } from './api'
 import type {
   AprovarOrcamentoPayload,
   FiltrosOrcamentos,
   ListaOrcamentos,
+  OpcaoClienteOrcamento,
   OpcaoMaterial,
+  OpcaoResponsavel,
   OpcaoServico,
   Orcamento,
   OrcamentoAtualizacao,
@@ -52,4 +54,44 @@ export async function listarOpcoesMateriais(): Promise<OpcaoMaterial[]> {
 export async function listarOpcoesServicos(): Promise<OpcaoServico[]> {
   const { data } = await api.get<OpcaoServico[]>('/orcamentos/opcoes/servicos')
   return data
+}
+
+/**
+ * Opções para quem tem só o módulo Orçamentos (clientes e responsáveis sem acesso a Clientes/Funcionários).
+ * Backend sem essas rotas responde 404 de rota: `null` avisa o chamador para usar o caminho antigo
+ * (`/clientes`, `/funcionarios`), e a ausência fica lembrada para não repetir a chamada.
+ */
+const rotaIndisponivel = { clientes: false, responsaveis: false }
+
+async function tentarOpcao<T>(chave: keyof typeof rotaIndisponivel, chamada: () => Promise<T>): Promise<T | null> {
+  if (rotaIndisponivel[chave]) return null
+  try {
+    return await chamada()
+  } catch (e) {
+    if (!endpointInexistente(e)) throw e
+    rotaIndisponivel[chave] = true
+    return null
+  }
+}
+
+export function listarClientesParaOrcamento(params: { busca?: string; limit?: number }) {
+  return tentarOpcao('clientes', async () => {
+    const { data } = await api.get<OpcaoClienteOrcamento[]>('/orcamentos/opcoes/clientes', { params })
+    return data
+  })
+}
+
+/** Um 404 de registro (cliente inativo/inexistente) é erro de verdade; só o 404 de rota vira `null`. */
+export function buscarClienteParaOrcamento(id: number) {
+  return tentarOpcao('clientes', async () => {
+    const { data } = await api.get<OpcaoClienteOrcamento>(`/orcamentos/opcoes/clientes/${id}`)
+    return data
+  })
+}
+
+export function listarResponsaveisParaOrcamento() {
+  return tentarOpcao('responsaveis', async () => {
+    const { data } = await api.get<OpcaoResponsavel[]>('/orcamentos/opcoes/responsaveis')
+    return data
+  })
 }
