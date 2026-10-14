@@ -5,14 +5,27 @@ import { dataBrParaIso, isoParaDataBr, mascararData } from '../../utils/formatad
 import { dataBrValida } from '../../utils/validacao'
 import CampoFormulario from './CampoFormulario.vue'
 
-defineProps<{
+const props = defineProps<{
   rotulo: string
   obrigatorio?: boolean
   erro?: string
+  /** Aviso neutro abaixo do campo (ex.: "Sugestão: 03/01/2026"). */
+  aviso?: string
+  /** Ano mínimo aceito pelo calendário (a validação do formulário usa o mesmo valor); sem ele, qualquer data. */
+  anoMinimo?: number
 }>()
 
 // Texto no formato DD/MM/AAAA (pode estar incompleto durante a digitação).
 const valor = defineModel<string>({ default: '' })
+
+/**
+ * Colar uma data ISO ("2026-10-20", com ou sem hora) vira DD/MM/AAAA; o resto segue a máscara normal.
+ * Sem isso os dígitos da ISO entrariam na máscara na ordem errada ("20/26/1020").
+ */
+function mascarar(texto: string): string {
+  const iso = /^\s*(\d{4})-(\d{2})-(\d{2})(?!\d)/.exec(texto)
+  return mascararData(iso ? `${iso[3]}${iso[2]}${iso[1]}` : texto)
+}
 
 const campoNativo = useTemplateRef<HTMLInputElement>('campoNativo')
 
@@ -36,8 +49,9 @@ function aoEscolher(evento: Event) {
     :rotulo="rotulo"
     :obrigatorio="obrigatorio"
     :erro="erro"
+    :aviso="aviso"
     placeholder="DD/MM/AAAA"
-    :mascara="mascararData"
+    :mascara="mascarar"
     inputmode="numeric"
     :maxlength="10"
     autocomplete="off"
@@ -71,6 +85,7 @@ function aoEscolher(evento: Event) {
         class="campo-data-nativo"
         tabindex="-1"
         aria-hidden="true"
+        :min="props.anoMinimo ? `${props.anoMinimo}-01-01` : undefined"
         @change="aoEscolher"
       >
     </template>

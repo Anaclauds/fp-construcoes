@@ -4,7 +4,7 @@ import desativarIcon from '../../assets/icons/icone-desativar.svg'
 import editarIcon from '../../assets/icons/icone-editar.svg'
 import visualizarIcon from '../../assets/icons/icone-visualizar.svg'
 
-export type TipoAcao = 'visualizar' | 'editar' | 'desativar' | 'reativar' | 'aprovar' | 'baixar'
+export type TipoAcao = 'visualizar' | 'editar' | 'desativar' | 'reativar' | 'aprovar' | 'baixar' | 'iniciar' | 'mais'
 
 const props = defineProps<{
   tipo: TipoAcao
@@ -21,6 +21,8 @@ const verbo: Record<TipoAcao, string> = {
   reativar: 'Reativar',
   aprovar: 'Aprovar',
   baixar: 'Baixar PDF',
+  iniciar: 'Iniciar',
+  mais: 'Mais ações',
 }
 
 const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}` : verbo[props.tipo]))
@@ -65,6 +67,33 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
       class="botao-acao-baixar"
     >
       <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5M4.5 19.5h15" />
+    </svg>
+    <svg
+      v-else-if="tipo === 'iniciar'"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      aria-hidden="true"
+    >
+      <path
+        d="M5 3.2v9.6L12.6 8z"
+        fill="#fff"
+        stroke="#fff"
+        stroke-width="1.4"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <svg
+      v-else-if="tipo === 'mais'"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      class="botao-acao-mais"
+    >
+      <circle cx="8" cy="3.2" r="1.3" />
+      <circle cx="8" cy="8" r="1.3" />
+      <circle cx="8" cy="12.8" r="1.3" />
     </svg>
     <svg
       v-else
@@ -137,17 +166,25 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
   stroke-linejoin: round;
 }
 
-/* Aprovar e reativar: botão verde sólido com ✓ branco. */
+/* Três pontinhos do menu de ações da linha. */
+.botao-acao-mais {
+  fill: #666;
+}
+
+/* Aprovar, reativar e iniciar: botão verde sólido com ícone branco. */
 .botao-acao--aprovar,
 .botao-acao--aprovar:hover,
 .botao-acao--reativar,
-.botao-acao--reativar:hover {
+.botao-acao--reativar:hover,
+.botao-acao--iniciar,
+.botao-acao--iniciar:hover {
   border-color: var(--fp-verde);
   background-color: var(--fp-verde);
 }
 
 .botao-acao--aprovar:hover,
-.botao-acao--reativar:hover {
+.botao-acao--reativar:hover,
+.botao-acao--iniciar:hover {
   filter: brightness(1.12);
 }
 

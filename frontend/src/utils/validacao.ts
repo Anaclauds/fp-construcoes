@@ -86,12 +86,12 @@ export function cnpjValido(valor: string): boolean {
   return digito(d.slice(0, 12)) === Number(d[12]) && digito(d.slice(0, 13)) === Number(d[13])
 }
 
-/** Data real no formato DD/MM/AAAA (rejeita 31/02, ano < 1900 etc.). */
-export function dataBrValida(valor: string): boolean {
+/** Data real no formato DD/MM/AAAA (rejeita 31/02 e ano < `anoMinimo`, padrão 1900; datas de obra usam 2000). */
+export function dataBrValida(valor: string, anoMinimo = 1900): boolean {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor)
   if (!m) return false
   const [dia, mes, ano] = [Number(m[1]), Number(m[2]), Number(m[3])]
-  if (ano < 1900) return false
+  if (ano < anoMinimo) return false
   const data = new Date(Date.UTC(ano, mes - 1, dia))
   return data.getUTCFullYear() === ano && data.getUTCMonth() === mes - 1 && data.getUTCDate() === dia
 }
