@@ -2,11 +2,14 @@ import axios, { isAxiosError } from 'axios'
 import { useToast } from '../composables/useToast'
 import { limparSessao, marcarSessaoExpirada, token } from './sessao'
 
+// Sem .env, usa a API local padrão do backend (npm run start:dev).
+const urlApi = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: urlApi,
 })
 
-const origemApi = new URL(import.meta.env.VITE_API_URL, window.location.origin).origin
+const origemApi = new URL(urlApi, window.location.origin).origin
 
 api.interceptors.request.use((config) => {
   // Token só vai para a própria API, nunca para URL absoluta de outro host.

@@ -195,6 +195,11 @@ Interface apresenta o resultado
 
 ## 🚀 Executando o Front-end
 
+### Pré-requisitos
+
+- **Node.js 20.19+ ou 22.12+** (exigido pelo Vite). Confira com `node -v`.
+- **Back-end rodando** (veja a [documentação do Back-end](../backend/README.md)). Sem a API, a tela de login abre, mas não entra.
+
 ### 1. Acesse o diretório
 
 ```bash
@@ -204,16 +209,43 @@ cd frontend
 ### 2. Instale as dependências
 
 ```bash
-npm install
+npm ci
 ```
 
-### 3. Inicie o ambiente de desenvolvimento
+> `npm ci` instala exatamente as versões do `package-lock.json`. Use `npm install` só para adicionar ou atualizar pacotes.
+
+### 3. Configure o endereço da API (opcional)
+
+Copie o arquivo de exemplo:
+
+```bash
+# Linux/macOS/Git Bash
+cp .env.example .env
+```
+
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
+```
+
+Sem o `.env`, o front usa `http://localhost:3000/api`, o endereço padrão do back-end local. Só altere `VITE_API_URL` se a API estiver em outro endereço ou porta.
+
+### 4. Inicie o ambiente de desenvolvimento
 
 ```bash
 npm run dev
 ```
 
-O Vite informará no terminal o endereço local para acessar a aplicação.
+Acesse **http://localhost:5173** e entre com um usuário cadastrado no back-end (o seed do back-end cria o administrador inicial; veja `SEED_ADMIN_CPF` e `SEED_ADMIN_PASSWORD` no `.env` do back-end).
+
+### Problemas comuns
+
+| Sintoma | Causa provável |
+| :--- | :--- |
+| Login mostra "Sem conexão com o servidor" | Back-end parado ou `VITE_API_URL` errado |
+| `npm ci` ou `npm run dev` reclama da versão do Node | Node abaixo de 20.19 |
+| "Muitas tentativas" no login | Limite de tentativas do back-end; aguarde 1 minuto |
+| Porta 5173 ocupada | Outro `npm run dev` aberto; o Vite sugere outra porta |
 
 ---
 
@@ -236,8 +268,10 @@ As configurações específicas do ambiente devem ser armazenadas em um arquivo 
 Exemplo:
 
 ```env
-VITE_API_URL=http://localhost:3000
+VITE_API_URL=http://localhost:3000/api
 ```
+
+Se a variável não for definida, o front usa esse mesmo endereço.
 
 > ⚠️ Arquivos `.env` com informações reais não devem ser enviados ao GitHub.
 
