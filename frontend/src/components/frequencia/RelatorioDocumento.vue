@@ -42,9 +42,12 @@ const taxa = computed(() => {
   return t === null ? '—' : `${t}%`
 })
 
+// Figma: "Total: 23 dias registrados". A tabela também lista os dias sem lançamento, que não são "registrados":
+// o total do rodapé conta só os dias com algum registro (presença, meio período ou falta).
 const totalDias = computed(() => {
-  const n = props.relatorio.indicadores.totalDias
-  return `Total: ${n} ${n === 1 ? 'dia' : 'dias'}`
+  const { totalDias: dias, naoRegistrados } = props.relatorio.indicadores
+  const n = dias - naoRegistrados
+  return `Total: ${n} ${n === 1 ? 'dia registrado' : 'dias registrados'}`
 })
 
 const mensagemVazia = computed(() =>
