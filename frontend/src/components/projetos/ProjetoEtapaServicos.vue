@@ -95,6 +95,7 @@ function editarCusto(linha: LinhaServicoEtapa, valor: string) {
           obrigatorio
           placeholder="0"
           autocomplete="off"
+          inputmode="decimal"
           :mascara="mascararQuantidade"
           :erro="erros[linha.uid]?.quantidade"
         />

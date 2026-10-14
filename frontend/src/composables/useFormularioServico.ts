@@ -2,7 +2,7 @@ import { computed, reactive, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
 import type { TipoOrcamento } from '../types'
 import type { Servico, ServicoAtualizacao, ServicoPayload } from '../types/servico'
-import { formatarMoeda, moedaParaNumero } from '../utils/formatadores'
+import { formatarMoeda, moedaParaNumero, limparEspacos } from '../utils/formatadores'
 import { OPCOES_TIPO_ORCAMENTO } from '../utils/orcamentos'
 import {
   LIMITE_DESCRICAO_SERVICO,
@@ -39,7 +39,7 @@ function camposDoServico(s: Servico): CamposServico {
 
 function normalizar(c: CamposServico) {
   return {
-    nome: c.nome.trim(),
+    nome: limparEspacos(c.nome),
     categoria: c.categoria,
     descricao: c.descricao.trim(),
     valorReferencia: moedaParaNumero(c.valor) ?? 0,

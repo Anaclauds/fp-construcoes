@@ -45,6 +45,7 @@ const mascararQuantidade = (valor: string) => mascararDecimal(valor, 3, 9)
         rotulo="Qtd.:"
         placeholder="0"
         autocomplete="off"
+        inputmode="decimal"
         :mascara="mascararQuantidade"
         :erro="erros[linha.uid]?.quantidade"
       />

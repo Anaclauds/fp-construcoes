@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, shallowRef, useId, useTemplateRef } from 'vue'
+import { computed, nextTick, shallowRef, useId, useTemplateRef, watch } from 'vue'
 import { extrairErro } from '../../services/api'
+import { suporte } from '../../services/compatibilidade'
 import { alterarStatusProjeto } from '../../services/projetos.service'
-import type { ProjetoResumo, StatusFinalProjeto } from '../../types/projeto'
+import type { ProjetoResumo, RespostaProjeto, StatusFinalProjeto } from '../../types/projeto'
+import { hojeIso } from '../../utils/datas'
+import { dataBrParaIso, isoParaDataBr, semAcento } from '../../utils/formatadores'
 import { formatarNumeroOrcamento } from '../../utils/orcamentos'
-import { mensagemProjeto } from '../../utils/projetos'
+import { ANO_MINIMO_DATA_PROJETO, mensagemProjeto } from '../../utils/projetos'
+import { dataBrValida } from '../../utils/validacao'
 import BotaoFp from '../ui/BotaoFp.vue'
+import CampoData from '../ui/CampoData.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import ProjetoAvisoErro from './ProjetoAvisoErro.vue'
 
@@ -13,10 +18,14 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  atualizado: [status: StatusFinalProjeto]
+  /** Leva a resposta do servidor (avisos e resultado do cancelamento, no backend atualizado). */
+  atualizado: [status: StatusFinalProjeto, resposta: RespostaProjeto]
   /** O backend indicou que o projeto mudou (já concluído, cancelado...): a lista precisa recarregar. */
   desatualizado: []
 }>()
+
+/** Projeto planejado ainda não começou: a única saída é cancelar. */
+const planejado = props.projeto.status === 'PLANEJADO'
 
 interface OpcaoStatus {
   valor: StatusFinalProjeto
@@ -25,39 +34,67 @@ interface OpcaoStatus {
   efeitos: string[]
 }
 
-// Efeitos descritos conforme o backend: concluir baixa as reservas de estoque e grava a data de conclusão;
-// cancelar libera as reservas; nenhum dos dois mexe nas cobranças já geradas.
-const opcoes: OpcaoStatus[] = [
-  {
-    valor: 'CONCLUIDO',
-    titulo: 'Concluir projeto',
-    descricao: 'A obra foi finalizada.',
-    efeitos: [
-      'A data de conclusão passa a ser hoje.',
-      'O estoque reservado para o projeto é baixado: os materiais saem do estoque definitivamente.',
-      'As cobranças e parcelas continuam como estão.',
-    ],
-  },
-  {
-    valor: 'CANCELADO',
-    titulo: 'Cancelar projeto',
-    descricao: 'A obra não será mais executada.',
-    efeitos: [
-      'O estoque reservado para o projeto é liberado e volta a ficar disponível.',
-      'As cobranças já geradas NÃO são canceladas: acerte os valores em Cobranças, se necessário.',
-      'Um projeto cancelado não pode ser reaberto.',
-    ],
-  },
-]
+// Concluir baixa as reservas de estoque e grava a data de conclusão, sem mexer nas cobranças. Cancelar libera as
+// reservas e, no backend atualizado, cancela as cobranças sem recebimento (o resultado aparece ao confirmar);
+// no antigo as cobranças ficam como estão. Por isso o texto das cobranças é neutro.
+const opcoes = computed<OpcaoStatus[]>(() => {
+  const todas: OpcaoStatus[] = [
+    {
+      valor: 'CONCLUIDO',
+      titulo: 'Concluir projeto',
+      descricao: 'A obra foi finalizada.',
+      efeitos: [
+        suporte.dataConclusao ? 'A data de conclusão é a informada abaixo (padrão: hoje).' : 'A data de conclusão passa a ser hoje.',
+        'O estoque reservado para o projeto é baixado: os materiais saem do estoque definitivamente.',
+        'As cobranças e parcelas não são alteradas: parcelas em aberto continuam em Cobranças.',
+      ],
+    },
+    {
+      valor: 'CANCELADO',
+      titulo: 'Cancelar projeto',
+      descricao: planejado ? 'O projeto não será iniciado.' : 'A obra não será mais executada.',
+      efeitos: [
+        ...(planejado ? [] : ['O estoque reservado para o projeto é liberado e volta a ficar disponível.']),
+        ...(planejado
+          ? []
+          : ['Cobranças sem recebimento podem ser canceladas; as que já têm recebimento ficam como estão. O resultado é informado ao confirmar: acerte o que sobrar em Cobranças.']),
+        'Um projeto cancelado não pode ser reaberto.',
+      ],
+    },
+  ]
+  // Projeto planejado só pode ser cancelado (concluir exige obra iniciada).
+  return planejado ? todas.filter((opcao) => opcao.valor === 'CANCELADO') : todas
+})
 
 const idGrupo = useId()
+const dataConclusao = shallowRef(isoParaDataBr(hojeIso()))
+const erroData = shallowRef<string | undefined>(undefined)
 const raiz = useTemplateRef<HTMLElement>('raiz')
-const escolha = shallowRef<StatusFinalProjeto | null>(null)
+// Planejado só tem uma saída (cancelar): já vem escolhida.
+const escolha = shallowRef<StatusFinalProjeto | null>(planejado ? 'CANCELADO' : null)
 const enviando = shallowRef(false)
 const erro = shallowRef<string | null>(null)
 
-const opcaoEscolhida = computed(() => opcoes.find((opcao) => opcao.valor === escolha.value) ?? null)
+const opcaoEscolhida = computed(() => opcoes.value.find((opcao) => opcao.valor === escolha.value) ?? null)
+/** Backend antigo que já recusou cancelar projeto não iniciado: o botão não tem o que fazer. */
+const bloqueadoNoServidor = computed(() => planejado && !suporte.cancelarPlanejado)
 const cancelando = computed(() => escolha.value === 'CANCELADO')
+const pedeDataConclusao = computed(() => escolha.value === 'CONCLUIDO' && suporte.dataConclusao)
+
+watch(dataConclusao, () => (erroData.value = undefined))
+
+/** Data de conclusão: real, do ano mínimo dos projetos em diante, não futura e não anterior ao início da obra. */
+function validarData(): boolean {
+  if (!pedeDataConclusao.value) return true
+  const texto = dataConclusao.value
+  if (texto === '') erroData.value = 'Informe a data de conclusão.'
+  else if (!dataBrValida(texto, ANO_MINIMO_DATA_PROJETO)) erroData.value = 'Data inválida. Use DD/MM/AAAA.'
+  else if (dataBrParaIso(texto) > hojeIso()) erroData.value = 'A data de conclusão não pode ser futura.'
+  else if (props.projeto.dataInicio && dataBrParaIso(texto) < props.projeto.dataInicio.slice(0, 10)) {
+    erroData.value = 'A data de conclusão não pode ser anterior ao início da obra.'
+  } else erroData.value = undefined
+  return erroData.value === undefined
+}
 
 function escolher(valor: StatusFinalProjeto) {
   escolha.value = valor
@@ -65,7 +102,7 @@ function escolher(valor: StatusFinalProjeto) {
 }
 
 async function confirmar() {
-  if (enviando.value) return
+  if (enviando.value || bloqueadoNoServidor.value) return
   if (!escolha.value) {
     erro.value = 'Escolha o novo status do projeto.'
     await nextTick()
@@ -73,15 +110,30 @@ async function confirmar() {
     return
   }
 
+  if (!validarData()) return
+
   enviando.value = true
   erro.value = null
   try {
-    await alterarStatusProjeto(props.projeto.id, escolha.value)
-    emit('atualizado', escolha.value)
+    const enviada = pedeDataConclusao.value ? dataBrParaIso(dataConclusao.value) : undefined
+    const resposta = await alterarStatusProjeto(props.projeto.id, escolha.value, enviada)
+    // Backend antigo: a data escolhida foi descartada e valeu hoje; o aviso deixa isso claro.
+    if (enviada && enviada !== hojeIso() && !suporte.dataConclusao) {
+      resposta.avisos = [...(resposta.avisos ?? []), 'Este servidor ainda não aceita data de conclusão: foi registrada a data de hoje.']
+    }
+    emit('atualizado', escolha.value, resposta)
   } catch (e) {
     const { mensagem } = extrairErro(e)
+    const texto = semAcento(mensagem)
+    // Backend antigo: só cancela projeto em execução. Não é lista desatualizada: o projeto está certo, o servidor é que
+    // não permite. Desliga a opção e explica, sem recarregar a lista (que levaria a repetir o mesmo erro).
+    if (planejado && /somente projeto em execucao pode ser concluido ou cancelado/i.test(texto)) {
+      suporte.cancelarPlanejado = false
+      erro.value = 'Este servidor ainda não permite cancelar projeto que não foi iniciado.'
+      return
+    }
     erro.value = mensagemProjeto(mensagem)
-    if (/somente projeto em execucao|projeto nao encontrado/i.test(mensagem)) emit('desatualizado')
+    if (/somente projeto (planejado|em execucao)|projeto nao encontrado/i.test(texto)) emit('desatualizado')
   } finally {
     enviando.value = false
   }
@@ -91,7 +143,7 @@ async function confirmar() {
 <template>
   <ModalBase
     aberto
-    titulo="Atualizar Status do Projeto"
+    :titulo="planejado ? 'Cancelar Projeto' : 'Atualizar Status do Projeto'"
     :subtitulo="`${formatarNumeroOrcamento(projeto.orcamento.numero)} · ${projeto.orcamento.titulo}`"
     :variante="cancelando ? 'vermelho' : 'verde'"
     :icone="cancelando ? 'x' : 'check'"
@@ -109,7 +161,7 @@ async function confirmar() {
         :id="idGrupo"
         class="status-pergunta"
       >
-        Para qual status deseja atualizar este projeto?
+        {{ planejado ? 'Este projeto ainda não foi iniciado. Deseja cancelá-lo?' : 'Para qual status deseja atualizar este projeto?' }}
       </p>
 
       <div
@@ -145,6 +197,16 @@ async function confirmar() {
           </span>
         </button>
       </div>
+
+      <CampoData
+        v-if="pedeDataConclusao"
+        v-model="dataConclusao"
+        rotulo="Data de Conclusão"
+        obrigatorio
+        :ano-minimo="ANO_MINIMO_DATA_PROJETO"
+        :erro="erroData"
+        aviso="Quando a obra foi concluída? Por padrão, hoje."
+      />
 
       <section
         v-if="opcaoEscolhida"
@@ -182,6 +244,7 @@ async function confirmar() {
       <BotaoFp
         :variante="cancelando ? 'perigo' : 'primario'"
         :carregando="enviando"
+        :desabilitado="bloqueadoNoServidor"
         @click="confirmar"
       >
         {{ cancelando ? 'Confirmar cancelamento' : escolha ? 'Confirmar conclusão' : 'Confirmar' }}

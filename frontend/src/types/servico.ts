@@ -27,7 +27,8 @@ export type ServicoAtualizacao = Partial<ServicoPayload>
 export interface FiltrosServicos {
   busca?: string
   categoria?: TipoOrcamento
-  status?: StatusCadastro
+  /** `TODOS` só existe no backend atualizado; sem ele o front junta ativos e inativos (ver useListaServicos). */
+  status?: StatusCadastro | 'TODOS'
   page?: number
   limit?: number
 }

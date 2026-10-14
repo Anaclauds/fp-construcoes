@@ -1,8 +1,8 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { extrairErro, type MaterialSemSaldo } from '../services/api'
 import type { IniciarProjetoPayload, ProjetoResumo } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
-import { dataBrParaIso, isoParaDataBr, paraCentavos } from '../utils/formatadores'
+import { dataBrParaIso, isoParaDataBr, paraCentavos, semAcento } from '../utils/formatadores'
 import { duracaoEmDias, ehEstoqueInsuficiente, mensagemProjeto } from '../utils/projetos'
 import { dataBrValida } from '../utils/validacao'
 import { ANO_MINIMO_DATA_PROJETO } from '../utils/projetos'
@@ -24,13 +24,21 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   const construcaoCivil = projeto.orcamento.tipo === 'CONSTRUCAO_CIVIL'
   const geraCobranca = !construcaoCivil
 
-  const sugestaoInicio = isoParaDataBr(projeto.previsaoInicio ?? hojeIso())
+  // A obra começa hoje ou antes: previsão no futuro não vira sugestão (o início real não pode ser futuro).
+  const sugestaoInicio = isoParaDataBr(projeto.previsaoInicio && projeto.previsaoInicio.slice(0, 10) <= hojeIso() ? projeto.previsaoInicio : hojeIso())
   const sugestaoConclusao = projeto.previsaoConclusao ? isoParaDataBr(projeto.previsaoConclusao) : ''
 
   const campos = reactive<CamposIniciar>({ dataInicio: sugestaoInicio, previsaoConclusao: sugestaoConclusao })
   const erros = reactive<ErrosIniciar>({})
   const erroGeral = shallowRef<string | null>(null)
   const erroEstoque = shallowRef(false)
+  /**
+   * Materiais sem saldo para reservar o estoque: conferidos ao abrir (`estoqueSuficiente === false` do detalhe) e
+   * também vindos do 400 de estoque. Vazio no backend antigo, que só avisa no erro.
+   */
+  const materiaisSemSaldo = shallowRef<MaterialSemSaldo[]>([])
+  /** Falta saldo conferida ANTES de enviar: o botão de confirmar fica desabilitado até regularizar o estoque. */
+  const semEstoque = shallowRef(false)
   /** O backend disse que o projeto mudou (já iniciado...): a lista precisa recarregar. */
   const desatualizado = shallowRef(false)
 
@@ -53,6 +61,7 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
     () => {
       erroGeral.value = null
       erroEstoque.value = false
+      if (!semEstoque.value) materiaisSemSaldo.value = []
     },
   )
 
@@ -76,6 +85,7 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
 
     if (campos.dataInicio === '') erros.dataInicio = 'Informe a data de início da obra.'
     else if (!dataBrValida(campos.dataInicio, ANO_MINIMO_DATA_PROJETO)) erros.dataInicio = `Data inválida. Use DD/MM/AAAA (ano a partir de ${ANO_MINIMO_DATA_PROJETO}).`
+    else if (dataBrParaIso(campos.dataInicio) > hojeIso()) erros.dataInicio = 'A data de início real não pode ser futura.'
     else erros.dataInicio = undefined
 
     if (campos.previsaoConclusao === '') {
@@ -106,12 +116,13 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
 
   /** Falta de estoque, projeto já iniciado, data inválida... viram mensagem no próprio modal. */
   function tratarErroApi(erro: unknown): 'cronograma' | 'cobranca' {
-    const { mensagem } = extrairErro(erro)
+    const { mensagem, materiais } = extrairErro(erro)
     const texto = mensagemProjeto(mensagem)
     erroGeral.value = texto
     erroEstoque.value = ehEstoqueInsuficiente(mensagem)
-    if (/somente projeto planejado|projeto nao encontrado/i.test(mensagem)) desatualizado.value = true
-    if (/previsao de conclusao nao pode/i.test(mensagem)) {
+    materiaisSemSaldo.value = materiais
+    if (/somente projeto planejado|projeto nao encontrado/i.test(semAcento(mensagem))) desatualizado.value = true
+    if (/previsao de conclusao nao pode/i.test(semAcento(mensagem))) {
       erros.previsaoConclusao = texto
       return 'cronograma'
     }
@@ -126,6 +137,8 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
     erros,
     erroGeral,
     erroEstoque,
+    materiaisSemSaldo,
+    semEstoque,
     desatualizado,
     duracao,
     cobranca,

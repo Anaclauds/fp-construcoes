@@ -84,7 +84,7 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarEtapa(props.projeto.id, form.paraPayload())
+    await registrarEtapa(props.projeto.id, form.paraPayload(), form.paraPayload(true))
     emit('registrado')
   } catch (erro) {
     form.tratarErroApi(erro)
