@@ -20,8 +20,8 @@ const emit = defineEmits<{
 
 const idFormulario = useId()
 const formulario = useTemplateRef('formulario')
-const form = useFormularioDespesa(props.despesa)
 const opcoes = useOpcoesCompraDespesa()
+const form = useFormularioDespesa(props.despesa, opcoes.saldoAtual)
 const { mostrarToast } = useToast()
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
@@ -39,6 +39,8 @@ function pedirFechar() {
 
 async function salvar() {
   if (semComoSalvar.value) return
+  // O limite do estoque precisa do saldo de cada material: espera as consultas em andamento antes de validar.
+  if (form.compra.value) await opcoes.carregarSaldos(form.itens.value.map((l) => l.materialId))
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return

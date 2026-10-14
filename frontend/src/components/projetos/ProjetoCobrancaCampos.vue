@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { CamposCobrancaProjeto, ErrosCobrancaProjeto } from '../../composables/useCobrancaProjeto'
 import { isoParaDataBr } from '../../utils/formatadores'
-import { mascararDecimal } from '../../utils/orcamentos'
+import { filtrarDecimal, normalizarDecimal } from '../../utils/orcamentos'
 import { ANO_MINIMO_DATA_PROJETO, opcoesFormaPagamento, type CobrancaCalculada } from '../../utils/projetos'
 import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
@@ -18,7 +18,8 @@ const props = defineProps<{
 
 const opcoesForma = computed(() => opcoesFormaPagamento(props.campos.modalidade))
 
-const mascararPercentual = (valor: string) => mascararDecimal(valor, 2, 3)
+const mascararPercentual = (valor: string) => filtrarDecimal(valor, 2, 3)
+const normalizarPercentual = (valor: string) => normalizarDecimal(valor, 2, 3)
 const somenteDigitos = (valor: string) => valor.replace(/\D/g, '').slice(0, 2)
 
 /** Vencimentos das demais parcelas (calculados mês a mês a partir do 1º): só leitura. */
@@ -105,6 +106,7 @@ const avisoAcrescimo = computed(() =>
         autocomplete="off"
         inputmode="decimal"
         :mascara="mascararPercentual"
+        :normalizar="normalizarPercentual"
         :desabilitado="!acrescimoHabilitado"
         :erro="erros.acrescimo"
         :aviso="avisoAcrescimo"
@@ -116,6 +118,7 @@ const avisoAcrescimo = computed(() =>
         autocomplete="off"
         inputmode="decimal"
         :mascara="mascararPercentual"
+        :normalizar="normalizarPercentual"
         :erro="erros.desconto"
       />
     </div>

@@ -126,7 +126,7 @@ async function enviar() {
     const resposta = await iniciarProjeto(props.projeto.id, form.paraPayload())
     emit(
       'iniciado',
-      form.geraCobranca ? 'Projeto iniciado e cobrança gerada!' : 'Projeto iniciado com sucesso!',
+      form.geraCobranca ? 'Cobrança Realizada!' : 'Projeto iniciado com sucesso!',
       resposta.avisos ?? [],
     )
   } catch (erro) {

@@ -67,7 +67,7 @@ function aoDesatualizar() {
 function aoSalvarValorInicial(caixa: Caixa) {
   fecharModal()
   mes.aplicar(caixa)
-  mostrarToast('Valor inicial atualizado!')
+  mostrarToast('Salvo com sucesso!')
 }
 
 async function reabrir() {
@@ -87,9 +87,10 @@ async function reabrir() {
   }
 }
 
+/** Mesma limitação do Relatório de Frequência: o diálogo de impressão não informa se o PDF foi salvo. */
 function aoConcluirImpressao() {
   imprimindo.value = false
-  mostrarToast('Exportação para PDF finalizada.')
+  mostrarToast('PDF baixado!')
 }
 
 onMounted(mes.carregar)

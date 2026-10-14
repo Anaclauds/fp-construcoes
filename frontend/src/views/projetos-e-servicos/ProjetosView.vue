@@ -269,7 +269,7 @@ onMounted(carregarTudo)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @salvo="aoEditar('Projeto atualizado com sucesso!', $event)"
+      @salvo="aoEditar('Salvo com sucesso!', $event)"
       @desatualizado="carregarTudo"
     />
     <ProjetoModalEditarRegistro
@@ -278,7 +278,7 @@ onMounted(carregarTudo)
       :projeto-id="modal.projeto.id"
       :registro="modal.registro"
       @fechar="cancelarAcao"
-      @salvo="aoEditar(modal.registro.tipo === 'etapa' ? 'Etapa atualizada com sucesso!' : 'Extra atualizado com sucesso!', $event)"
+      @salvo="aoEditar('Salvo com sucesso!', $event)"
       @desatualizado="carregarTudo"
     />
     <ProjetoModalIniciar
@@ -294,7 +294,7 @@ onMounted(carregarTudo)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @registrado="aoConcluirAcao('Etapa registrada com sucesso!')"
+      @registrado="aoConcluirAcao('Cobrança Realizada!')"
       @desatualizado="carregarTudo"
     />
     <ProjetoModalExtra
@@ -302,7 +302,7 @@ onMounted(carregarTudo)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @registrado="aoConcluirAcao('Extra registrado com sucesso!')"
+      @registrado="aoConcluirAcao('Salvo com sucesso!')"
       @desatualizado="carregarTudo"
     />
     <ProjetoModalStatus

@@ -30,7 +30,7 @@ function fecharModal() {
 
 async function aoSalvar(_despesa: Despesa, edicao: boolean) {
   fecharModal()
-  mostrarToast(edicao ? 'Salvo com sucesso!' : 'Despesa registrada!')
+  mostrarToast('Salvo com sucesso!')
   // Despesa nova cai no topo (ordem por data): volta à primeira página para vê-la, se o filtro a incluir.
   if (!edicao && lista.pagina.value !== 1) lista.pagina.value = 1
   else await lista.carregar()

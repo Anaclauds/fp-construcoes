@@ -90,7 +90,7 @@ async function confirmarCancelar() {
 
 async function aoRegistrar() {
   fecharModal()
-  mostrarToast('Cobrança Realizada!')
+  mostrarToast('Recebimento registrado!')
   await carregar()
 }
 </script>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ErrosLinhaMaterial, LinhaMaterialCliente } from '../../composables/useFormularioEtapaProjeto'
-import { mascararDecimal } from '../../utils/orcamentos'
+import { filtrarDecimal, normalizarDecimal } from '../../utils/orcamentos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 
@@ -14,7 +14,8 @@ const emit = defineEmits<{
   remover: [linha: LinhaMaterialCliente]
 }>()
 
-const mascararQuantidade = (valor: string) => mascararDecimal(valor, 3, 9)
+const mascararQuantidade = (valor: string) => filtrarDecimal(valor, 3, 9)
+const normalizarQuantidade = (valor: string) => normalizarDecimal(valor, 3, 9)
 </script>
 
 <template>
@@ -47,6 +48,7 @@ const mascararQuantidade = (valor: string) => mascararDecimal(valor, 3, 9)
         autocomplete="off"
         inputmode="decimal"
         :mascara="mascararQuantidade"
+        :normalizar="normalizarQuantidade"
         :erro="erros[linha.uid]?.quantidade"
       />
       <CampoFormulario

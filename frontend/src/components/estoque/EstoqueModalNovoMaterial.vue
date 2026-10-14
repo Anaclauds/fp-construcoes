@@ -2,7 +2,7 @@
 import { nextTick, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioNovoMaterialEstoque } from '../../composables/useFormularioNovoMaterialEstoque'
 import { criarMaterialNoEstoque } from '../../services/estoque.service'
-import { mascararQuantidade } from '../../utils/estoque'
+import { mascararQuantidade, normalizarQuantidade } from '../../utils/estoque'
 import { focarPrimeiroErro } from '../../utils/foco'
 import { LIMITE_NOME_MATERIAL } from '../../utils/materiais'
 import BotaoFp from '../ui/BotaoFp.vue'
@@ -103,6 +103,7 @@ async function salvar() {
         inputmode="decimal"
         autocomplete="off"
         :mascara="mascararQuantidade"
+        :normalizar="normalizarQuantidade"
         aviso="Quantidade disponível ao cadastrar. Pode ser ajustada depois."
         :erro="form.erros.quantidade"
       />

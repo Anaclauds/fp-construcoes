@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { FormularioDespesa, LinhaCompra } from '../../composables/useFormularioDespesa'
+import { computed, watch } from 'vue'
+import { ERRO_LIMITE_ESTOQUE, type FormularioDespesa, type LinhaCompra } from '../../composables/useFormularioDespesa'
 import type { OpcoesCompraDespesa } from '../../composables/useOpcoesCompraDespesa'
 import type { ItemDespesaMaterial } from '../../types/despesa'
-import { centavosParaMoeda, mascararDecimal } from '../../utils/orcamentos'
+import { centavosParaMoeda, filtrarDecimal, normalizarDecimal } from '../../utils/orcamentos'
 import { rotuloUnidade } from '../../utils/materiais'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
@@ -16,8 +16,10 @@ const props = defineProps<{
   itensAtuais: ItemDespesaMaterial[]
 }>()
 
-const mascaraQuantidade = (valor: string) => mascararDecimal(valor, 3)
-const mascaraValor = (valor: string) => mascararDecimal(valor, 2)
+const mascaraQuantidade = (valor: string) => filtrarDecimal(valor, 3)
+const normalizarQuantidade = (valor: string) => normalizarDecimal(valor, 3, 9)
+const mascaraValor = (valor: string) => filtrarDecimal(valor, 2)
+const normalizarValor = (valor: string) => normalizarDecimal(valor, 2, 9)
 
 interface MaterialEscolhivel {
   id: number
@@ -63,6 +65,21 @@ function aoEscolher(linha: LinhaCompra, materialId: string) {
   props.form.escolherMaterial(linha, materialId, material?.unidadeMedida ?? '')
 }
 
+// Com permissão de Estoque, busca o saldo de cada material escolhido para mostrar o máximo da compra.
+watch(
+  () => props.form.itens.value.map((l) => l.materialId),
+  (ids) => void props.opcoes.carregarSaldos(ids),
+  { immediate: true },
+)
+
+/** "Máximo para esta compra: ..." (linha larga abaixo dos campos); com o limite estourado a frase explica o motivo. */
+function linhaMaximo(linha: LinhaCompra): { texto: string; erro: boolean } | null {
+  const dica = props.form.dicaMaximoCompra(linha)
+  if (!dica) return null
+  const erro = props.form.errosItens[linha.chave]?.quantidade === ERRO_LIMITE_ESTOQUE
+  return { texto: erro ? `O estoque deste material passaria do limite. ${dica}.` : dica, erro }
+}
+
 function total(linha: LinhaCompra): string {
   return centavosParaMoeda(props.form.totalDaLinha(linha))
 }
@@ -95,6 +112,14 @@ function total(linha: LinhaCompra): string {
       </button>
     </p>
 
+    <p
+      v-if="opcoes.textoTruncado.value"
+      class="aviso-info"
+      role="status"
+    >
+      {{ opcoes.textoTruncado.value }}
+    </p>
+
     <ul class="lista">
       <li
         v-for="(linha, i) in form.itens.value"
@@ -124,6 +149,7 @@ function total(linha: LinhaCompra): string {
           inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraQuantidade"
+          :normalizar="normalizarQuantidade"
           :erro="form.errosItens[linha.chave]?.quantidade"
           @update:model-value="form.aoDigitarItem(linha, 'quantidade')"
         />
@@ -141,6 +167,7 @@ function total(linha: LinhaCompra): string {
           inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraValor"
+          :normalizar="normalizarValor"
           :erro="form.errosItens[linha.chave]?.valorUnitario"
           @update:model-value="form.aoDigitarItem(linha, 'valorUnitario')"
         />
@@ -158,6 +185,13 @@ function total(linha: LinhaCompra): string {
         >
           Remover
         </BotaoFp>
+        <p
+          v-if="linhaMaximo(linha)"
+          class="linha-maximo"
+          :class="{ 'linha-maximo--erro': linhaMaximo(linha)!.erro }"
+        >
+          {{ linhaMaximo(linha)!.texto }}
+        </p>
       </li>
     </ul>
 
@@ -228,6 +262,17 @@ function total(linha: LinhaCompra): string {
   grid-column: 1 / -1;
 }
 
+.linha-maximo {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #717182;
+  font-size: 12.5px;
+}
+
+.linha-maximo--erro {
+  color: var(--fp-vermelho-escuro);
+}
+
 .linha-remover {
   align-self: end;
   height: var(--campo-altura, 42px);
@@ -237,6 +282,15 @@ function total(linha: LinhaCompra): string {
   margin: 0;
   color: var(--fp-vermelho-escuro);
   font-size: 14px;
+}
+
+.aviso-info {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--fp-verde-20);
+  border-radius: 9px;
+  color: var(--fp-texto-titulo-campo);
+  font-size: 13.5px;
 }
 
 .tentar-novamente {

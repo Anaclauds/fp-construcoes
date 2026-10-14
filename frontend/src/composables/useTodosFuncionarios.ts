@@ -17,7 +17,7 @@ export type FuncionarioOpcao = Pick<Funcionario, 'id' | 'nomeCompleto' | 'funcao
 /**
  * Todos os funcionários (ativos e inativos), percorrendo as páginas da API; usado em seletores.
  * Quem tem acesso à Frequência mas não a Funcionários recebe 403 em /funcionarios: nesse caso a
- * lista vem da folha do dia (só ativos) e `somenteAtivos` avisa a tela. Sem acesso a nenhum dos dois
+ * lista vem da folha do dia (só ativos; limitação do backend, X6: falta uma lista de funcionários para a Frequência) e `somenteAtivos` avisa a tela. Sem acesso a nenhum dos dois
  * módulos, `semPermissao` fica verdadeiro (além de `erro`): a tela pode explicar a permissão necessária.
  * As permissões do usuário logado são conferidas antes: módulo sem acesso nem é consultado (sem 403 no console).
  */

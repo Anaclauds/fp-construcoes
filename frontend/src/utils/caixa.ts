@@ -20,6 +20,7 @@ const MESES = [
 /**
  * Primeiro mês navegável. Consultar um mês CRIA o caixa dele no banco, então a navegação não vai a anos
  * arbitrários (a tela só consulta meses do intervalo [MES_MINIMO, mês atual]).
+ * Limitação do backend (X14): trocar por `competenciaMinima` da API quando ela separar consulta de criação.
  */
 export const MES_MINIMO = '2020-01'
 

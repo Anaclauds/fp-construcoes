@@ -18,8 +18,10 @@ import {
   VALOR_MAXIMO_DESPESA,
   mensagemDeCaixaFechado,
   mensagemDespesa,
+  mensagemSaldoLimite,
   totalItemCompraCentavos,
 } from '../utils/despesas'
+import { QUANTIDADE_MAXIMA, quantidadeComUnidade } from '../utils/estoque'
 import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero, limparEspacos } from '../utils/formatadores'
 import { decimalApiParaTexto, textoParaEscala } from '../utils/orcamentos'
 import { dataBrValida } from '../utils/validacao'
@@ -49,6 +51,9 @@ export interface ErrosLinhaCompra {
   quantidade?: string
   valorUnitario?: string
 }
+
+/** Texto curto do campo; o detalhe ("Máximo para esta compra: ...") aparece na linha abaixo, que cabe a frase inteira. */
+export const ERRO_LIMITE_ESTOQUE = 'Acima do máximo da compra.'
 
 const CHAVES: (keyof CamposDespesa)[] = ['tipo', 'data', 'categoria', 'valor', 'descricao', 'fornecedorId']
 
@@ -132,8 +137,9 @@ function mesmosItens(a: ItemNormalizado[], b: ItemNormalizado[]): boolean {
 /**
  * Estado, validação e conversão do formulário de despesa (cadastro e edição, tipo Diversa e Compra de Material).
  * Com `inicial`, preenche os campos e serve de base para enviar só o que mudou no PATCH.
+ * `saldoAtual` (opcional) informa o saldo do estoque do material; com ele a quantidade é barrada antes de o estoque passar do limite.
  */
-export function useFormularioDespesa(inicial?: Despesa) {
+export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId: number) => number | null) {
   const camposIniciais = inicial ? camposDaDespesa(inicial) : null
   const campos = reactive<CamposDespesa>(
     camposIniciais
@@ -198,6 +204,27 @@ export function useFormularioDespesa(inicial?: Despesa) {
     erroGeral.value = null
   }
 
+  /**
+   * Quanto ainda cabe na compra deste material, em milésimos: limite da coluna (DECIMAL(12,3)) menos o saldo atual.
+   * Na edição a quantidade já gravada nesta despesa volta ao cálculo (a API a desfaz antes de aplicar a nova).
+   * `null` enquanto o saldo é desconhecido (sem permissão de Estoque ou ainda carregando).
+   */
+  function maximoCompra(linha: LinhaCompra): number | null {
+    if (!saldoAtual || linha.materialId === '') return null
+    const materialId = Number(linha.materialId)
+    const atual = saldoAtual(materialId)
+    if (atual === null) return null
+    const gravada = base?.materiais.find((m) => m.materialId === materialId)?.quantidade ?? 0
+    const limite = Math.round(QUANTIDADE_MAXIMA * 1000)
+    return Math.max(0, limite - Math.round(atual * 1000) + Math.round(gravada * 1000))
+  }
+
+  /** "Máximo para esta compra: 999.999.000 m", ou `undefined` com o saldo desconhecido. */
+  function dicaMaximoCompra(linha: LinhaCompra): string | undefined {
+    const maximo = maximoCompra(linha)
+    return maximo === null ? undefined : `Máximo para esta compra: ${quantidadeComUnidade(maximo / 1000, linha.unidade)}`
+  }
+
   function validarCompra(resultado: ErrosDespesa): Record<number, ErrosLinhaCompra> {
     const errosDasLinhas: Record<number, ErrosLinhaCompra> = {}
     if (campos.fornecedorId === '') resultado.fornecedorId = 'Selecione o fornecedor.'
@@ -213,6 +240,9 @@ export function useFormularioDespesa(inicial?: Despesa) {
       if (linha.quantidade.trim() === '' || quantidade === null) e.quantidade = 'Informe a quantidade.'
       else if (quantidade < 1) e.quantidade = 'Mínimo 0,001.'
       else if (quantidade / 1000 > QUANTIDADE_MAXIMA_COMPRA) e.quantidade = 'Quantidade acima do limite.'
+      else if (maximoCompra(linha) !== null && quantidade > maximoCompra(linha)!) {
+        e.quantidade = ERRO_LIMITE_ESTOQUE
+      }
 
       const valor = textoParaEscala(linha.valorUnitario, 2)
       if (linha.valorUnitario.trim() === '' || valor === null) e.valorUnitario = 'Informe o valor.'
@@ -332,9 +362,14 @@ export function useFormularioDespesa(inicial?: Despesa) {
 
   /** Erros da API: sem campo único, tudo vira mensagem geral (com travas para o que não se resolve no formulário). */
   function tratarErroApi(erro: unknown) {
-    const { mensagem } = extrairErro(erro)
+    const { mensagem, status } = extrairErro(erro)
     caixaFechado.value = mensagemDeCaixaFechado(mensagem)
-    erroGeral.value = mensagemDespesa(mensagem)
+    // Sem saldo conhecido, o backend antigo responde 500 quando a compra leva o estoque além do limite da coluna.
+    const semChecagemDeSaldo = compra.value && itens.value.some((l) => maximoCompra(l) === null)
+    erroGeral.value =
+      status !== null && status >= 500 && semChecagemDeSaldo
+        ? `${mensagem} ${mensagemSaldoLimite()}`
+        : mensagemDespesa(mensagem)
   }
 
   return {
@@ -352,6 +387,8 @@ export function useFormularioDespesa(inicial?: Despesa) {
     removerItem,
     escolherMaterial,
     aoDigitarItem,
+    maximoCompra,
+    dicaMaximoCompra,
     validar,
     paraPayload,
     paraAtualizacao,
