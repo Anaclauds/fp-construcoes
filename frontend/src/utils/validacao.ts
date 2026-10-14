@@ -132,8 +132,13 @@ export function antesDaIdadeMinima(contratacao: string, nascimento: string): boo
   return somarAnosBr(contratacao, 0) < somarAnosBr(nascimento, IDADE_MINIMA_ANOS)
 }
 
-/** Telefone brasileiro: DDD + 8 ou 9 dígitos. */
+/**
+ * Telefone brasileiro: DDD + fixo de 8 dígitos (10 no total) ou celular de 9 dígitos (11 no total),
+ * e o número do celular sempre começa com 9.
+ */
 export function telefoneValido(valor: string): boolean {
   const d = valor.replace(/\D/g, '')
-  return (d.length === 10 || d.length === 11) && !d.startsWith('0')
+  if (d.startsWith('0')) return false
+  if (d.length === 10) return true
+  return d.length === 11 && d[2] === '9'
 }

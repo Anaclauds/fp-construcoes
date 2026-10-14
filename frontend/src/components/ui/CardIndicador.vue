@@ -1,11 +1,16 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   titulo: string
   valor: number | string
   descricao: string
   /** Classe global de cor de status (ver classeStatus); sem ela o card não mostra o ponto colorido. */
   classeCor?: string
 }>()
+
+// A fonte do valor encolhe conforme o número de caracteres para caber na largura do cartão (ver CSS).
+const caracteres = computed(() => Math.max(String(props.valor).length, 1))
 </script>
 
 <template>
@@ -21,7 +26,10 @@ defineProps<{
       />
       {{ titulo }}
     </h3>
-    <p class="card-indicador-valor">
+    <p
+      class="card-indicador-valor"
+      :style="{ '--ci-caracteres': caracteres }"
+    >
       {{ valor }}
     </p>
     <p class="card-indicador-descricao">
@@ -33,6 +41,8 @@ defineProps<{
 <style scoped>
 .card-indicador {
   min-width: 0;
+  /* O cartão é o contêiner: o tamanho da fonte do valor depende da largura dele, não da janela. */
+  container-type: inline-size;
 
   padding: 21px;
   border: 1.3px solid var(--fp-cinza-borda);
@@ -63,7 +73,9 @@ defineProps<{
 .card-indicador-valor {
   margin: 6px 0 2px;
   color: var(--fp-verde);
-  font-size: 36px;
+  /* 36px (Figma) quando cabe; valores longos ("R$ 5.052.615,72") encolhem até 18px em vez de quebrar a linha. */
+  font-size: clamp(18px, calc(100cqi / (var(--ci-caracteres, 1) * 0.64)), 36px);
+  white-space: nowrap;
   font-weight: 600;
   line-height: 1.2;
 }

@@ -8,6 +8,7 @@ import { useToast } from '../../composables/useToast'
 import { extrairErro } from '../../services/api'
 import { alterarSenha } from '../../services/auth.service'
 import { validarAlterarSenha, type ErrosAlterarSenha } from '../../utils/validacao'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 const emit = defineEmits<{
   fechar: []
@@ -47,7 +48,7 @@ function pedirFechar() {
 
 async function focarPrimeiroErro() {
   await nextTick()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 async function salvar() {

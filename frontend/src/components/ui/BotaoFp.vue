@@ -1,11 +1,11 @@
 <script setup lang="ts">
 export type VarianteBotao = 'primario' | 'secundario' | 'neutro' | 'perigo' | 'perigo-suave' | 'link'
-export type TamanhoBotao = 'pagina' | 'modal' | 'formulario'
+export type TamanhoBotao = 'pagina' | 'modal' | 'formulario' | 'compacto'
 
 withDefaults(
   defineProps<{
     variante?: VarianteBotao
-    /** pagina: ação do cabeçalho (13px); modal: rodapé de modal; formulario: rodapé de página de formulário. */
+    /** pagina: ação do cabeçalho (13px); modal: rodapé de modal; formulario: rodapé de página de formulário; compacto: ação dentro de cartão (32px de altura). */
     tamanho?: TamanhoBotao
     type?: 'button' | 'submit' | 'reset'
     carregando?: boolean
@@ -74,11 +74,21 @@ withDefaults(
 }
 
 .botao-fp--formulario {
+  min-width: 116px;
   min-height: 49px;
   padding: 10px 28px;
   border-radius: 9px;
   font-size: 15px;
   font-weight: 700;
+}
+
+/* Figma (cartão de cobrança): "Registrar Recebimento" 151x32 e "Ver Detalhes" 99x32. */
+.botao-fp--compacto {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* Variantes */

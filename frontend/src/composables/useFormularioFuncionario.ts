@@ -156,7 +156,7 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
   obrigatorio('sexo', 'Selecione o sexo.')
 
   if (c.celular === '') erros.celular = 'Informe o celular.'
-  else if (!telefoneValido(c.celular)) erros.celular = 'Celular inválido. Use DDD + 8 ou 9 dígitos.'
+  else if (!telefoneValido(c.celular)) erros.celular = 'Celular inválido. Use DDD + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular).'
 
   if (c.cep === '') erros.cep = 'Informe o CEP.'
   else if (digitos(c.cep).length !== 8) erros.cep = 'CEP inválido. Use 8 dígitos.'
@@ -188,7 +188,7 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
 
   obrigatorio('nomeContatoEmergencia', 'Informe o nome do contato.', 150)
   if (c.contatoEmergencia === '') erros.contatoEmergencia = 'Informe o telefone de emergência.'
-  else if (!telefoneValido(c.contatoEmergencia)) erros.contatoEmergencia = 'Telefone inválido. Use DDD + 8 ou 9 dígitos.'
+  else if (!telefoneValido(c.contatoEmergencia)) erros.contatoEmergencia = 'Telefone inválido. Use DDD + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular).'
   obrigatorio('grauVinculo', 'Selecione o grau de vínculo.')
 
   // Na edição, valor igual ao já salvo não é revalidado: não trava o PATCH dos outros campos.

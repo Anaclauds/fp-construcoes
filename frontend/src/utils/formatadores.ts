@@ -148,6 +148,19 @@ export function rotuloLegivel(valor: string | null | undefined): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
+/**
+ * Instante com hora (campo DateTime da API, em UTC: "2026-08-02T00:30:00.000Z") -> "01/08/2026" no relógio local.
+ * Campos só de data (@db.Date, ex.: "2026-08-01T00:00:00.000Z") NÃO usam esta função: eles vão por `isoParaDataBr`,
+ * que corta a string e evita o dia anterior/seguinte por causa do fuso.
+ */
+export function instanteParaDataBr(valor: string | null | undefined): string {
+  if (!valor) return ''
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return ''
+  const dois = (n: number) => String(n).padStart(2, '0')
+  return `${dois(data.getDate())}/${dois(data.getMonth() + 1)}/${data.getFullYear()}`
+}
+
 /** ISO com hora ("2026-07-16T14:32:00.000Z") -> "16/07/2026 14:32" no relógio local; inválido -> vazio. */
 export function formatarDataHoraIso(valor: string | null | undefined): string {
   if (!valor) return ''
