@@ -76,9 +76,12 @@ export function mascararData(valor: string): string {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
 }
 
-/** Digitação em centavos: "450000" -> "R$ 4.500,00". Sem dígitos, devolve vazio. */
-export function mascararMoeda(valor: string): string {
-  const d = somenteDigitos(valor).slice(0, 10)
+/**
+ * Digitação em centavos: "450000" -> "R$ 4.500,00". Sem dígitos, devolve vazio.
+ * `digitos` limita o tamanho (padrão 10; o cadastro de serviços usa 12, como o DECIMAL(12,2) da API).
+ */
+export function mascararMoeda(valor: string, digitos = 10): string {
+  const d = somenteDigitos(valor).slice(0, digitos)
   if (d === '') return ''
   return formatarMoeda(Number(d) / 100)
 }
@@ -93,6 +96,11 @@ export function formatarMoeda(valor: number | string): string {
 export function moedaParaNumero(valor: string): number | null {
   const d = somenteDigitos(valor)
   return d === '' ? null : Number(d) / 100
+}
+
+/** Valor decimal da API (número ou texto, ex.: "1545.50") -> centavos inteiros. */
+export function paraCentavos(valor: string | number): number {
+  return Math.round(Number(valor) * 100)
 }
 
 /** Telefone salvo (só dígitos) para exibição; mantém o valor original se o tamanho for inesperado. */

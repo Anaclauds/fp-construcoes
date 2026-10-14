@@ -6,6 +6,7 @@ import type {
   StatusCobranca,
   TipoCobranca,
 } from '../types'
+import { paraCentavos } from './formatadores'
 
 export const ROTULO_TIPO_COBRANCA: Record<TipoCobranca, string> = {
   ENTRADA: 'Entrada',
@@ -13,13 +14,14 @@ export const ROTULO_TIPO_COBRANCA: Record<TipoCobranca, string> = {
   MEDICAO: 'Medição',
 }
 
+/** Textos do Figma (selects de Projetos e Cobranças); único mapa de rótulos de forma de pagamento. */
 export const ROTULO_FORMA_PAGAMENTO: Record<FormaPagamento, string> = {
-  PIX: 'PIX',
+  PIX: 'Pix',
   DINHEIRO: 'Dinheiro',
-  TRANSFERENCIA: 'Transferência',
+  TRANSFERENCIA: 'Transferência Bancária',
   CHEQUE: 'Cheque',
-  CARTAO_CREDITO: 'Cartão de crédito',
-  CARTAO_DEBITO: 'Cartão de débito',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  CARTAO_DEBITO: 'Cartão de Débito',
   BOLETO: 'Boleto',
 }
 
@@ -34,8 +36,6 @@ export const ROTULO_STATUS_COBRANCA: Record<StatusCobranca, string> = {
   PAGO: 'Pago',
   CANCELADO: 'Cancelada',
 }
-
-const paraCentavos = (valor: string | number) => Math.round(Number(valor) * 100)
 
 /** Total já recebido da parcela, em centavos. */
 export function recebidoDaParcelaEmCentavos(parcela: Parcela): number {
