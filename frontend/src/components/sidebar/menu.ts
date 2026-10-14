@@ -53,7 +53,7 @@ export const gruposMenu: GrupoMenu[] = [
     espelharIcone: true,
     itens: [
       { rotulo: 'Projeto', rota: 'projetos', modulo: 'PROJETOS' },
-      { rotulo: 'Serviço', rota: 'servicos', modulo: 'SERVICOS' },
+      { rotulo: 'Serviço', rota: 'servicos', modulo: 'SERVICOS', rotasRelacionadas: ['servicoNovo'] },
     ],
   },
   {
