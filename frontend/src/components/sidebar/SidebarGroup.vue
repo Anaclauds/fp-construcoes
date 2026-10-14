@@ -34,6 +34,7 @@ const idSubmenu = `submenu-${props.grupo.id}`
         <img
           :src="grupo.icone"
           class="sidebar-icon"
+          :class="{ 'sidebar-icon--espelhado': grupo.espelharIcone }"
           alt=""
         >
       </span>
@@ -125,6 +126,10 @@ const idSubmenu = `submenu-${props.grupo.id}`
   width: 36px;
   height: 36px;
   object-fit: contain;
+}
+
+.sidebar-icon--espelhado {
+  transform: scaleX(-1);
 }
 
 .sidebar-item-label {
