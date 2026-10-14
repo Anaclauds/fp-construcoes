@@ -269,7 +269,7 @@ test: adiciona testes de cadastro de cliente
 
 Antes de executar o sistema, é necessário possuir:
 
-- Node.js;
+- Node.js 20.19+ ou 22.12+;
 - npm;
 - Git;
 - MySQL.
@@ -277,7 +277,7 @@ Antes de executar o sistema, é necessário possuir:
 Clone o repositório:
 
 ```bash
-git clone https://github.com/SEU-USUARIO/fp-construcoes.git
+git clone https://github.com/Anaclauds/fp-construcoes.git
 ```
 
 Acesse o projeto:
@@ -290,9 +290,11 @@ cd fp-construcoes
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+Acesse http://localhost:5173. Por padrão o front usa a API em `http://localhost:3000/api`; para outro endereço, copie `frontend/.env.example` para `frontend/.env` e ajuste `VITE_API_URL`. Detalhes no [README do Front-end](./frontend/README.md).
 
 ## ⚙️ Back-end
 
