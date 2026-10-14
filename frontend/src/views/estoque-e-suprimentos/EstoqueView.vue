@@ -5,6 +5,7 @@ import EstoqueIndicadores from '../../components/estoque/EstoqueIndicadores.vue'
 import EstoqueModalAjustar from '../../components/estoque/EstoqueModalAjustar.vue'
 import EstoqueModalNovoMaterial from '../../components/estoque/EstoqueModalNovoMaterial.vue'
 import EstoqueModalVisualizar from '../../components/estoque/EstoqueModalVisualizar.vue'
+import MaterialModalEditar from '../../components/materiais/MaterialModalEditar.vue'
 import BotaoAcao from '../../components/ui/BotaoAcao.vue'
 import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
@@ -14,16 +15,25 @@ import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
 import { useListaEstoque } from '../../composables/useListaEstoque'
 import { useToast } from '../../composables/useToast'
+import { extrairMensagemErro } from '../../services/api'
+import { buscarMaterial } from '../../services/materiais.service'
 import type { ItemEstoque } from '../../types/estoque'
+import type { Material } from '../../types/material'
 import { quantidadeComUnidade } from '../../utils/estoque'
 import { CATEGORIAS_MATERIAL, rotuloUnidade } from '../../utils/materiais'
 
-type Modal = { tipo: 'visualizar' | 'ajustar'; item: ItemEstoque } | { tipo: 'novo' } | null
+type Modal =
+  | { tipo: 'visualizar' | 'ajustar'; item: ItemEstoque }
+  | { tipo: 'editar'; material: Material }
+  | { tipo: 'novo' }
+  | null
 
 const { temPermissao } = useAuth()
 const { mostrarToast } = useToast()
 // A rota só abre para quem visualiza; ajustar e cadastrar exigem gerenciar.
 const podeGerenciar = computed(() => temPermissao('ESTOQUE', 'gerenciar'))
+// Editar o cadastro do material (3ª ação da linha no Figma) é uma operação de Materiais: PATCH /materiais/:id exige MATERIAIS gerenciar.
+const podeEditarMaterial = computed(() => temPermissao('MATERIAIS', 'gerenciar'))
 
 const { busca, categoria, pagina, porPagina, itens, indicadores, total, carregando, erro, carregar } = useListaEstoque()
 
@@ -33,12 +43,12 @@ const opcoesCategoria: OpcaoFiltro[] = [
 ]
 
 const colunas: ColunaTabela[] = [
-  { chave: 'material', rotulo: 'Material', largura: '23%' },
-  { chave: 'categoria', rotulo: 'Categoria', largura: '14%' },
-  { chave: 'atual', rotulo: 'Estoque Atual', largura: '17%' },
+  { chave: 'material', rotulo: 'Material', largura: '21%' },
+  { chave: 'categoria', rotulo: 'Categoria', largura: '13%' },
+  { chave: 'atual', rotulo: 'Estoque Atual', largura: '16%' },
   { chave: 'reservado', rotulo: 'Reservado', largura: '17%' },
   { chave: 'disponivel', rotulo: 'Disponível', largura: '17%' },
-  { chave: 'acoes', rotulo: 'Ações', largura: '12%' },
+  { chave: 'acoes', rotulo: 'Ações', largura: '16%' },
 ]
 
 const modal = shallowRef<Modal>(null)
@@ -49,6 +59,27 @@ function fecharModal() {
 
 function abrir(tipo: 'visualizar' | 'ajustar', item: ItemEstoque) {
   modal.value = { tipo, item }
+}
+
+/** O modal de edição precisa do cadastro completo (a lista do estoque traz só o saldo): busca em GET /materiais/:id. */
+const abrindoEdicao = shallowRef<number | null>(null)
+
+async function abrirEdicao(item: ItemEstoque) {
+  if (abrindoEdicao.value !== null) return
+  abrindoEdicao.value = item.id
+  try {
+    modal.value = { tipo: 'editar', material: await buscarMaterial(item.id) }
+  } catch (e) {
+    mostrarToast(extrairMensagemErro(e), 'erro')
+  } finally {
+    abrindoEdicao.value = null
+  }
+}
+
+async function aoEditarMaterial() {
+  fecharModal()
+  mostrarToast('Salvo com sucesso!')
+  await carregar()
 }
 
 async function aoAjustar() {
@@ -172,6 +203,13 @@ onMounted(carregar)
             :alvo="linha.nome"
             @click="abrir('ajustar', linha)"
           />
+          <BotaoAcao
+            v-if="podeEditarMaterial"
+            tipo="editar"
+            :alvo="linha.nome"
+            :disabled="abrindoEdicao !== null"
+            @click="abrirEdicao(linha)"
+          />
         </div>
       </template>
     </TabelaDados>
@@ -187,6 +225,13 @@ onMounted(carregar)
       :item="modal.item"
       @fechar="fecharModal"
       @ajustado="aoAjustar"
+    />
+    <MaterialModalEditar
+      v-else-if="modal?.tipo === 'editar'"
+      :key="modal.material.id"
+      :material="modal.material"
+      @fechar="fecharModal"
+      @salvo="aoEditarMaterial"
     />
     <EstoqueModalNovoMaterial
       v-else-if="modal?.tipo === 'novo'"
@@ -225,6 +270,11 @@ onMounted(carregar)
 .acoes {
   display: flex;
   gap: 6px;
+}
+
+/* Com 3 ações a célula é estreita: os botões 32x32 do Figma não podem encolher. */
+.acoes > :deep(button) {
+  flex-shrink: 0;
 }
 
 .celula-bloco {

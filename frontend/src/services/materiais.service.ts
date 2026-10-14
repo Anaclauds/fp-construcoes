@@ -7,6 +7,11 @@ export async function listarMateriais(filtros: FiltrosMateriais = {}): Promise<P
   return data
 }
 
+export async function buscarMaterial(id: number): Promise<Material> {
+  const { data } = await api.get<Material>(`/materiais/${id}`)
+  return data
+}
+
 export async function criarMaterial(payload: MaterialPayload): Promise<Material> {
   const { data } = await api.post<Material>('/materiais', payload)
   return data
