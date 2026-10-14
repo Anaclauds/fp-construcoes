@@ -38,10 +38,9 @@ const nomeArquivo = computed(() => {
 })
 
 function imprimirRelatorio(destino: 'impressora' | 'pdf') {
-  // O navegador não informa se o usuário imprimiu/salvou ou cancelou: o aviso é neutro.
-  imprimir(nomeArquivo.value, () =>
-    mostrarToast(destino === 'pdf' ? 'Exportação para PDF finalizada.' : 'Impressão finalizada.'),
-  )
+  // Textos do Figma. Limitação: o navegador não informa se o usuário imprimiu, salvou ou cancelou o diálogo;
+  // o aviso sai quando ele fecha (`afterprint`). Só um PDF gerado no servidor permitiria confirmar o download.
+  imprimir(nomeArquivo.value, () => mostrarToast(destino === 'pdf' ? 'PDF baixado!' : 'Enviado para Impressora!'))
 }
 </script>
 

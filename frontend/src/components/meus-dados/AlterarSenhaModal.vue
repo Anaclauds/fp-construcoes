@@ -65,7 +65,7 @@ async function salvar() {
   salvando.value = true
   try {
     await alterarSenha({ ...campos })
-    mostrarToast('Senha alterada com sucesso!')
+    mostrarToast('Salvo com sucesso!')
     emit('salvo')
   } catch (erro) {
     const { mensagem, status } = extrairErro(erro)

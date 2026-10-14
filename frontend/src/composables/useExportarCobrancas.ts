@@ -29,7 +29,8 @@ export function useExportarCobrancas(filtros: Ref<FiltrosCobrancas>) {
       link.remove()
       // O download já começou; o navegador mantém o arquivo mesmo revogando a URL.
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      mostrarToast(formato === 'pdf' ? 'Relatório em PDF gerado.' : 'Relatório em Excel gerado.')
+      // Download real do arquivo (blob): aqui o aviso do Figma é verdadeiro.
+      mostrarToast(formato === 'pdf' ? 'PDF baixado!' : 'Excel baixado!')
     } catch (erro) {
       mostrarToast(`Não foi possível gerar o relatório. ${extrairMensagemErro(erro)}`, 'erro')
     } finally {

@@ -105,14 +105,14 @@ async function aoAprovar(resposta: RespostaAprovacao) {
 
 async function aoAlterarStatus() {
   fecharModal()
-  mostrarToast('Status atualizado com sucesso!')
+  mostrarToast('Salvo com sucesso!')
   await carregar()
 }
 
-/** O navegador não informa se o usuário salvou ou cancelou: o aviso é neutro (como no Relatório de Frequência). */
+/** Texto do Figma ("Baixar PDF"). Limitação: o navegador não informa se o usuário salvou ou cancelou o diálogo (como no Relatório de Frequência). */
 function aoConcluirPdf() {
   imprimindo.value = null
-  mostrarToast('Exportação para PDF finalizada.')
+  mostrarToast('PDF baixado!')
 }
 
 function podeAgirNoOrcamento(orcamento: Orcamento): boolean {
