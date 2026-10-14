@@ -38,11 +38,11 @@ const opcoesTipo: OpcaoFiltro<FiltroTipoCliente>[] = [
 ]
 
 const colunas: ColunaTabela[] = [
-  { chave: 'tipo', rotulo: 'Tipo', largura: '9%' },
-  { chave: 'nome', rotulo: 'Nome / Razão Social', largura: '27%' },
-  { chave: 'documento', rotulo: 'CPF / CNPJ', largura: '19%' },
-  { chave: 'celular', rotulo: 'Celular', largura: '16%' },
-  { chave: 'cidade', rotulo: 'Cidade', largura: '17%' },
+  { chave: 'tipo', rotulo: 'Tipo', largura: '11%' },
+  { chave: 'nome', rotulo: 'Nome / Razão Social', largura: '24%' },
+  { chave: 'documento', rotulo: 'CPF / CNPJ', largura: '17%' },
+  { chave: 'celular', rotulo: 'Celular', largura: '17%' },
+  { chave: 'cidade', rotulo: 'Cidade', largura: '19%' },
   { chave: 'acoes', rotulo: 'Ações', largura: '12%' },
 ]
 
@@ -243,9 +243,14 @@ onMounted(carregar)
 
 .nome-linha {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* O nome encolhe com reticências; o selo "Inativo" nunca é espremido. */
+.nome-linha > :not(.celula-bloco) {
+  flex-shrink: 0;
 }
 
 .celula-bloco {

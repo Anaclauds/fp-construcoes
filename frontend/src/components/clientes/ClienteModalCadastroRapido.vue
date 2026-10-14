@@ -8,6 +8,7 @@ import { useFormularioCliente } from '../../composables/useFormularioCliente'
 import { useToast } from '../../composables/useToast'
 import { criarCliente } from '../../services/clientes.service'
 import type { Cliente } from '../../types'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 /**
  * Cadastro rápido de cliente (nome, telefone, estado e cidade), pensado para ser aberto a partir de
@@ -35,7 +36,7 @@ function pedirFechar() {
 
 async function focarPrimeiroErro() {
   await nextTick()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 async function salvar() {

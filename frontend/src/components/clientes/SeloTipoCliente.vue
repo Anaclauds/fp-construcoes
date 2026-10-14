@@ -28,6 +28,7 @@ const variante = computed(() => (props.tipo === null ? 'rapido' : props.tipo ===
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .selo-tipo--pf {

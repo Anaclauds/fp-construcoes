@@ -6,15 +6,16 @@ import {
   mascararCep,
   mascararCnpj,
   mascararCpf,
-  mascararData,
   mascararTelefone,
 } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
+import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
 import ClienteCampoCidade from './ClienteCampoCidade.vue'
 import ClienteCamposRapidos from './ClienteCamposRapidos.vue'
 import SeletorTipoCliente from './SeletorTipoCliente.vue'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 const props = defineProps<{
   form: FormularioCliente
@@ -27,17 +28,24 @@ const raiz = useTemplateRef<HTMLElement>('raiz')
 // Formulário estreito (modal ou página com menu aberto em tela menor): o campo Estado só cabe com "UF" no placeholder.
 const LARGURA_ESTREITA = 1050
 const estreito = shallowRef(false)
+const larguraFormulario = shallowRef(Number.POSITIVE_INFINITY)
 let observador: ResizeObserver | null = null
 
 onMounted(() => {
   if (!raiz.value) return
   observador = new ResizeObserver(([entrada]) => {
-    if (entrada) estreito.value = entrada.contentRect.width < LARGURA_ESTREITA
+    if (!entrada) return
+    larguraFormulario.value = entrada.contentRect.width
+    estreito.value = entrada.contentRect.width < LARGURA_ESTREITA
   })
   observador.observe(raiz.value)
 })
 
 onBeforeUnmount(() => observador?.disconnect())
+
+// "Como prefere ser chamado" (Figma) não cabe nas colunas do modal nem de um formulário bem estreito: vira "Apelido"/"Nome fantasia".
+const LARGURA_PLACEHOLDER_CURTO = 820
+const placeholderCurto = computed(() => props.compacto || larguraFormulario.value < LARGURA_PLACEHOLDER_CURTO)
 
 /** Tipo escolhido enquanto a confirmação de troca está aberta. */
 const tipoPendente = shallowRef<TipoCliente | null>(null)
@@ -70,7 +78,7 @@ const mensagemTroca = computed(() => {
 /** Leva o foco ao primeiro campo com erro (chamar depois de `form.validar()` falhar). */
 async function focarPrimeiroErro() {
   await nextTick()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 defineExpose({ focarPrimeiroErro })
@@ -147,7 +155,7 @@ defineExpose({ focarPrimeiroErro })
             v-model="form.campos.apelido"
             class="s4 m4"
             rotulo="Apelido:"
-            placeholder="Como prefere ser chamado"
+            :placeholder="placeholderCurto ? 'Apelido' : 'Como prefere ser chamado'"
             autocomplete="off"
             :maxlength="80"
             :erro="form.erros.apelido"
@@ -162,14 +170,11 @@ defineExpose({ focarPrimeiroErro })
             :mascara="mascararCpf"
             :erro="form.erros.cpf"
           />
-          <CampoFormulario
+          <CampoData
             v-model="form.campos.dataNascimento"
             class="s2 m4"
             rotulo="Data de Nascimento:"
             obrigatorio
-            placeholder="DD/MM/AAAA"
-            inputmode="numeric"
-            :mascara="mascararData"
             :erro="form.erros.dataNascimento"
           />
           <CampoFormulario
@@ -218,7 +223,7 @@ defineExpose({ focarPrimeiroErro })
             class="s4 m4"
             rotulo="Nome Fantasia:"
             obrigatorio
-            placeholder="Como prefere ser chamado"
+            :placeholder="placeholderCurto ? 'Nome fantasia' : 'Como prefere ser chamado'"
             autocomplete="off"
             :maxlength="150"
             :erro="form.erros.nomeFantasia"

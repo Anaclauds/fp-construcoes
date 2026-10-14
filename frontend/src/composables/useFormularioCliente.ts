@@ -153,7 +153,7 @@ function validarCampos(c: CamposCliente, base: Normalizado | null): ErrosCliente
   if (modo === 'rapido') obrigatorio('nome', 'Informe o nome do cliente.', 180)
 
   if (c.celular === '') erros.celular = modo === 'rapido' ? 'Informe o telefone.' : 'Informe o celular.'
-  else if (!telefoneValido(c.celular)) erros.celular = 'Telefone inválido. Use DDD + 8 ou 9 dígitos.'
+  else if (!telefoneValido(c.celular)) erros.celular = 'Telefone inválido. Use DDD + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular).'
 
   if (c.estado === '') erros.estado = 'Selecione o estado.'
   else if (!UFS.includes(c.estado)) erros.estado = 'Estado inválido.'
