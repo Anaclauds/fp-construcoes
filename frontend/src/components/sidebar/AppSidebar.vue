@@ -157,6 +157,7 @@ function alternarGrupo(id: string) {
         <span class="sidebar-footer-icone">
           <img
             :src="sairIcon"
+            class="sidebar-footer-icone--espelhado"
             alt=""
             width="34"
             height="34"
@@ -354,6 +355,11 @@ function alternarGrupo(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* No Figma o ícone de Sair aparece espelhado (seta para a direita, saindo). */
+.sidebar-footer-icone--espelhado {
+  transform: scaleX(-1);
 }
 
 .sidebar-footer-icone img {

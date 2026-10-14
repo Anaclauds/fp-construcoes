@@ -19,6 +19,8 @@ export interface GrupoMenu {
   id: string
   rotulo: string
   icone: string
+  /** No Figma o ícone aparece espelhado na horizontal (rotate 180° + scaleY -1). */
+  espelharIcone?: boolean
   itens: ItemMenu[]
 }
 
@@ -48,6 +50,7 @@ export const gruposMenu: GrupoMenu[] = [
     id: 'projetosServicos',
     rotulo: 'Projetos e Serviços',
     icone: projetosServicosIcon,
+    espelharIcone: true,
     itens: [
       { rotulo: 'Projeto', rota: 'projetos', modulo: 'PROJETOS' },
       { rotulo: 'Serviço', rota: 'servicos', modulo: 'SERVICOS' },
