@@ -11,7 +11,7 @@ import { useAuth } from './useAuth'
  * Detalhe completo do projeto (`GET /projetos/:id`: orçamento com itens, etapas, extras e cobranças com parcelas).
  *
  * Os recebimentos (data do pagamento) só existem em `GET /cobrancas/projetos/:id`, que exige a permissão de
- * Cobranças. Sem ela, ou se a consulta falhar, a tela mostra só as parcelas e o status delas
+ * Cobranças (limitação do backend, X8: `GET /projetos/:id` não traz as datas de pagamento). Sem ela, ou se a consulta falhar, a tela mostra só as parcelas e o status delas
  * (`recebimentosDisponiveis` fica falso e `recebimentosDaParcela` devolve lista vazia).
  *
  * `comRecebimentos: false` pula essa segunda consulta (ex.: formulário de etapa, que só precisa das etapas).

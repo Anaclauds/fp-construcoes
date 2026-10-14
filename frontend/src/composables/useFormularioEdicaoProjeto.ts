@@ -128,7 +128,8 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
   function validarData(chave: 'previsaoInicio' | 'previsaoConclusao') {
     const texto = campos[chave]
     if (texto === '') {
-      // O backend não limpa datas: se já havia uma, ela precisa continuar preenchida.
+      // Limitação do backend (X13): PATCH /projetos/:id ignora data vazia/null e não limpa a previsão.
+      // Só o backend pode resolver; até lá, se já havia uma data, ela precisa continuar preenchida.
       erros[chave] = inicial[chave] === '' ? undefined : 'Informe a data.'
     } else if (!dataBrValida(texto, ANO_MINIMO_DATA_PROJETO)) erros[chave] = 'Data inválida. Use DD/MM/AAAA.'
     else erros[chave] = undefined
