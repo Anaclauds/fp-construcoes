@@ -10,6 +10,7 @@ import {
   descricaoCobranca,
 } from '../../utils/cobrancas'
 import { formatarMoeda, instanteParaDataBr, isoParaDataBr } from '../../utils/formatadores'
+import { cancelamentoDeCobrancaDisponivel } from '../../services/cobrancas.service'
 import BotaoFp from '../ui/BotaoFp.vue'
 import SeloStatusCobranca from './SeloStatusCobranca.vue'
 
@@ -22,6 +23,7 @@ const props = defineProps<{
 defineEmits<{
   detalhes: []
   receber: []
+  cancelar: []
 }>()
 
 const progresso = computed(() => percentualRecebido(props.cobranca))
@@ -30,6 +32,14 @@ const parcelada = computed(() => props.cobranca.parcelas.length > 1)
 const aceitaRecebimento = computed(() => cobrancaAceitaRecebimento(props.cobranca))
 // Cobrança cancelada não recebe nada: sem "Restante", barra nem percentual.
 const cancelada = computed(() => props.cobranca.status === 'CANCELADO')
+// Só cancela cobrança sem nenhum recebimento (a API recusa as demais) e se o backend tiver a rota.
+const podeCancelar = computed(
+  () =>
+    props.podeGerenciar &&
+    cancelamentoDeCobrancaDisponivel.value &&
+    !cancelada.value &&
+    props.cobranca.parcelas.every((parcela) => parcela.recebimentos.length === 0),
+)
 
 // Parcelada: o cartão mostra a parcela que vence a seguir; todas ficam no modal de detalhes.
 const textoVencimento = computed(() => {
@@ -119,6 +129,14 @@ const textoVencimento = computed(() => {
         @click="$emit('detalhes')"
       >
         Ver Detalhes
+      </BotaoFp>
+      <BotaoFp
+        v-if="podeCancelar"
+        variante="perigo-suave"
+        tamanho="compacto"
+        @click="$emit('cancelar')"
+      >
+        Cancelar cobrança
       </BotaoFp>
     </div>
   </article>

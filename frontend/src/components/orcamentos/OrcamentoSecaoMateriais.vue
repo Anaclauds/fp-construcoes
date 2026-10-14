@@ -20,17 +20,24 @@ function opcoesDaLinha(linha: LinhaMaterial): OpcaoAutocomplete[] {
   return props.form.listaMateriais.value.map((material) => ({
     valor: String(material.id),
     rotulo: material.nome,
-    detalhe: `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}`,
+    detalhe: `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}${textoSaldo(material.saldoDisponivel)}`,
     desabilitado: usados.has(String(material.id)),
     motivo: 'Já adicionado',
   }))
+}
+
+/** "Disponível: 12,5": só aparece quando o backend informa o saldo (campo novo; o antigo não o devolve). */
+function textoSaldo(saldo: number | undefined): string {
+  return saldo === undefined ? '' : ` · Disponível: ${saldo.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}`
 }
 
 const apoios = computed(() => {
   const mapa = new Map<number, string>()
   for (const linha of props.form.materiais.value) {
     const material = props.form.listaMateriais.value.find((m) => String(m.id) === linha.materialId)
-    if (material) mapa.set(linha.chave, `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}`)
+    if (material) {
+      mapa.set(linha.chave, `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}${textoSaldo(material.saldoDisponivel)}`)
+    }
   }
   return mapa
 })
@@ -91,7 +98,7 @@ function total(linha: LinhaMaterial): string {
           v-model="linha.quantidade"
           rotulo="Quantidade:"
           placeholder="0"
-          inputmode="numeric"
+          inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraQuantidade"
           :erro="form.errosMateriais[linha.chave]?.quantidade"
@@ -101,7 +108,7 @@ function total(linha: LinhaMaterial): string {
           v-model="linha.valorUnitario"
           rotulo="Valor Unitário:"
           placeholder="0,00"
-          inputmode="numeric"
+          inputmode="decimal"
           autocomplete="off"
           :mascara="mascaraValor"
           :erro="form.errosMateriais[linha.chave]?.valorUnitario"

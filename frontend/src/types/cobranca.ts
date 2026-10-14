@@ -83,6 +83,8 @@ export interface Parcela {
   /** Só vêm em `GET /cobrancas/:id`; no detalhe do projeto são calculados a partir dos recebimentos. */
   valorRecebido?: number
   valorRestante?: number
+  /** Em aberto/parcial com vencimento anterior a hoje. Só vem no backend atualizado; ausente = não mostrar. */
+  vencida?: boolean
 }
 
 export interface Cobranca {

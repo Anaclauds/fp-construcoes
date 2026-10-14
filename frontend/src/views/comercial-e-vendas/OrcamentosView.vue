@@ -23,7 +23,7 @@ import {
   type FiltroTipoOrcamento,
 } from '../../composables/useListaOrcamentos'
 import { useToast } from '../../composables/useToast'
-import type { Orcamento, StatusDefinivel } from '../../types'
+import type { Orcamento, RespostaAprovacao, StatusDefinivel } from '../../types'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { formatarNumeroOrcamento, orcamentoEditavel } from '../../utils/orcamentos'
 
@@ -94,9 +94,12 @@ async function aoSalvar() {
   await carregar()
 }
 
-async function aoAprovar() {
+async function aoAprovar(resposta: RespostaAprovacao) {
   fecharModal()
-  mostrarToast('Orçamento aprovado e convertido em projeto!')
+  // Falta de estoque etc. (backend atualizado): não bloqueia a aprovação, mas precisa ser lida antes de iniciar o projeto.
+  // Um único aviso (com os detalhes dentro) em vez de dois empilhados sobre a tabela.
+  const avisos = resposta.avisos ?? []
+  mostrarToast('Orçamento aprovado e convertido em projeto!', avisos.length > 0 ? 'info' : 'sucesso', avisos.length > 0 ? 12000 : undefined, avisos)
   await carregar()
 }
 

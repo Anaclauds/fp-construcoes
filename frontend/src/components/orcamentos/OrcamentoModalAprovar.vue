@@ -2,7 +2,7 @@
 import { computed, onMounted, shallowRef, useId, useTemplateRef, watch } from 'vue'
 import { useClienteCompleto } from '../../composables/useClienteCompleto'
 import { useFormularioAprovacao } from '../../composables/useFormularioAprovacao'
-import { useTodosFuncionarios } from '../../composables/useTodosFuncionarios'
+import { useResponsaveisOrcamento } from '../../composables/useResponsaveisOrcamento'
 import { aprovarOrcamento } from '../../services/orcamentos.service'
 import type { Orcamento, RespostaAprovacao } from '../../types'
 import { formatarMoeda, mascararCep, rotuloLegivel } from '../../utils/formatadores'
@@ -27,7 +27,7 @@ const emit = defineEmits<{
 const idFormulario = useId()
 const raiz = useTemplateRef<HTMLElement>('raiz')
 const form = useFormularioAprovacao()
-const funcionarios = useTodosFuncionarios()
+const funcionarios = useResponsaveisOrcamento()
 const { cliente, carregando: carregandoCliente, semAcesso: semAcessoClientes } = useClienteCompleto(props.orcamento.clienteId)
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
@@ -141,7 +141,7 @@ async function confirmar() {
         <div class="resumo-linha">
           <div>
             <p class="resumo-rotulo">
-              Valor aprovado
+              Valor do orçamento
             </p>
             <p class="resumo-valor">
               {{ formatarMoeda(orcamento.valorTotal) }}

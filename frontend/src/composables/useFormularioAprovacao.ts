@@ -2,7 +2,7 @@ import { reactive, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
 import { buscarEnderecoPorCep } from '../services/enderecos.service'
 import type { AprovarOrcamentoPayload, Cliente } from '../types'
-import { dataBrParaIso, mascararCep } from '../utils/formatadores'
+import { dataBrParaIso, mascararCep, semAcento } from '../utils/formatadores'
 import { mensagemOrcamento } from '../utils/orcamentos'
 import { UFS } from '../utils/opcoes-cliente'
 import { dataBrValida } from '../utils/validacao'
@@ -153,7 +153,7 @@ export function useFormularioAprovacao() {
   function tratarErroApi(erro: unknown) {
     const { mensagem, status } = extrairErro(erro)
     const texto = mensagemOrcamento(mensagem)
-    if (status === 404 && /funcionario/i.test(mensagem)) {
+    if (status === 404 && /funcionario/i.test(semAcento(mensagem))) {
       erros.responsavelId = texto
       return
     }

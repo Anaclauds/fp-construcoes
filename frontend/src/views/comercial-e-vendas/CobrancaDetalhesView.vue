@@ -7,10 +7,14 @@ import CobrancaModalRecebimento from '../../components/cobrancas/CobrancaModalRe
 import CobrancaProjetoCabecalho from '../../components/cobrancas/CobrancaProjetoCabecalho.vue'
 import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
+import ModalConfirmacao from '../../components/ui/ModalConfirmacao.vue'
 import LinkVoltar from '../../components/ui/LinkVoltar.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useProjetoCobrancas } from '../../composables/useProjetoCobrancas'
 import { useToast } from '../../composables/useToast'
+import { extrairErro } from '../../services/api'
+import { cancelamentoDeCobrancaDisponivel, cancelarCobranca } from '../../services/cobrancas.service'
+import { descricaoCobranca, mensagemCobranca } from '../../utils/cobrancas'
 
 type Modal = { tipo: 'detalhes' | 'recebimento'; cobrancaId: number } | null
 
@@ -45,6 +49,43 @@ function abrir(tipo: 'detalhes' | 'recebimento', cobrancaId: number) {
 
 function fecharModal() {
   modal.value = null
+}
+
+/** Cobrança que o usuário está prestes a cancelar (confirmação em modal). */
+const cancelando = shallowRef<number | null>(null)
+const cancelandoEnviando = shallowRef(false)
+const erroCancelar = shallowRef<string | null>(null)
+
+const cobrancaACancelar = computed(
+  () => projeto.value?.cobrancas.find((cobranca) => cobranca.id === cancelando.value) ?? null,
+)
+
+function pedirCancelar(cobrancaId: number) {
+  erroCancelar.value = null
+  cancelando.value = cobrancaId
+}
+
+async function confirmarCancelar() {
+  if (cancelando.value === null || cancelandoEnviando.value) return
+  cancelandoEnviando.value = true
+  erroCancelar.value = null
+  try {
+    await cancelarCobranca(cancelando.value)
+    cancelando.value = null
+    mostrarToast('Cobrança cancelada.')
+    await carregar()
+  } catch (e) {
+    const { mensagem, status } = extrairErro(e)
+    // Rota ausente: o botão já some (flag do serviço); mensagem clara em vez do 404 técnico.
+    erroCancelar.value =
+      status === 404 && !cancelamentoDeCobrancaDisponivel.value
+        ? 'O cancelamento de cobranças ainda não está disponível neste servidor.'
+        : mensagemCobranca(mensagem)
+    // Já cancelada, com recebimento ou removida: a tela está desatualizada.
+    if (status === 409 || status === 400 || status === 404) await carregar()
+  } finally {
+    cancelandoEnviando.value = false
+  }
 }
 
 async function aoRegistrar() {
@@ -91,7 +132,7 @@ async function aoRegistrar() {
     </div>
 
     <div
-      v-else-if="naoEncontrado"
+      v-else-if="naoEncontrado || (projeto && projeto.cobrancas.length === 0)"
       class="estado"
       role="status"
     >
@@ -115,9 +156,27 @@ async function aoRegistrar() {
           :pode-gerenciar="podeGerenciar"
           @detalhes="abrir('detalhes', cobranca.id)"
           @receber="abrir('recebimento', cobranca.id)"
+          @cancelar="pedirCancelar(cobranca.id)"
         />
       </div>
     </template>
+
+    <ModalConfirmacao
+      v-if="cobrancaACancelar"
+      aberto
+      titulo="Cancelar cobrança"
+      :subtitulo="descricaoCobranca(cobrancaACancelar.descricao)"
+      texto-confirmar="Cancelar cobrança"
+      texto-cancelar="Voltar"
+      titulo-aviso="Atenção"
+      pergunta="Deseja cancelar esta cobrança?"
+      :carregando="cancelandoEnviando"
+      :erro="erroCancelar"
+      @confirmar="confirmarCancelar"
+      @fechar="cancelando = null"
+    >
+      A cobrança e todas as suas parcelas serão canceladas. Só é possível cancelar cobranças sem recebimentos registrados, e a ação não pode ser desfeita.
+    </ModalConfirmacao>
 
     <CobrancaModalDetalhes
       v-if="modal?.tipo === 'detalhes' && cobrancaDoModal"

@@ -92,6 +92,8 @@ export interface OpcaoMaterial {
   categoria: string
   unidadeMedida: string
   precoReferencia: string
+  /** Estoque livre (atual menos reservado). Só vem no backend atualizado; ausente = não exibir. */
+  saldoDisponivel?: number
 }
 
 export interface OpcaoServico {
@@ -144,8 +146,35 @@ export interface AprovarOrcamentoPayload {
   complementoObra?: string
 }
 
+/** Cliente de `GET /orcamentos/opcoes/clientes[/:id]` (só ativos; sem CPF/CNPJ e e-mail). */
+export interface OpcaoClienteOrcamento {
+  id: number
+  nome: string
+  razaoSocial: string | null
+  nomeFantasia: string | null
+  tipo: 'PF' | 'PJ' | null
+  cidade: string
+  estado: string
+  bairro: string | null
+  complemento: string | null
+  /** Telefone e endereço de rua só vêm em `/opcoes/clientes/:id` (um cliente), não na lista. */
+  telefone?: string
+  cep?: string | null
+  rua?: string | null
+  numero?: string | null
+}
+
+/** Funcionário ativo de `GET /orcamentos/opcoes/responsaveis`. */
+export interface OpcaoResponsavel {
+  id: number
+  nomeCompleto: string
+  funcao: string
+}
+
 export interface RespostaAprovacao {
   mensagem: string
+  /** Falta de estoque etc.; só vem no backend atualizado. */
+  avisos?: string[]
   projeto: {
     id: number
     orcamentoId: number
