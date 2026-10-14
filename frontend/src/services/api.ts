@@ -48,14 +48,27 @@ api.interceptors.response.use(
 interface CorpoErro {
   message?: string | string[]
   funcionariosPendentes?: number[]
+  /** Falta de estoque ao iniciar projeto ou registrar extra (backend atualizado). */
+  materiais?: MaterialSemSaldo[]
+}
+
+export interface MaterialSemSaldo {
+  id: number
+  nome: string
+  necessario: number
+  disponivel: number
 }
 
 export interface ErroApi {
   mensagem: string
   status: number | null
   funcionariosPendentes: number[]
+  /** Materiais sem saldo, quando o backend os detalha no 400 de estoque; vazio no backend antigo. */
+  materiais: MaterialSemSaldo[]
 }
 
+const MENSAGEM_LIMITE_TENTATIVAS = 'Muitas tentativas. Aguarde 1 minuto e tente novamente.'
+const MENSAGEM_LIMITE_REQUISICOES = 'Muitas requisições. Aguarde um instante e tente novamente.'
 const MENSAGEM_SERVIDOR = 'Erro no servidor. Tente novamente em instantes.'
 const MENSAGEM_DADOS_INVALIDOS = 'Dados inválidos. Verifique os campos.'
 
@@ -77,14 +90,25 @@ export function extrairErro(erro: unknown): ErroApi {
 
   if (isAxiosError<CorpoErro>(erro)) {
     if (!erro.response) {
-      return { mensagem: 'Sem conexão com o servidor.', status: null, funcionariosPendentes: [] }
+      return { mensagem: 'Sem conexão com o servidor.', status: null, funcionariosPendentes: [], materiais: [] }
     }
     const status = erro.response.status
-    const { message, funcionariosPendentes } = erro.response.data ?? {}
+    const { message, funcionariosPendentes, materiais } = erro.response.data ?? {}
+    // 429: o limite de tentativas (10 por minuto) é do login; nas demais rotas é limite geral de requisições.
+    const ehLogin = erro.config?.url?.includes('/auth/login') ?? false
+    const mensagem =
+      status === 429
+        ? ehLogin
+          ? MENSAGEM_LIMITE_TENTATIVAS
+          : MENSAGEM_LIMITE_REQUISICOES
+        : status >= 500
+          ? MENSAGEM_SERVIDOR
+          : traduzirMensagem(message, padrao)
     return {
-      mensagem: status >= 500 ? MENSAGEM_SERVIDOR : traduzirMensagem(message, padrao),
+      mensagem,
       status,
       funcionariosPendentes: funcionariosPendentes ?? [],
+      materiais: Array.isArray(materiais) ? materiais : [],
     }
   }
 
@@ -92,7 +116,37 @@ export function extrairErro(erro: unknown): ErroApi {
     mensagem: erro instanceof Error ? erro.message : padrao,
     status: null,
     funcionariosPendentes: [],
+    materiais: [],
   }
+}
+
+/**
+ * Campos que o backend recusou por não existirem nele ("property X should not exist", do forbidNonWhitelisted).
+ * Só o backend antigo responde assim a um campo novo: quem envia campos opcionais usa isto para reenviar no formato antigo.
+ */
+export function propriedadesNaoAceitas(erro: unknown): string[] {
+  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 400) return []
+  const message = erro.response.data?.message
+  const lista = Array.isArray(message) ? message : message ? [message] : []
+  return lista.flatMap((m) => {
+    const achado = /property (\w+) should not exist/i.exec(m)
+    return achado ? [achado[1]!] : []
+  })
+}
+
+/** Mensagem original do 400 da API (sem tradução), para reconhecer que campo ela recusou. */
+export function mensagemOriginal400(erro: unknown): string {
+  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 400) return ''
+  const message = erro.response.data?.message
+  return Array.isArray(message) ? message.join(' ') : (message ?? '')
+}
+
+/** O endpoint ainda não existe neste backend (404 de rota, não de registro). */
+export function endpointInexistente(erro: unknown): boolean {
+  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 404) return false
+  const message = erro.response.data?.message
+  const texto = Array.isArray(message) ? message.join(' ') : (message ?? '')
+  return /^cannot (get|post|patch|put|delete) /i.test(texto)
 }
 
 export function extrairMensagemErro(erro: unknown): string {

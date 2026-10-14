@@ -10,8 +10,28 @@ const DIAS_DA_SEMANA = [
 
 const dois = (n: number) => String(n).padStart(2, '0')
 
-/** Data de hoje (YYYY-MM-DD) no relógio local; toISOString() viraria o dia às 21h em Rondônia/Brasília. */
+/** Fuso do negócio: o mesmo que o backend usa para "hoje" (APP_TIMEZONE, padrão America/Porto_Velho). */
+const FUSO_NEGOCIO = 'America/Porto_Velho'
+
+/**
+ * Data de hoje (YYYY-MM-DD) no fuso do negócio, o mesmo "hoje" do backend. Com o relógio do navegador (ou com UTC)
+ * o dia virava antes do servidor numa máquina em Brasília e datas como "hoje" eram recusadas como futuras.
+ * Sem suporte a fusos no navegador cai no relógio local.
+ */
 export function hojeIso(): string {
+  try {
+    const partes = new Intl.DateTimeFormat('en-CA', {
+      timeZone: FUSO_NEGOCIO,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+    const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value
+    const [ano, mes, dia] = [valor('year'), valor('month'), valor('day')]
+    if (ano && mes && dia) return `${ano}-${mes}-${dia}`
+  } catch {
+    // Intl indisponível: usa o relógio local abaixo.
+  }
   const agora = new Date()
   return `${agora.getFullYear()}-${dois(agora.getMonth() + 1)}-${dois(agora.getDate())}`
 }

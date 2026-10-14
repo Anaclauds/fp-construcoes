@@ -169,6 +169,29 @@ export function instanteParaDataBr(valor: string | null | undefined): string {
   return `${dois(data.getDate())}/${dois(data.getMonth() + 1)}/${data.getFullYear()}`
 }
 
+/**
+ * Instante com hora -> "01/08/2026" no fuso do negócio (America/Porto_Velho, o mesmo do backend), não no relógio do
+ * navegador: "02/08 00:30 UTC" é 01/08 em Porto Velho em qualquer máquina. Sem Intl cai no relógio local.
+ */
+export function instanteParaDataBrNegocio(valor: string | null | undefined): string {
+  if (!valor) return ''
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return ''
+  try {
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Porto_Velho',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).formatToParts(data)
+    const pega = (tipo: string) => partes.find((p) => p.type === tipo)?.value
+    if (pega('day') && pega('month') && pega('year')) return `${pega('day')}/${pega('month')}/${pega('year')}`
+  } catch {
+    // Intl indisponível: usa o relógio local abaixo.
+  }
+  return instanteParaDataBr(valor)
+}
+
 /** ISO com hora ("2026-07-16T14:32:00.000Z") -> "16/07/2026 14:32" no relógio local; inválido -> vazio. */
 export function formatarDataHoraIso(valor: string | null | undefined): string {
   if (!valor) return ''
@@ -185,4 +208,14 @@ export function formatarDataHoraIso(valor: string | null | undefined): string {
 export function termoDeBusca(termo: string): string {
   const semMascara = termo.replace(/[.\-() /]/g, '')
   return /^\d{3,}$/.test(semMascara) ? semMascara : termo
+}
+
+/** Nome para enviar à API: sem espaços nas pontas e com espaços/tabs repetidos no meio reduzidos a um ("Tubo   20x20" -> "Tubo 20x20"). */
+export function limparEspacos(texto: string): string {
+  return texto.trim().replace(/[ \t]{2,}/g, ' ')
+}
+
+/** Remove acentos, para comparar mensagens da API com ou sem acento (o servidor passou a acentuar). */
+export function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }

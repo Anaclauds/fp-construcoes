@@ -18,13 +18,23 @@ export function useDataDaRota(nomeRota: string) {
 
   const data = shallowRef(lerQuery())
 
+  /** Data inválida na URL: a URL passa a mostrar o dia realmente exibido (hoje). */
+  function normalizarUrl() {
+    if (route.name !== nomeRota) return
+    const naUrl = route.query.data
+    if (naUrl !== undefined && naUrl !== data.value) void router.replace({ query: { ...route.query, data: data.value } })
+  }
+
   // A rota nova já está em useRoute() enquanto este componente ainda sai da tela: ignora outras rotas.
   watch(
     () => route.query.data,
     () => {
-      if (route.name === nomeRota) data.value = lerQuery()
+      if (route.name !== nomeRota) return
+      data.value = lerQuery()
+      normalizarUrl()
     },
   )
+  normalizarUrl()
 
   async function irParaData(nova: string) {
     if (nova === data.value) return
