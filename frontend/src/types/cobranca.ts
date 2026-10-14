@@ -47,6 +47,12 @@ export interface ListaCobrancas extends Paginado<ProjetoCobrancas> {
   indicadores: IndicadoresCobrancas
 }
 
+/** `GET /cobrancas/relatorios`: mesmos filtros da lista, sem paginação (todos os projetos de uma vez). */
+export interface RelatorioCobrancas {
+  indicadores: IndicadoresCobrancas
+  data: ProjetoCobrancas[]
+}
+
 export interface FiltrosCobrancas {
   busca?: string
   tipo?: TipoOrcamento

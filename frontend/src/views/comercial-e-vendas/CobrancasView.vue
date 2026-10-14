@@ -3,7 +3,6 @@ import { onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import SeloStatusCobranca from '../../components/cobrancas/SeloStatusCobranca.vue'
 import SeloTipoOrcamento from '../../components/orcamentos/SeloTipoOrcamento.vue'
-import BotaoAcao from '../../components/ui/BotaoAcao.vue'
 import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
 import CardBuscaFiltro, { type OpcaoFiltro } from '../../components/ui/CardBuscaFiltro.vue'
@@ -18,12 +17,27 @@ import {
 import { useExportarCobrancas } from '../../composables/useExportarCobrancas'
 import type { ProjetoCobrancas } from '../../types'
 import { formatarMoeda } from '../../utils/formatadores'
+import { percentualRecebido } from '../../utils/cobrancas'
 import { formatarNumeroOrcamento } from '../../utils/orcamentos'
 
 const router = useRouter()
 
-const { busca, status, tipo, pagina, porPagina, filtros, projetos, total, indicadores, carregando, erro, carregar } =
-  useListaCobrancas()
+const {
+  busca,
+  status,
+  tipo,
+  pagina,
+  porPagina,
+  filtros,
+  projetos,
+  total,
+  indicadores,
+  contagem,
+  carregandoContagem,
+  carregando,
+  erro,
+  carregarTudo,
+} = useListaCobrancas()
 const exportacao = useExportarCobrancas(filtros)
 
 const opcoesTipo: OpcaoFiltro<FiltroTipoCobranca>[] = [
@@ -40,13 +54,14 @@ const opcoesStatus: OpcaoFiltro<FiltroStatusCobranca>[] = [
   { valor: 'PAGO', rotulo: 'Pago' },
 ]
 
+// Figma (GERENCIAR COBRANÇA): sem coluna de ações, a linha inteira abre o detalhe.
 const colunas: ColunaTabela[] = [
-  { chave: 'projeto', rotulo: 'Projeto', largura: '36%' },
+  { chave: 'projeto', rotulo: 'Projeto', largura: '28%' },
+  { chave: 'cliente', rotulo: 'Cliente', largura: '17%' },
   { chave: 'tipo', rotulo: 'Tipo', largura: '14%' },
   { chave: 'valor', rotulo: 'Valor', largura: '14%' },
   { chave: 'recebido', rotulo: 'Recebido', largura: '14%' },
-  { chave: 'status', rotulo: 'Status', largura: '14%' },
-  { chave: 'acoes', rotulo: 'Ações', largura: '80px' },
+  { chave: 'status', rotulo: 'Status', largura: '13%' },
 ]
 
 function irParaDetalhes(projeto: ProjetoCobrancas) {
@@ -57,7 +72,13 @@ function plural(quantidade: number, singular: string, pluralTexto: string): stri
   return `${quantidade} ${quantidade === 1 ? singular : pluralTexto}`
 }
 
-onMounted(carregar)
+/** Texto de apoio dos cartões de contagem: "—" quando a contagem falhou (nunca "carregando" para sempre). */
+function textoContagem(montar: (c: NonNullable<typeof contagem.value>) => string): string {
+  if (contagem.value) return montar(contagem.value)
+  return carregandoContagem.value || carregando.value ? 'carregando...' : '—'
+}
+
+onMounted(carregarTudo)
 </script>
 
 <template>
@@ -103,18 +124,18 @@ onMounted(carregar)
       <CardIndicador
         titulo="Total a Receber"
         :valor="indicadores ? formatarMoeda(indicadores.totalAReceber) : '—'"
-        :descricao="indicadores ? plural(indicadores.totalProjetos, 'projeto com cobranças', 'projetos com cobranças') : 'carregando...'"
+        :descricao="textoContagem((c) => plural(c.iniciados, 'projeto iniciado', 'projetos iniciados'))"
       />
       <CardIndicador
         titulo="Total em Aberto"
         :valor="indicadores ? formatarMoeda(indicadores.totalEmAberto) : '—'"
-        descricao="ainda falta receber"
+        :descricao="textoContagem((c) => `${c.semPagamento} ${c.semPagamento === 1 ? 'projeto não recebeu' : 'projetos não receberam'} pagamento`)"
         classe-cor="fp-status--meio-periodo"
       />
       <CardIndicador
         titulo="Total Recebido"
         :valor="indicadores ? formatarMoeda(indicadores.totalRecebido) : '—'"
-        descricao="já recebido dos clientes"
+        :descricao="textoContagem((c) => `${c.comPagamento} ${c.comPagamento === 1 ? 'projeto recebeu' : 'projetos receberam'} pagamento`)"
         classe-cor="fp-status--presente"
       />
     </section>
@@ -147,26 +168,25 @@ onMounted(carregar)
       :por-pagina="porPagina"
       :carregando="carregando"
       :erro="erro"
+      linha-clicavel
       texto-vazio="Nenhum projeto com cobranças encontrado."
-      @tentar-novamente="carregar"
+      @tentar-novamente="carregarTudo"
+      @abrir-linha="irParaDetalhes"
     >
       <template #celula-projeto="{ linha }">
-        <div class="projeto-titulo">
-          <RouterLink
-            :to="{ name: 'cobrancaDetalhes', params: { projetoId: linha.projetoId } }"
-            class="fp-celula-nome celula-corte projeto-link"
-            :title="linha.titulo"
-          >
-            {{ linha.titulo }}
-          </RouterLink>
-          <span class="celula-secundaria projeto-contagem">· {{ plural(linha.quantidadeCobrancas, 'cobrança', 'cobranças') }}</span>
-        </div>
-        <span
-          class="celula-principal celula-corte"
-          :title="linha.cliente.nome"
+        <RouterLink
+          :to="{ name: 'cobrancaDetalhes', params: { projetoId: linha.projetoId } }"
+          class="fp-celula-nome projeto-link"
+          :title="linha.titulo"
         >
-          <span class="projeto-numero">{{ formatarNumeroOrcamento(linha.numero) }}</span> · {{ linha.cliente.nome }}
+          {{ linha.titulo }}
+        </RouterLink>
+        <span class="celula-secundaria">
+          {{ formatarNumeroOrcamento(linha.numero) }} • {{ plural(linha.quantidadeCobrancas, 'cobrança', 'cobranças') }}
         </span>
+      </template>
+      <template #celula-cliente="{ linha }">
+        <span class="celula-principal">{{ linha.cliente.nome }}</span>
       </template>
       <template #celula-tipo="{ linha }">
         <SeloTipoOrcamento :tipo="linha.tipo" />
@@ -176,18 +196,29 @@ onMounted(carregar)
       </template>
       <template #celula-recebido="{ linha }">
         <span class="celula-principal celula-valor">{{ formatarMoeda(linha.valorRecebido) }}</span>
+        <span
+          class="barra"
+          aria-hidden="true"
+        >
+          <span
+            class="barra-preenchida"
+            :style="{ width: `${percentualRecebido(linha)}%` }"
+          />
+        </span>
       </template>
       <template #celula-status="{ linha }">
-        <SeloStatusCobranca :status="linha.status" />
-      </template>
-      <template #celula-acoes="{ linha }">
-        <div class="acoes">
-          <BotaoAcao
-            tipo="visualizar"
-            :alvo="`cobranças do projeto ${formatarNumeroOrcamento(linha.numero)}`"
-            @click="irParaDetalhes(linha)"
-          />
-        </div>
+        <span class="status-linha">
+          <SeloStatusCobranca :status="linha.status" />
+          <svg
+            class="status-seta"
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            aria-hidden="true"
+          >
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
       </template>
     </TabelaDados>
   </section>
@@ -237,9 +268,9 @@ onMounted(carregar)
   flex: 0 1 auto;
 }
 
-/* Cabem as 5 linhas da página (cabeçalho 42 + 5 x 56 + rodapé 63): se a tela for baixa, a página rola em vez de cortar a última. */
+/* Cabem as 5 linhas da página (cabeçalho 42 + 5 x 70 + rodapé 63): se a tela for baixa, a página rola em vez de cortar a última. */
 .tabela-cobrancas {
-  min-height: 390px;
+  min-height: 460px;
 }
 
 /* Abaixo de ~760px de largura útil, rolagem horizontal em vez de espremer as colunas. */
@@ -253,31 +284,11 @@ onMounted(carregar)
 }
 
 .tabela-cobrancas :deep(td) {
+  height: 70px;
   padding-block: 8px;
 }
 
-.acoes {
-  display: flex;
-  gap: 6px;
-}
-
-.projeto-titulo {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.projeto-contagem {
-  flex-shrink: 0;
-}
-
-.projeto-numero {
-  color: var(--fp-cinza-rotulo);
-  font-weight: 600;
-}
-
 .projeto-link {
-  min-width: 0;
   text-decoration: none;
 }
 
@@ -291,6 +302,40 @@ onMounted(carregar)
   box-shadow: var(--fp-foco);
 }
 
+/* Barra de progresso do recebido (Figma: 4px sob o valor). */
+.barra {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background-color: var(--fp-cinza-borda);
+  overflow: hidden;
+}
+
+.barra-preenchida {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background-color: var(--fp-verde);
+}
+
+.status-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Indica que a linha inteira abre o detalhe. */
+.status-seta {
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--fp-cinza-rotulo);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* Valor principal (13px #333) e linha de apoio abaixo (11px #999), como no Figma. */
 .celula-principal {
   display: block;
@@ -300,16 +345,6 @@ onMounted(carregar)
 
 .celula-valor {
   font-weight: 600;
-}
-
-.celula-bloco {
-  display: block;
-}
-
-.celula-corte {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .celula-secundaria {

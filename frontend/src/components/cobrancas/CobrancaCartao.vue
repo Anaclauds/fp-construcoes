@@ -9,7 +9,7 @@ import {
   percentualRecebido,
   descricaoCobranca,
 } from '../../utils/cobrancas'
-import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
+import { formatarMoeda, instanteParaDataBr, isoParaDataBr } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
 import SeloStatusCobranca from './SeloStatusCobranca.vue'
 
@@ -28,6 +28,8 @@ const progresso = computed(() => percentualRecebido(props.cobranca))
 const referencia = computed(() => parcelaDeReferencia(props.cobranca))
 const parcelada = computed(() => props.cobranca.parcelas.length > 1)
 const aceitaRecebimento = computed(() => cobrancaAceitaRecebimento(props.cobranca))
+// Cobrança cancelada não recebe nada: sem "Restante", barra nem percentual.
+const cancelada = computed(() => props.cobranca.status === 'CANCELADO')
 
 // Parcelada: o cartão mostra a parcela que vence a seguir; todas ficam no modal de detalhes.
 const textoVencimento = computed(() => {
@@ -57,7 +59,7 @@ const textoVencimento = computed(() => {
           {{ descricaoCobranca(cobranca.descricao) }}
         </p>
         <p class="cobranca-apoio">
-          Criada em {{ isoParaDataBr(cobranca.criadaEm) }}
+          Criada em {{ instanteParaDataBr(cobranca.criadaEm) }}
         </p>
         <p
           v-if="textoVencimento"
@@ -71,13 +73,19 @@ const textoVencimento = computed(() => {
         <p class="cobranca-valor">
           {{ formatarMoeda(cobranca.valorTotal) }}
         </p>
-        <p class="cobranca-apoio">
+        <p
+          v-if="!cancelada"
+          class="cobranca-apoio"
+        >
           Restante: {{ formatarMoeda(cobranca.valorRestante) }}
         </p>
       </div>
     </div>
 
-    <div class="cobranca-progresso">
+    <div
+      v-if="!cancelada"
+      class="cobranca-progresso"
+    >
       <div class="cobranca-progresso-rotulo">
         <span>Progresso</span>
         <span>{{ progresso }}%</span>
@@ -100,14 +108,14 @@ const textoVencimento = computed(() => {
     <div class="cobranca-acoes">
       <BotaoFp
         v-if="podeGerenciar && aceitaRecebimento"
-        tamanho="pagina"
+        tamanho="compacto"
         @click="$emit('receber')"
       >
         Registrar Recebimento
       </BotaoFp>
       <BotaoFp
         variante="secundario"
-        tamanho="pagina"
+        tamanho="compacto"
         @click="$emit('detalhes')"
       >
         Ver Detalhes

@@ -10,7 +10,7 @@ import {
   parcelaDeReferencia,
   descricaoCobranca,
 } from '../../utils/cobrancas'
-import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
+import { formatarMoeda, instanteParaDataBr, isoParaDataBr } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import CobrancaParcelas from './CobrancaParcelas.vue'
@@ -47,7 +47,7 @@ const historico = computed(() =>
     titulo="Detalhes da Cobrança"
     :subtitulo="descricaoCobranca(cobranca.descricao)"
     icone="olho"
-    largura="640px"
+    largura="720px"
     @fechar="$emit('fechar')"
   >
     <div class="resumo-topo">
@@ -59,11 +59,13 @@ const historico = computed(() =>
         />
       </div>
       <p class="datas">
-        Cobrança criada em: <strong>{{ isoParaDataBr(atual.criadaEm) }}</strong>
-        <template v-if="vencimento">
-          <span aria-hidden="true"> · </span>
-          Vencimento em: <strong>{{ isoParaDataBr(vencimento) }}</strong>
-        </template>
+        Cobrança criada em: <strong>{{ instanteParaDataBr(atual.criadaEm) }}</strong>
+      </p>
+      <p
+        v-if="vencimento"
+        class="datas"
+      >
+        Vencimento em: <strong>{{ isoParaDataBr(vencimento) }}</strong>
       </p>
     </div>
 
@@ -127,9 +129,11 @@ const historico = computed(() =>
           class="recebimento"
         >
           <div class="recebimento-linha">
-            <span class="recebimento-data">Recebido em {{ isoParaDataBr(recebimento.dataRecebimento) }}</span>
+            <div class="recebimento-principal">
+              <span class="recebimento-valor">{{ formatarMoeda(recebimento.valor) }}</span>
+              <span class="recebimento-data">Recebido em {{ isoParaDataBr(recebimento.dataRecebimento) }}</span>
+            </div>
             <span class="recebimento-forma">{{ ROTULO_FORMA_PAGAMENTO[recebimento.formaPagamento] }}</span>
-            <span class="recebimento-valor">{{ formatarMoeda(recebimento.valor) }}</span>
           </div>
           <p
             v-if="parcelada || recebimento.registradoPorUsuario"
@@ -176,13 +180,14 @@ const historico = computed(() =>
 .resumo-topo {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .resumo-selos {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
 .tipo {
@@ -261,14 +266,26 @@ const historico = computed(() =>
 .recebimento-linha {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.recebimento-data {
-  flex: 1;
+/* Figma: valor em destaque, data logo abaixo e a forma de pagamento à direita. */
+.recebimento-principal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recebimento-valor {
   color: #333;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.recebimento-data {
+  color: #6a7282;
+  font-size: 12px;
 }
 
 .recebimento-forma {
@@ -281,14 +298,6 @@ const historico = computed(() =>
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.recebimento-valor {
-  min-width: 96px;
-  color: var(--fp-verde);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
 }
 
 .recebimento-apoio,

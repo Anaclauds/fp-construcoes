@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, useId, useTemplateRef } from 'vue'
+import { computed, nextTick, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioRecebimento } from '../../composables/useFormularioRecebimento'
 import { registrarRecebimento } from '../../services/cobrancas.service'
 import type { Cobranca } from '../../types'
@@ -9,12 +9,13 @@ import {
   parcelaDeReferencia,
   restanteDaParcela,
 } from '../../utils/cobrancas'
-import { formatarMoeda, isoParaDataBr, mascararMoeda } from '../../utils/formatadores'
+import { formatarMoeda, instanteParaDataBr, isoParaDataBr, mascararMoeda } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
+import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 
 const props = defineProps<{ cobranca: Cobranca }>()
 
@@ -31,7 +32,10 @@ const form = useFormularioRecebimento(props.cobranca)
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
 
-const vencimento = computed(() => parcelaDeReferencia(props.cobranca)?.vencimento ?? null)
+// Vencimento da parcela escolhida (muda junto com ela); sem parcela escolhida, o da parcela de referência.
+const vencimento = computed(
+  () => form.parcelaEscolhida.value?.vencimento ?? parcelaDeReferencia(props.cobranca)?.vencimento ?? null,
+)
 
 const total = computed(() => props.cobranca.parcelas.length)
 const opcoesParcela = computed(() =>
@@ -50,8 +54,8 @@ function pedirFechar() {
 }
 
 async function focarPrimeiroErro() {
-  await Promise.resolve()
-  raiz.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  await nextTick()
+  focarPrimeiroErroEm(raiz.value)
 }
 
 async function confirmar() {
@@ -78,9 +82,8 @@ async function confirmar() {
   <ModalBase
     aberto
     titulo="Registrar Recebimento"
-    :subtitulo="descricaoCobranca(cobranca.descricao)"
     icone="check"
-    largura="560px"
+    largura="520px"
     :bloqueado="salvando"
     @fechar="pedirFechar"
   >
@@ -92,22 +95,26 @@ async function confirmar() {
       @submit.prevent="confirmar"
     >
       <div class="resumo">
-        <p class="resumo-datas">
-          Cobrança criada em: <strong>{{ isoParaDataBr(cobranca.criadaEm) }}</strong>
-          <template v-if="vencimento">
-            <span aria-hidden="true"> · </span>
-            Vencimento em: <strong>{{ isoParaDataBr(vencimento) }}</strong>
-          </template>
+        <p class="resumo-titulo">
+          {{ descricaoCobranca(cobranca.descricao) }}
+        </p>
+        <p class="resumo-linha">
+          Cobrança criada em: <strong>{{ instanteParaDataBr(cobranca.criadaEm) }}</strong>
+        </p>
+        <p
+          v-if="vencimento"
+          class="resumo-linha"
+        >
+          Vencimento em: <strong>{{ isoParaDataBr(vencimento) }}</strong>
         </p>
         <p class="resumo-pagar">
-          <span class="resumo-rotulo">Valor a pagar:</span>
-          <span class="resumo-valor">{{ formatarMoeda(cobranca.valorRestante) }}</span>
+          Valor a pagar: <strong class="resumo-valor">{{ formatarMoeda(form.restanteEscolhido.value) }}</strong>
         </p>
       </div>
 
       <CampoFormulario
         v-model="form.campos.parcelaId"
-        rotulo="Referente à Parcela:"
+        rotulo="Referente à Parcela"
         tipo="select"
         obrigatorio
         :opcoes="opcoesParcela"
@@ -115,28 +122,26 @@ async function confirmar() {
         :erro="form.erros.parcelaId"
       />
 
-      <div class="duas-colunas">
-        <CampoFormulario
-          v-model="form.campos.valor"
-          rotulo="Valor Recebido:"
-          obrigatorio
-          placeholder="R$ 0,00"
-          inputmode="numeric"
-          autocomplete="off"
-          :mascara="mascararMoeda"
-          :erro="form.erros.valor"
-        />
-        <CampoData
-          v-model="form.campos.data"
-          rotulo="Data do Recebimento:"
-          obrigatorio
-          :erro="form.erros.data"
-        />
-      </div>
+      <CampoFormulario
+        v-model="form.campos.valor"
+        rotulo="Valor Recebido"
+        obrigatorio
+        placeholder="R$ 0,00"
+        inputmode="numeric"
+        autocomplete="off"
+        :mascara="mascararMoeda"
+        :erro="form.erros.valor"
+      />
+      <CampoData
+        v-model="form.campos.data"
+        rotulo="Data do Recebimento"
+        obrigatorio
+        :erro="form.erros.data"
+      />
 
       <CampoFormulario
         v-model="form.campos.formaPagamento"
-        rotulo="Forma de Pagamento:"
+        rotulo="Forma de Pagamento"
         tipo="select"
         obrigatorio
         placeholder="Selecione a forma de pagamento"
@@ -146,7 +151,7 @@ async function confirmar() {
 
       <CampoFormulario
         v-model="form.campos.observacoes"
-        rotulo="Observações (opcional):"
+        rotulo="Observações (opcional)"
         tipo="area"
         placeholder="Observações..."
         :linhas="3"
@@ -206,26 +211,29 @@ async function confirmar() {
   background-color: var(--fp-verde-10);
 }
 
-.resumo-datas {
-  margin: 0 0 8px;
-  color: #6a7282;
-  font-size: 13px;
+.resumo-titulo {
+  margin: 0 0 4px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
-.resumo-datas strong {
+.resumo-linha,
+.resumo-pagar {
+  margin: 0;
+  color: #6a7282;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.resumo-linha strong {
   color: #333;
   font-weight: 600;
 }
 
 .resumo-pagar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0;
-}
-
-.resumo-rotulo {
+  margin-top: 4px;
   color: #4a5565;
   font-size: 14px;
   font-weight: 500;
@@ -233,15 +241,8 @@ async function confirmar() {
 
 .resumo-valor {
   color: var(--fp-verde);
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.2;
-}
-
-.duas-colunas {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
 }
 
 .erro-geral {
@@ -256,9 +257,4 @@ async function confirmar() {
   font-weight: 500;
 }
 
-@media (max-width: 560px) {
-  .duas-colunas {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

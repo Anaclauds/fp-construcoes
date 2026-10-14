@@ -32,7 +32,7 @@ export const ROTULO_STATUS_COBRANCA: Record<StatusCobranca, string> = {
   EM_ABERTO: 'Pendente',
   PARCIAL: 'Parcial',
   PAGO: 'Pago',
-  CANCELADO: 'Cancelado',
+  CANCELADO: 'Cancelada',
 }
 
 const paraCentavos = (valor: string | number) => Math.round(Number(valor) * 100)
@@ -67,11 +67,16 @@ export function parcelaDeReferencia(cobranca: Cobranca): Parcela | null {
   return ordenadas.find(parcelaAbertaParaReceber) ?? ordenadas[ordenadas.length - 1] ?? null
 }
 
-/** Percentual recebido (0 a 100, inteiro) do total da cobrança. */
-export function percentualRecebido(cobranca: Pick<Cobranca, 'valorTotal' | 'valorRecebido'>): number {
-  const total = Number(cobranca.valorTotal)
+/**
+ * Percentual recebido (0 a 100, inteiro) do total da cobrança. Arredonda para baixo: 100% só quando nada falta
+ * (R$ 0,01 de restante continua em 99%).
+ */
+export function percentualRecebido(cobranca: { valorTotal: string | number; valorRecebido: string | number }): number {
+  const total = paraCentavos(cobranca.valorTotal)
   if (!(total > 0)) return 0
-  return Math.min(100, Math.max(0, Math.round((cobranca.valorRecebido / total) * 100)))
+  const recebido = paraCentavos(cobranca.valorRecebido)
+  if (recebido >= total) return 100
+  return Math.min(99, Math.max(0, Math.floor((recebido * 100) / total)))
 }
 
 /** Nome de quem registrou o recebimento; sem funcionário vinculado, o login. */

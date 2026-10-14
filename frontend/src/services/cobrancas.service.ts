@@ -5,11 +5,18 @@ import type {
   FormatoRelatorioCobrancas,
   ListaCobrancas,
   ProjetoCobrancasDetalhe,
+  RelatorioCobrancas,
   RecebimentoPayload,
 } from '../types'
 
 export async function listarCobrancas(filtros: FiltrosCobrancas = {}): Promise<ListaCobrancas> {
   const { data } = await api.get<ListaCobrancas>('/cobrancas', { params: filtros })
+  return data
+}
+
+/** Todos os projetos com cobranças que casam com os filtros, sem paginação (usado para contar projetos por situação). */
+export async function buscarRelatorioCobrancas(filtros: FiltrosCobrancas = {}): Promise<RelatorioCobrancas> {
+  const { data } = await api.get<RelatorioCobrancas>('/cobrancas/relatorios', { params: filtros })
   return data
 }
 

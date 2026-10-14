@@ -119,9 +119,14 @@ export function useFormularioRecebimento(cobranca: Cobranca) {
       erros.valor = texto
       return
     }
+    // Caixa do mês fechado: o problema é a data escolhida, então o erro aparece (e recebe o foco) no campo Data.
+    if (/caixa da competencia .* fechado/i.test(mensagem)) {
+      erros.data = texto
+      return
+    }
     if (/paga ou cancelada|nao pertence|nao encontrada/i.test(mensagem) || status === 404) desatualizado.value = true
     erroGeral.value = texto
   }
 
-  return { campos, erros, erroGeral, desatualizado, parcelasAbertas, restanteEscolhido, alterado, validar, paraPayload, tratarErroApi }
+  return { campos, erros, erroGeral, desatualizado, parcelasAbertas, parcelaEscolhida, restanteEscolhido, alterado, validar, paraPayload, tratarErroApi }
 }

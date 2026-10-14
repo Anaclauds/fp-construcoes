@@ -64,6 +64,7 @@ async function aoRegistrar() {
     <LinkVoltar
       class="voltar"
       :para="{ name: 'cobrancas' }"
+      voltar-no-historico
     />
 
     <p
