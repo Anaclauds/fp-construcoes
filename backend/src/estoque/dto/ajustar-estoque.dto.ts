@@ -1,3 +1,6 @@
+import { Max as LimiteNumero } from 'class-validator';
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoMovimentacaoEstoque } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -17,10 +20,13 @@ export class AjustarEstoqueDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
+  @LimiteNumero(999999999.999)
   quantidade: number;
 
   @ApiProperty({ example: 'Correcao apos conferencia fisica do estoque.' })
+  @AparaTexto()
   @IsString()
   @IsNotEmpty()
+  @LimiteTexto(1000)
   justificativa: string;
 }

@@ -37,7 +37,10 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!autorizado) {
-      throw new ForbiddenException('Usuario sem permissao para esta operacao');
+      throw new ForbiddenException({
+        codigo: 'GUARDS_CANACTIVATE_FORBIDDEN_01',
+        message: 'Usuario sem permissao para esta operacao',
+      });
     }
 
     return true;

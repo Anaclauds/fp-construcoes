@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -20,6 +21,8 @@ import { RelatorioFrequenciaQueryDto } from './dto/relatorio-frequencia-query.dt
 import { SaveFrequenciaDto } from './dto/save-frequencia.dto';
 import { UpdateObservacaoDto } from './dto/update-observacao.dto';
 import { FrequenciasService } from './frequencias.service';
+import type { Response } from 'express';
+import { OpcoesFuncionariosQueryDto } from './dto/opcoes-funcionarios-query.dto';
 
 @ApiTags('Frequencias')
 @ApiBearerAuth()
@@ -40,6 +43,28 @@ export class FrequenciasController {
   @ApiOperation({ summary: 'Gera dados do relatorio de frequencia' })
   relatorio(@Query() query: RelatorioFrequenciaQueryDto) {
     return this.frequenciasService.relatorio(query);
+  }
+
+  @Get('relatorio/pdf')
+  @RequirePermission({ modulo: 'FREQUENCIA', acao: 'visualizar' })
+  @ApiOperation({ summary: 'Baixa o relatorio de frequencia em PDF' })
+  async relatorioPdf(
+    @Query() query: RelatorioFrequenciaQueryDto,
+    @Res() response: Response,
+  ) {
+    const pdf = await this.frequenciasService.relatorioPdf(query);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename="frequencia.pdf"',
+    );
+    response.send(pdf);
+  }
+
+  @Get('opcoes/funcionarios')
+  @RequirePermission({ modulo: 'FREQUENCIA', acao: 'visualizar' })
+  opcoesFuncionarios(@Query() query: OpcoesFuncionariosQueryDto) {
+    return this.frequenciasService.opcoesFuncionarios(query.status);
   }
 
   @Get(':id')
@@ -65,7 +90,12 @@ export class FrequenciasController {
   updateObservacao(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateObservacaoDto: UpdateObservacaoDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.frequenciasService.updateObservacao(id, updateObservacaoDto);
+    return this.frequenciasService.updateObservacao(
+      id,
+      updateObservacaoDto,
+      user.sub,
+    );
   }
 }

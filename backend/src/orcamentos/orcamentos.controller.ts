@@ -1,3 +1,4 @@
+import { SimularOrcamentoDto } from './dto/simular-orcamento.dto';
 import {
   Body,
   Controller,
@@ -19,6 +20,7 @@ import { ListOrcamentosQueryDto } from './dto/list-orcamentos-query.dto';
 import { UpdateOrcamentoDto } from './dto/update-orcamento.dto';
 import { UpdateStatusOrcamentoDto } from './dto/update-status-orcamento.dto';
 import { OrcamentosService } from './orcamentos.service';
+import { OpcoesOrcamentoQueryDto } from './dto/opcoes-orcamento-query.dto';
 
 @ApiTags('Orcamentos')
 @ApiBearerAuth()
@@ -26,6 +28,13 @@ import { OrcamentosService } from './orcamentos.service';
 @Controller('orcamentos')
 export class OrcamentosController {
   constructor(private readonly orcamentosService: OrcamentosService) {}
+
+  @Post('simular')
+  @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'visualizar' })
+  @ApiOperation({ summary: 'Simula totais sem gravar orcamento' })
+  simular(@Body() dto: SimularOrcamentoDto) {
+    return this.orcamentosService.simular(dto);
+  }
 
   @Post()
   @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'gerenciar' })
@@ -51,8 +60,33 @@ export class OrcamentosController {
   @Get('opcoes/servicos')
   @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'visualizar' })
   @ApiOperation({ summary: 'Lista servicos ativos para compor orcamentos' })
-  findServicosAtivos() {
-    return this.orcamentosService.findServicosAtivos();
+  findServicosAtivos(@Query() query: OpcoesOrcamentoQueryDto) {
+    return this.orcamentosService.findServicosAtivos(query.tipo);
+  }
+
+  @Get('opcoes/clientes')
+  @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'visualizar' })
+  @ApiOperation({
+    summary: 'Lista clientes ativos para selecionar no orcamento',
+  })
+  findClientesAtivos(@Query() query: OpcoesOrcamentoQueryDto) {
+    return this.orcamentosService.findClientesAtivos(query);
+  }
+
+  @Get('opcoes/clientes/:id')
+  @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'visualizar' })
+  @ApiOperation({ summary: 'Consulta os dados do cliente ativo selecionado' })
+  findClienteAtivo(@Param('id', ParseIntPipe) id: number) {
+    return this.orcamentosService.findClienteAtivo(id);
+  }
+
+  @Get('opcoes/responsaveis')
+  @RequirePermission({ modulo: 'ORCAMENTOS', acao: 'visualizar' })
+  @ApiOperation({
+    summary: 'Lista funcionarios ativos para responsavel do projeto',
+  })
+  findResponsaveis(@Query() query: OpcoesOrcamentoQueryDto) {
+    return this.orcamentosService.findResponsaveis(query.busca);
   }
 
   @Get(':id')

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EnderecosService } from '../src/enderecos/enderecos.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -35,14 +35,14 @@ describe('Integracao completa da API', () => {
     'DESPESAS',
     'CAIXA',
   ];
-  const anoCaixa = 2070 + (Number(execucao.slice(-2)) % 20);
+  const anoCaixa = 2000 + (Number(execucao.slice(-2)) % 20);
   const mesCaixa = String((Number(execucao.slice(-4, -2)) % 12) + 1).padStart(
     2,
     '0',
   );
   const competencia = `${anoCaixa}-${mesCaixa}`;
   const dataFinanceira = `${competencia}-10`;
-  const competenciaFormas = `209${Number(execucao.slice(-1))}-${mesCaixa}`;
+  const competenciaFormas = `202${Number(execucao.slice(-1)) % 4}-${mesCaixa}`;
   const dataFormasPagamento = `${competenciaFormas}-15`;
 
   const ids = {
@@ -79,16 +79,17 @@ describe('Integracao completa da API', () => {
 
     app = modulo.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
 
     prisma = modulo.get(PrismaService);
+    await prisma.categoriaCadastro.createMany({
+      data: ['Insumos', 'Perfis'].map((nome) => ({
+        tipo: 'MATERIAIS',
+        nome,
+        rotulo: nome,
+      })),
+      skipDuplicates: true,
+    });
     const dadosFuncionario = funcionarioPayload(
       `Administrador ${prefixo}`,
       cpfTeste(1),
@@ -269,7 +270,7 @@ describe('Integracao completa da API', () => {
 
   it('salva, consulta e relata frequencia com justificativas', async () => {
     const funcionarioId = ids.funcionarios[1];
-    const data = '2066-03-10';
+    const data = '2025-03-10';
 
     await api()
       .post('/api/frequencias')
@@ -330,7 +331,7 @@ describe('Integracao completa da API', () => {
         .post('/api/frequencias')
         .set('Authorization', autorizar())
         .send({
-          data: `2066-03-${String(11 + indice).padStart(2, '0')}`,
+          data: `2025-03-${String(11 + indice).padStart(2, '0')}`,
           registros: [
             {
               funcionarioId,
@@ -354,6 +355,25 @@ describe('Integracao completa da API', () => {
       .expect(201);
     ids.clientes.push(criado.body.id as number);
     expect(criado.body.cadastroCompleto).toBe(false);
+
+    for (const campos of [
+      { cpfCnpj: '52998224724' },
+      { telefone: '123' },
+      { estado: 'ZZ' },
+      { cep: '123' },
+    ]) {
+      await api()
+        .patch(`/api/clientes/${criado.body.id}`)
+        .set('Authorization', autorizar())
+        .send(campos)
+        .expect(400);
+    }
+    const semAlteracao = await api()
+      .get(`/api/clientes/${criado.body.id}`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    expect(semAlteracao.body.telefone).toBe(criado.body.telefone);
+    expect(semAlteracao.body.estado).toBe(criado.body.estado);
 
     const atualizado = await api()
       .patch(`/api/clientes/${criado.body.id}`)
@@ -510,6 +530,7 @@ describe('Integracao completa da API', () => {
         categoria: 'Perfis',
         unidadeMedida: 'M',
         quantidadeInicial: 20,
+        precoReferencia: 10,
         observacoes: 'Criado diretamente pelo estoque.',
       })
       .expect(201);
@@ -612,6 +633,11 @@ describe('Integracao completa da API', () => {
 
   it('converte orcamento em projeto, reserva estoque e cria medicao', async () => {
     await api()
+      .post('/api/financeiro/caixa/abrir')
+      .set('Authorization', autorizar())
+      .send({ competencia, valorInicial: 100 })
+      .expect(201);
+    await api()
       .post('/api/orcamentos')
       .set('Authorization', autorizar())
       .send({
@@ -694,8 +720,8 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .send({
         responsavelId: ids.funcionarios[1],
-        previsaoInicio: '2066-03-01',
-        previsaoConclusao: '2066-12-01',
+        previsaoInicio: '2025-03-01',
+        previsaoConclusao: '2025-12-01',
         cepObra: '76920-000',
         cidadeObra: 'Ouro Preto do Oeste',
         estadoObra: 'RO',
@@ -732,7 +758,7 @@ describe('Integracao completa da API', () => {
     await api()
       .patch(`/api/projetos/${projetoId}/iniciar`)
       .set('Authorization', autorizar())
-      .send({ dataInicio: '2066-03-01', previsaoConclusao: '2066-12-01' })
+      .send({ dataInicio: '2025-03-01', previsaoConclusao: '2025-12-01' })
       .expect(200)
       .expect(({ body }) => expect(body.status).toBe('EM_EXECUCAO'));
     await api()
@@ -745,7 +771,7 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .send({
         descricaoJustificativa: `Saldo insuficiente ${prefixo}`,
-        dataRegistro: '2066-03-20',
+        dataRegistro: '2025-03-20',
         materiais: [
           {
             materialId: ids.materiais[0],
@@ -764,7 +790,7 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .send({
         descricaoJustificativa: `Extra ${prefixo}`,
-        dataRegistro: '2066-04-01',
+        dataRegistro: dataFinanceira,
         materiais: [
           {
             materialId: ids.materiais[0],
@@ -787,7 +813,7 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .send({
         descricao: `Medicao ${prefixo}`,
-        dataRegistro: '2066-05-01',
+        dataRegistro: '2025-05-01',
         valorCobrado: 500,
         formaPagamento: 'PIX',
         modalidadeCobranca: 'A_VISTA',
@@ -848,7 +874,7 @@ describe('Integracao completa da API', () => {
       .post('/api/financeiro/caixa/abrir')
       .set('Authorization', autorizar())
       .send({ competencia, valorInicial: 100 })
-      .expect(201);
+      .expect(409);
     await api()
       .post(`/api/cobrancas/${cobrancaEtapa.id}/recebimentos`)
       .set('Authorization', autorizar())
@@ -988,11 +1014,12 @@ describe('Integracao completa da API', () => {
         tipo: 'DIVERSA',
         data: dataFinanceira,
         descricao: `Despesa sem categoria ${prefixo}`,
+        categoria: 'OUTROS',
         valorTotal: 10,
       })
       .expect(201);
     ids.despesas.push(diversaSemCategoria.body.id as number);
-    expect(diversaSemCategoria.body.categoria).toBeNull();
+    expect(diversaSemCategoria.body.categoria).toBe('OUTROS');
 
     await api()
       .get(`/api/despesas?busca=${encodeURIComponent(prefixo)}&limit=100`)
@@ -1009,8 +1036,8 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .expect(200);
     expect(Number(caixa.body.resumo.totalEntradas)).toBe(500);
-    expect(Number(caixa.body.resumo.totalSaidas)).toBe(120);
-    expect(Number(caixa.body.resumo.saldoAtual)).toBe(480);
+    expect(Number(caixa.body.resumo.totalSaidas)).toBe(370);
+    expect(Number(caixa.body.resumo.saldoAtual)).toBe(230);
   });
 
   it('calcula e recebe cobrancas em todas as formas de pagamento', async () => {
@@ -1030,6 +1057,14 @@ describe('Integracao completa da API', () => {
       'BOLETO',
     ]);
 
+    const anterior = await api()
+      .get(`/api/financeiro/caixa?competencia=${competencia}`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .patch(`/api/financeiro/caixa/${anterior.body.id}/fechar`)
+      .set('Authorization', autorizar())
+      .expect(200);
     await api()
       .post('/api/financeiro/caixa/abrir')
       .set('Authorization', autorizar())
@@ -1229,8 +1264,8 @@ describe('Integracao completa da API', () => {
       .set('Authorization', autorizar())
       .send({
         responsavelId: ids.funcionarios[1],
-        previsaoInicio: '2066-03-01',
-        previsaoConclusao: '2066-04-01',
+        previsaoInicio: '2025-03-01',
+        previsaoConclusao: '2025-04-01',
         cepObra: '76920-000',
         cidadeObra: 'Ouro Preto do Oeste',
         estadoObra: 'RO',
@@ -1275,8 +1310,7 @@ describe('Integracao completa da API', () => {
     await api()
       .patch(`/api/financeiro/caixa/${caixa.body.id}/fechar`)
       .set('Authorization', autorizar())
-      .expect(200)
-      .expect(({ body }) => expect(body.status).toBe('FECHADO'));
+      .expect(409);
     await api()
       .patch(`/api/financeiro/caixa/${caixa.body.id}/fechar`)
       .set('Authorization', autorizar())
@@ -1314,6 +1348,191 @@ describe('Integracao completa da API', () => {
       .expect(400);
   });
 
+  it('consulta opcoes do orcamento com permissao restrita sem liberar o cadastro de clientes', async () => {
+    const usuarioId = ids.usuarios[1];
+    await prisma.permissaoUsuario.create({
+      data: {
+        usuarioId,
+        modulo: 'ORCAMENTOS',
+        podeVisualizar: true,
+        podeGerenciar: false,
+      },
+    });
+    try {
+      await api()
+        .get('/api/orcamentos/opcoes/clientes')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(200);
+      await api()
+        .get(`/api/orcamentos/opcoes/clientes/${ids.clientes[0]}`)
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(200);
+      await api()
+        .get('/api/orcamentos/opcoes/responsaveis')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(200);
+      await api()
+        .post('/api/clientes')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .send(clienteRapidoPayload('Sem acesso'))
+        .expect(403);
+    } finally {
+      await prisma.permissaoUsuario.deleteMany({
+        where: { usuarioId, modulo: 'ORCAMENTOS' },
+      });
+    }
+  });
+
+  it('libera somente as opcoes necessarias para registrar despesas', async () => {
+    const usuarioId = ids.usuarios[1];
+    await prisma.permissaoUsuario.create({
+      data: {
+        usuarioId,
+        modulo: 'DESPESAS',
+        podeVisualizar: true,
+        podeGerenciar: false,
+      },
+    });
+    try {
+      await api()
+        .get('/api/despesas/opcoes/materiais?limit=100')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(200)
+        .expect(({ body }) => expect(body.data.length).toBeGreaterThan(0));
+      await api()
+        .get('/api/fornecedores/opcoes/ativos')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(200);
+      await api()
+        .get('/api/materiais')
+        .set('Authorization', autorizar(usuarioLimitadoToken))
+        .expect(403);
+    } finally {
+      await prisma.permissaoUsuario.deleteMany({
+        where: { usuarioId, modulo: 'DESPESAS' },
+      });
+    }
+  });
+
+  it('recusa datas inexistentes, datas com hora e recebimentos futuros', async () => {
+    await api()
+      .get('/api/frequencias?data=2026-02-30')
+      .set('Authorization', autorizar())
+      .expect(400);
+    await api()
+      .get('/api/despesas?dataInicio=2026-10-14T12:00:00Z')
+      .set('Authorization', autorizar())
+      .expect(400);
+    await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'DIVERSA',
+        data: '2099-01-01',
+        descricao: 'Futuro',
+        valorTotal: 1,
+      })
+      .expect(400);
+  });
+
+  it('filtra cadastroCompleto=false sem converter a string em true', async () => {
+    await api()
+      .get('/api/clientes?cadastroCompleto=false&limit=100')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) =>
+        expect(
+          body.data.every(
+            (item: { cadastroCompleto: boolean }) => !item.cadastroCompleto,
+          ),
+        ).toBe(true),
+      );
+    await api()
+      .get('/api/clientes?cadastroCompleto=abc')
+      .set('Authorization', autorizar())
+      .expect(400);
+  });
+
+  it('calcula vencimentos no ultimo dia do mes e rejeita parcelas zeradas', async () => {
+    const projetoId = ids.projetos[0];
+    const cobranca = await api()
+      .post('/api/cobrancas')
+      .set('Authorization', autorizar())
+      .send({
+        projetoId,
+        tipo: 'ENTRADA',
+        modalidade: 'PARCELADO_AUTOMATICO',
+        formaPagamento: 'BOLETO',
+        valorBase: 3,
+        numeroParcelas: 3,
+        primeiroVencimento: '2027-01-31',
+      })
+      .expect(201);
+    expect(
+      cobranca.body.parcelas.map((item: { vencimento: string }) =>
+        item.vencimento.slice(0, 10),
+      ),
+    ).toEqual(['2027-01-31', '2027-02-28', '2027-03-31']);
+    await api()
+      .post('/api/cobrancas')
+      .set('Authorization', autorizar())
+      .send({
+        projetoId,
+        tipo: 'ENTRADA',
+        modalidade: 'PARCELADO_AUTOMATICO',
+        formaPagamento: 'BOLETO',
+        valorBase: 0.01,
+        numeroParcelas: 60,
+      })
+      .expect(400);
+    await api()
+      .patch(`/api/cobrancas/${cobranca.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => expect(body.valorRestante).toBe(0));
+  });
+
+  it('reabre caixa com auditoria e registra gasto avulso sem permitir alterar seu valor em despesas', async () => {
+    const caixa = await api()
+      .get(`/api/financeiro/caixa?competencia=${competenciaFormas}`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .patch(`/api/financeiro/caixa/${caixa.body.id}/reabrir`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    expect(
+      await prisma.auditoriaCaixa.count({
+        where: { caixaId: caixa.body.id, usuarioId: ids.usuarios[0] },
+      }),
+    ).toBe(1);
+    const projeto = await api()
+      .post(`/api/projetos/${ids.projetos[0]}/extras`)
+      .set('Authorization', autorizar())
+      .send({
+        descricaoJustificativa: `Gasto avulso ${prefixo}`,
+        dataRegistro: dataFormasPagamento,
+        gastosAvulsos: [{ descricao: 'Aluguel', valor: 0.2 }],
+      })
+      .expect(201);
+    const extra = projeto.body.extras.find(
+      (item: { descricaoJustificativa: string }) =>
+        item.descricaoJustificativa === `Gasto avulso ${prefixo}`,
+    );
+    expect(extra.gastosAvulsos).toHaveLength(1);
+    expect(Number(extra.despesa.valorTotal)).toBe(0.2);
+    await api()
+      .patch(`/api/despesas/${extra.despesaId}`)
+      .set('Authorization', autorizar())
+      .send({ valorTotal: 100 })
+      .expect(400);
+    await api()
+      .patch(`/api/projetos/${ids.projetos[0]}/extras/${extra.id}`)
+      .set('Authorization', autorizar())
+      .send({ dataRegistro: `${competencia}-11` })
+      .expect(409);
+  });
+
   it('conclui projeto, baixa reservas e valida erros gerais', async () => {
     const projetoId = ids.projetos[0];
     await api()
@@ -1349,6 +1568,892 @@ describe('Integracao completa da API', () => {
         campoInvalido: true,
       })
       .expect(400);
+  });
+
+  it('protege todas as listas contra requisicoes sem token ou token adulterado', async () => {
+    for (const recurso of [
+      'clientes',
+      'funcionarios',
+      'usuarios',
+      'frequencias',
+      'orcamentos',
+      'cobrancas',
+      'projetos',
+      'servicos',
+      'materiais',
+      'estoque',
+      'equipamentos',
+      'fornecedores',
+      'despesas',
+      'financeiro/caixa',
+    ]) {
+      await api().get(`/api/${recurso}`).expect(401);
+      await api()
+        .get(`/api/${recurso}`)
+        .set('Authorization', 'Bearer token-adulterado')
+        .expect(401);
+    }
+  });
+
+  it('altera senha sem expor hash e valida o perfil autenticado', async () => {
+    const perfil = await api()
+      .get('/api/auth/profile')
+      .set('Authorization', autorizar())
+      .expect(200);
+    expect(perfil.body.login).toBe(cpfTeste(1));
+    expect(JSON.stringify(perfil.body)).not.toContain('senhaHash');
+    await api()
+      .patch('/api/auth/password')
+      .set('Authorization', autorizar())
+      .send({
+        senhaAtual: 'incorreta',
+        novaSenha: `${senha}Nova`,
+        confirmarNovaSenha: `${senha}Nova`,
+      })
+      .expect(401);
+    await api()
+      .patch('/api/auth/password')
+      .set('Authorization', autorizar())
+      .send({
+        senhaAtual: senha,
+        novaSenha: `${senha}Nova`,
+        confirmarNovaSenha: `${senha}Nova`,
+      })
+      .expect(200);
+    const usuario = await prisma.usuario.findUniqueOrThrow({
+      where: { id: ids.usuarios[0] },
+    });
+    expect(await bcrypt.compare(`${senha}Nova`, usuario.senhaHash)).toBe(true);
+    await api()
+      .patch('/api/auth/password')
+      .set('Authorization', autorizar())
+      .send({
+        senhaAtual: `${senha}Nova`,
+        novaSenha: senha,
+        confirmarNovaSenha: senha,
+      })
+      .expect(200);
+  });
+
+  it('gera PDF de frequencia e filtra dias sem registro pela API', async () => {
+    const parametros = `funcionarioId=${ids.funcionarios[1]}&dataInicial=2025-03-10&dataFinal=2025-03-16`;
+    const consulta = await api()
+      .get(`/api/frequencias/relatorio?${parametros}&status=NAO_REGISTRADO`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    expect(consulta.body.dias.length).toBeGreaterThan(0);
+    expect(
+      consulta.body.dias.every(
+        (dia: { status: unknown }) => dia.status === null,
+      ),
+    ).toBe(true);
+    expect(consulta.body.indicadores.taxaPresenca).toBeNull();
+    await api()
+      .get(`/api/frequencias/relatorio/pdf?${parametros}`)
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect('Content-Disposition', /attachment/);
+  });
+
+  it('mantem CPF unico com duas requisicoes simultaneas', async () => {
+    const respostas = await Promise.all(
+      [1, 2].map((numero) =>
+        api()
+          .post('/api/clientes')
+          .set('Authorization', autorizar())
+          .send({
+            ...clienteRapidoPayload(`Concorrente ${prefixo} ${numero}`),
+            cpfCnpj: cpfTeste(8),
+          }),
+      ),
+    );
+    expect(respostas.map((resposta) => resposta.status).sort()).toEqual([
+      201, 409,
+    ]);
+    expect(
+      await prisma.cliente.count({ where: { cpfCnpj: cpfTeste(8) } }),
+    ).toBe(1);
+  });
+
+  it('preserva pelo menos um administrador em desativacoes simultaneas', async () => {
+    await prisma.permissaoUsuario.upsert({
+      where: {
+        usuarioId_modulo: {
+          usuarioId: ids.usuarios[1],
+          modulo: 'GESTAO_USUARIOS',
+        },
+      },
+      create: {
+        usuarioId: ids.usuarios[1],
+        modulo: 'GESTAO_USUARIOS',
+        podeVisualizar: true,
+        podeGerenciar: true,
+      },
+      update: { podeVisualizar: true, podeGerenciar: true },
+    });
+    try {
+      const respostas = await Promise.all(
+        ids.usuarios.slice(0, 2).map((id, indice) =>
+          api()
+            .patch(`/api/usuarios/${id}/desativar`)
+            .set(
+              'Authorization',
+              autorizar(indice === 0 ? adminToken : usuarioLimitadoToken),
+            ),
+        ),
+      );
+      expect(respostas.map((resposta) => resposta.status).sort()).toEqual([
+        200, 400,
+      ]);
+      expect(
+        await prisma.usuario.count({
+          where: { id: { in: ids.usuarios.slice(0, 2) }, status: 'ATIVO' },
+        }),
+      ).toBe(1);
+    } finally {
+      await prisma.usuario.updateMany({
+        where: { id: { in: ids.usuarios.slice(0, 2) } },
+        data: { status: 'ATIVO' },
+      });
+    }
+  });
+
+  it('oferece categorias cadastraveis e seletores com permissoes restritas', async () => {
+    await api()
+      .get('/api/usuarios?page=1&limit=1')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toHaveLength(1);
+        expect(body.meta.total).toBeGreaterThan(1);
+      });
+    await api()
+      .get('/api/usuarios')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => expect(Array.isArray(body)).toBe(true));
+    await api()
+      .get('/api/usuarios/opcoes/funcionarios')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) =>
+        expect(
+          body.every(
+            (item: { cpf: string; senhaHash?: string }) =>
+              item.cpf && !item.senhaHash,
+          ),
+        ).toBe(true),
+      );
+    await prisma.permissaoUsuario.upsert({
+      where: {
+        usuarioId_modulo: { usuarioId: ids.usuarios[1], modulo: 'FREQUENCIA' },
+      },
+      create: {
+        usuarioId: ids.usuarios[1],
+        modulo: 'FREQUENCIA',
+        podeVisualizar: true,
+        podeGerenciar: false,
+      },
+      update: { podeVisualizar: true },
+    });
+    await api()
+      .get('/api/frequencias/opcoes/funcionarios?status=TODOS')
+      .set('Authorization', autorizar(usuarioLimitadoToken))
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.length).toBeGreaterThan(0);
+        expect(body[0]).not.toHaveProperty('salario');
+      });
+    await api()
+      .get('/api/frequencias/opcoes/funcionarios?status=ERRADO')
+      .set('Authorization', autorizar())
+      .expect(400);
+    const nome = `Categoria ${prefixo}`;
+    await api()
+      .post('/api/categorias/materiais')
+      .set('Authorization', autorizar())
+      .send({ nome })
+      .expect(201);
+    await api()
+      .post('/api/categorias/materiais')
+      .set('Authorization', autorizar())
+      .send({ nome })
+      .expect(409);
+    await api()
+      .post('/api/categorias/despesas')
+      .set('Authorization', autorizar())
+      .send({ nome })
+      .expect(201)
+      .expect(({ body }) => expect(body.nome).toContain('CATEGORIA_INT'));
+    await api()
+      .get('/api/categorias/despesas')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) =>
+        expect(
+          body.some((item: { nome: string }) => item.nome === 'FRETE'),
+        ).toBe(true),
+      );
+    await api()
+      .post('/api/materiais')
+      .set('Authorization', autorizar())
+      .send({
+        nome: `Sem categoria ${prefixo}`,
+        categoria: 'categoria nao cadastrada',
+        unidadeMedida: 'UN',
+        precoReferencia: 1,
+      })
+      .expect(400);
+  });
+
+  it('cancela etapas e extras, estorna despesas e preserva caixa, estoque e auditoria', async () => {
+    const orcamento = await api()
+      .post('/api/orcamentos')
+      .set('Authorization', autorizar())
+      .send({
+        titulo: `Cancelamentos ${prefixo}`,
+        tipo: 'CONSTRUCAO_CIVIL',
+        clienteId: ids.clientes[0],
+        prazoEstimadoDias: 30,
+        servicos: [
+          { servicoId: ids.servicos[0], quantidade: 5, valorUnitario: 1000 },
+        ],
+      })
+      .expect(201);
+    const aprovacao = await api()
+      .patch(`/api/orcamentos/${orcamento.body.id}/aprovar`)
+      .set('Authorization', autorizar())
+      .send(
+        aprovacaoPayload(
+          ids.funcionarios[1],
+          `${competenciaFormas}-01`,
+          '2025-12-31',
+        ),
+      )
+      .expect(200);
+    const projetoId = aprovacao.body.projeto.id as number;
+    ids.projetos.push(projetoId);
+    await api()
+      .patch(`/api/projetos/${projetoId}/iniciar`)
+      .set('Authorization', autorizar())
+      .send({ dataInicio: `${competenciaFormas}-01` })
+      .expect(200);
+    const etapa = await api()
+      .post(`/api/projetos/${projetoId}/etapas`)
+      .set('Authorization', autorizar())
+      .send({
+        descricao: 'Medicao a cancelar',
+        dataRegistro: dataFormasPagamento,
+        valorCobrado: 100,
+        formaPagamento: 'PIX',
+        modalidadeCobranca: 'A_VISTA',
+        servicos: [
+          { servicoId: ids.servicos[0], quantidade: 0.1, valorUnitario: 1000 },
+        ],
+      })
+      .expect(201);
+    const etapaId = etapa.body.etapas[0].id as number;
+    const cancelada = await api()
+      .patch(`/api/projetos/${projetoId}/etapas/${etapaId}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Medicao registrada incorretamente' })
+      .expect(200);
+    expect(cancelada.body.etapas[0].canceladoEm).toBeTruthy();
+    expect(cancelada.body.etapas[0].cobranca.status).toBe('CANCELADO');
+    expect(cancelada.body.medicoes.totalMedido).toBe(0);
+    await api()
+      .patch(`/api/projetos/${projetoId}/etapas/${etapaId}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Tentativa duplicada' })
+      .expect(409);
+    await api()
+      .patch(`/api/projetos/${projetoId}/etapas/${etapaId}`)
+      .set('Authorization', autorizar())
+      .send({ descricao: 'Nao pode editar' })
+      .expect(409);
+
+    const material = await api()
+      .post('/api/estoque/materiais')
+      .set('Authorization', autorizar())
+      .send({
+        nome: `Material estorno ${prefixo}`,
+        categoria: 'Insumos',
+        unidadeMedida: 'UN',
+        quantidadeInicial: 10,
+        precoReferencia: 10,
+      })
+      .expect(201);
+    const materialId = material.body.id as number;
+    const extra = await api()
+      .post(`/api/projetos/${projetoId}/extras`)
+      .set('Authorization', autorizar())
+      .send({
+        descricaoJustificativa: `Extra a cancelar ${prefixo}`,
+        dataRegistro: dataFormasPagamento,
+        materiais: [{ materialId, quantidade: 2 }],
+        gastosAvulsos: [{ descricao: 'Frete contratado', valor: 25 }],
+      })
+      .expect(201);
+    const extraId = extra.body.extras[0].id as number;
+    const despesaId = extra.body.extras[0].despesaId as number;
+    await api()
+      .patch(`/api/despesas/${despesaId}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Cancelamento pelo lugar errado' })
+      .expect(409);
+    await api()
+      .patch(`/api/projetos/${projetoId}/extras/${extraId}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Extra deixou de ser necessario' })
+      .expect(200);
+    const saldo = await prisma.estoqueMaterial.findUniqueOrThrow({
+      where: { materialId },
+    });
+    expect(Number(saldo.quantidadeAtual)).toBe(10);
+    expect(Number(saldo.quantidadeReservada)).toBe(0);
+    expect(
+      (await prisma.despesa.findUniqueOrThrow({ where: { id: despesaId } }))
+        .canceladoEm,
+    ).toBeTruthy();
+    const auditoria = await prisma.cancelamentoRegistro.findUniqueOrThrow({
+      where: { tipo_registroId: { tipo: 'DESPESA', registroId: despesaId } },
+      include: { movimentacao: true },
+    });
+    expect(auditoria.usuarioId).toBe(ids.usuarios[0]);
+    expect(auditoria.movimentacao?.tipo).toBe('ENTRADA');
+    expect(Number(auditoria.movimentacao?.valor)).toBe(25);
+    await api()
+      .patch(`/api/projetos/${projetoId}/extras/${extraId}`)
+      .set('Authorization', autorizar())
+      .send({ descricaoJustificativa: 'Edicao recusada' })
+      .expect(409);
+
+    const compra = await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'COMPRA_MATERIAL',
+        fornecedorId: ids.fornecedores[0],
+        data: dataFormasPagamento,
+        descricao: `Compra estorno ${prefixo}`,
+        materiais: [
+          { materialId, quantidade: 3, unidadeMedida: 'UN', valorUnitario: 10 },
+        ],
+      })
+      .expect(201);
+    await api()
+      .patch(`/api/despesas/${compra.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Compra devolvida ao fornecedor' })
+      .expect(200);
+    expect(
+      Number(
+        (
+          await prisma.estoqueMaterial.findUniqueOrThrow({
+            where: { materialId },
+          })
+        ).quantidadeAtual,
+      ),
+    ).toBe(10);
+    await api()
+      .patch(`/api/despesas/${compra.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Tentativa de estorno duplicado' })
+      .expect(409);
+    await api()
+      .patch(`/api/despesas/${compra.body.id}`)
+      .set('Authorization', autorizar())
+      .send({ descricao: 'Edicao depois de estorno' })
+      .expect(409);
+    await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'DIVERSA',
+        data: dataFormasPagamento,
+        descricao: `Sem categoria ${prefixo}`,
+        valorTotal: 1,
+      })
+      .expect(400);
+    const avulsa = await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'DIVERSA',
+        categoria: 'FRETE',
+        fornecedorId: ids.fornecedores[0],
+        data: dataFormasPagamento,
+        descricao: `Frete ${prefixo}`,
+        valorTotal: 1,
+      })
+      .expect(201);
+    expect(avulsa.body.fornecedorId).toBe(ids.fornecedores[0]);
+    await api()
+      .patch(`/api/despesas/${avulsa.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Lancamento de teste' })
+      .expect(200);
+
+    const compraReservada = await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'COMPRA_MATERIAL',
+        fornecedorId: ids.fornecedores[0],
+        data: dataFormasPagamento,
+        descricao: `Compra com reserva ${prefixo}`,
+        materiais: [
+          { materialId, quantidade: 1, unidadeMedida: 'UN', valorUnitario: 10 },
+        ],
+      })
+      .expect(201);
+    const reservado = await api()
+      .post(`/api/projetos/${projetoId}/extras`)
+      .set('Authorization', autorizar())
+      .send({
+        descricaoJustificativa: `Reserva para bloqueio ${prefixo}`,
+        dataRegistro: dataFormasPagamento,
+        materiais: [{ materialId, quantidade: 1 }],
+      })
+      .expect(201);
+    const reservadoId = reservado.body.extras.find(
+      (item: { descricaoJustificativa: string }) =>
+        item.descricaoJustificativa.includes('Reserva para bloqueio'),
+    ).id as number;
+    await api()
+      .patch(`/api/despesas/${compraReservada.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Deve bloquear por reserva ativa' })
+      .expect(409);
+    expect(
+      await prisma.cancelamentoRegistro.count({
+        where: { tipo: 'DESPESA', registroId: compraReservada.body.id },
+      }),
+    ).toBe(0);
+    expect(
+      (
+        await prisma.despesa.findUniqueOrThrow({
+          where: { id: compraReservada.body.id },
+        })
+      ).canceladoEm,
+    ).toBeNull();
+    await api()
+      .patch(`/api/projetos/${projetoId}/extras/${reservadoId}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Liberar a reserva antes do estorno' })
+      .expect(200);
+    await api()
+      .patch(`/api/despesas/${compraReservada.body.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Compra agora pode ser estornada' })
+      .expect(200);
+
+    const etapaRecebida = await api()
+      .post(`/api/projetos/${projetoId}/etapas`)
+      .set('Authorization', autorizar())
+      .send({
+        descricao: `Medicao recebida ${prefixo}`,
+        dataRegistro: dataFormasPagamento,
+        valorCobrado: 100,
+        formaPagamento: 'PIX',
+        modalidadeCobranca: 'A_VISTA',
+        servicos: [
+          { servicoId: ids.servicos[0], quantidade: 0.1, valorUnitario: 1000 },
+        ],
+      })
+      .expect(201);
+    const recebida = etapaRecebida.body.etapas.find(
+      (item: { descricao: string }) =>
+        item.descricao.includes('Medicao recebida'),
+    );
+    const cobrancaRecebida = await api()
+      .get(`/api/cobrancas/${recebida.cobranca.id}`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .post(`/api/cobrancas/${recebida.cobranca.id}/recebimentos`)
+      .set('Authorization', autorizar())
+      .send({
+        parcelaId: cobrancaRecebida.body.parcelas[0].id,
+        valor: 100,
+        dataRecebimento: dataFormasPagamento,
+        formaPagamento: 'PIX',
+      })
+      .expect(201);
+    await api()
+      .patch(`/api/projetos/${projetoId}/etapas/${recebida.id}/cancelar`)
+      .set('Authorization', autorizar())
+      .send({ motivo: 'Nao pode cancelar etapa recebida' })
+      .expect(409);
+    expect(
+      await prisma.cancelamentoRegistro.count({
+        where: { tipo: 'ETAPA', registroId: recebida.id },
+      }),
+    ).toBe(0);
+  });
+
+  it('padroniza erros, filtros TODOS e simulacoes sem gravar', async () => {
+    await api()
+      .get('/api/rota-inexistente')
+      .expect(404)
+      .expect(({ body }) => expect(body.codigo).toBe('ROTA_INEXISTENTE'));
+    await api()
+      .post('/api/materiais')
+      .set('Authorization', autorizar())
+      .send({ nome: ' ' })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.codigo).toBe('VALIDACAO');
+        expect(
+          body.erros.some((item: { campo: string }) => item.campo === 'nome'),
+        ).toBe(true);
+      });
+    await api()
+      .post('/api/materiais')
+      .set('Authorization', autorizar())
+      .send({ campoExtra: true })
+      .expect(400)
+      .expect(({ body }) => expect(body.codigo).toBe('CAMPO_NAO_ACEITO'));
+    for (const recurso of ['materiais', 'equipamentos', 'fornecedores']) {
+      await api()
+        .get(`/api/${recurso}?status=TODOS`)
+        .set('Authorization', autorizar())
+        .expect(200);
+      await api()
+        .get(`/api/${recurso}?status=ERRADO`)
+        .set('Authorization', autorizar())
+        .expect(400);
+    }
+    await api()
+      .patch(`/api/materiais/${ids.materiais[0]}`)
+      .set('Authorization', autorizar())
+      .send({ precoReferencia: null })
+      .expect(400);
+    await api()
+      .get('/api/despesas?dataInicio=2025-02-02&dataFim=2025-01-01')
+      .set('Authorization', autorizar())
+      .expect(400)
+      .expect(({ body }) => expect(body.codigo).toBe('PERIODO_INVALIDO'));
+    await api()
+      .get('/api/usuarios?page=1&limit=100')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) =>
+        expect(typeof body.data[0].acessoAtivo).toBe('boolean'),
+      );
+    const antes = await prisma.orcamento.count();
+    await api()
+      .patch(`/api/equipamentos/${ids.equipamentos[0]}`)
+      .set('Authorization', autorizar())
+      .send({ dataAquisicao: '', valorAquisicao: '' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.dataAquisicao).toBeNull();
+        expect(body.valorAquisicao).toBeNull();
+      });
+    const previa = await api()
+      .post('/api/orcamentos/simular')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'CONSTRUCAO_CIVIL',
+        servicos: [
+          {
+            servicoId: ids.servicos[0],
+            quantidade: 0.333,
+            valorUnitario: 0.09,
+          },
+        ],
+      })
+      .expect(201);
+    expect(Number(previa.body.valorTotal)).toBe(0.03);
+    expect(await prisma.orcamento.count()).toBe(antes);
+    await api()
+      .get('/api/projetos/opcoes/formas-pagamento')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => {
+        expect(
+          body
+            .find(
+              (item: { modalidade: string }) => item.modalidade === 'A_VISTA',
+            )
+            .formas.find((item: { valor: string }) => item.valor === 'PIX')
+            .aceitaAcrescimo,
+        ).toBe(false);
+      });
+    const antesCobrancas = await prisma.cobranca.count();
+    const simular = await api()
+      .post(`/api/projetos/${ids.projetos[0]}/cobranca/simular`)
+      .set('Authorization', autorizar())
+      .send({
+        valorCobrado: 100,
+        modalidadeCobranca: 'PARCELADO_AUTOMATICO',
+        formaPagamento: 'BOLETO',
+        numeroParcelas: 3,
+        primeiroVencimento: '2025-01-31',
+        descontoPercentual: 10,
+        acrescimoPercentual: 5,
+      })
+      .expect(201);
+    expect(simular.body.valorFinal).toBe(95);
+    expect(simular.body.parcelas[1].vencimento.slice(0, 10)).toBe('2025-02-28');
+    expect(await prisma.cobranca.count()).toBe(antesCobrancas);
+    await api()
+      .get(`/api/cobrancas?busca=${prefixo}&page=1&limit=1`)
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => expect(body.data.length).toBeLessThanOrEqual(1));
+    await api()
+      .get('/api/cobrancas?busca=%25')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => expect(body.meta.total).toBe(0));
+  });
+
+  it('protege saldo em ajustes concorrentes e retorno numerico do limite', async () => {
+    const material = await api()
+      .post('/api/estoque/materiais')
+      .set('Authorization', autorizar())
+      .send({
+        nome: `Concorrencia saldo ${prefixo}`,
+        categoria: 'Insumos',
+        unidadeMedida: 'Metro Linear',
+        precoReferencia: 1,
+        quantidadeInicial: 10,
+      })
+      .expect(201);
+    const resultados = await Promise.all(
+      [1, 2].map(() =>
+        api()
+          .post(`/api/estoque/${material.body.id}/ajustes`)
+          .set('Authorization', autorizar())
+          .send({
+            tipo: 'AJUSTE_SAIDA',
+            quantidade: 7,
+            justificativa: 'Saida simultanea de teste',
+          }),
+      ),
+    );
+    expect(resultados.map((item) => item.status).sort()).toEqual([201, 400]);
+    expect(
+      Number(
+        (
+          await prisma.estoqueMaterial.findUniqueOrThrow({
+            where: { materialId: material.body.id },
+          })
+        ).quantidadeAtual,
+      ),
+    ).toBe(3);
+    await api()
+      .post(`/api/estoque/${material.body.id}/ajustes`)
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'AJUSTE_ENTRADA',
+        quantidade: 999999999.999,
+        justificativa: 'Ultrapassa o limite acumulado',
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.codigo).toBe('ESTOQUE_LIMITE_EXCEDIDO');
+        expect(body.detalhes.maximoEntrada).toBe(999999996.999);
+      });
+    await api()
+      .post('/api/estoque/materiais')
+      .set('Authorization', autorizar())
+      .send({
+        nome: `Fracao UN ${prefixo}`,
+        categoria: 'Insumos',
+        unidadeMedida: 'UN',
+        precoReferencia: 1,
+        quantidadeInicial: 0.5,
+      })
+      .expect(400)
+      .expect(({ body }) =>
+        expect(body.codigo).toBe('QUANTIDADE_INTEIRA_OBRIGATORIA'),
+      );
+    await api()
+      .get(`/api/estoque?busca=Concorrencia%20saldo%20${prefixo}`)
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.indicadores).toMatchObject({
+          materiaisCadastrados: 1,
+          semReserva: 1,
+          semSaldo: 0,
+          disponiveis: 1,
+        }),
+      );
+  });
+
+  it('preserva historico inativo e impede estorno duplicado simultaneo', async () => {
+    const compra = await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'COMPRA_MATERIAL',
+        fornecedorId: ids.fornecedores[0],
+        data: dataFormasPagamento,
+        descricao: `Historico inativo ${prefixo}`,
+        materiais: [
+          {
+            materialId: ids.materiais[0],
+            quantidade: 1,
+            unidadeMedida: (
+              await prisma.material.findUniqueOrThrow({
+                where: { id: ids.materiais[0] },
+              })
+            ).unidadeMedida,
+            valorUnitario: 10,
+          },
+        ],
+      })
+      .expect(201);
+    await api()
+      .patch(`/api/fornecedores/${ids.fornecedores[0]}/desativar`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .patch(`/api/materiais/${ids.materiais[0]}/desativar`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .patch(`/api/despesas/${compra.body.id}`)
+      .set('Authorization', autorizar())
+      .send({ descricao: `Historico preservado ${prefixo}` })
+      .expect(200);
+    await api()
+      .patch(`/api/fornecedores/${ids.fornecedores[0]}/reativar`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    await api()
+      .patch(`/api/materiais/${ids.materiais[0]}/reativar`)
+      .set('Authorization', autorizar())
+      .expect(200);
+    const avulsa = await api()
+      .post('/api/despesas')
+      .set('Authorization', autorizar())
+      .send({
+        tipo: 'DIVERSA',
+        categoria: 'FRETE',
+        data: dataFormasPagamento,
+        descricao: `Estorno concorrente ${prefixo}`,
+        valorTotal: 15,
+      })
+      .expect(201);
+    const resultados = await Promise.all(
+      [1, 2].map(() =>
+        api()
+          .patch(`/api/despesas/${avulsa.body.id}/cancelar`)
+          .set('Authorization', autorizar())
+          .send({ motivo: 'Estorno solicitado simultaneamente' }),
+      ),
+    );
+    expect(resultados.map((item) => item.status).sort()).toEqual([200, 409]);
+    expect(
+      await prisma.cancelamentoRegistro.count({
+        where: { tipo: 'DESPESA', registroId: avulsa.body.id },
+      }),
+    ).toBe(1);
+    const quantidadeCaixas = await prisma.caixa.count();
+    await api()
+      .get('/api/financeiro/caixas?page=1&limit=1')
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.meta.total).toBe(quantidadeCaixas);
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].resumo.saldoAtual).toBeDefined();
+      });
+    expect(await prisma.caixa.count()).toBe(quantidadeCaixas);
+    await api()
+      .get(`/api/financeiro/caixa?competencia=${competenciaFormas}`)
+      .set('Authorization', autorizar())
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.situacao).toBe('PENDENTE_FECHAMENTO');
+        expect(body.competenciaMinima).toBeDefined();
+        expect(
+          body.saidas.some(
+            (item: { fornecedor: { id: number } | null }) =>
+              item.fornecedor?.id === ids.fornecedores[0],
+          ),
+        ).toBe(true);
+      });
+  });
+
+  it('mantem integridade entre recebimento e cancelamento simultaneos e consultas em paralelo', async () => {
+    const projetoId = ids.projetos[ids.projetos.length - 1];
+    for (const rodada of [1, 2, 3]) {
+      const criada = await api()
+        .post(`/api/projetos/${projetoId}/etapas`)
+        .set('Authorization', autorizar())
+        .send({
+          descricao: `Etapa concorrente ${rodada} ${prefixo}`,
+          valorCobrado: 100,
+          dataRegistro: dataFormasPagamento,
+          modalidadeCobranca: 'A_VISTA',
+          formaPagamento: 'PIX',
+          servicos: [
+            {
+              servicoId: ids.servicos[0],
+              quantidade: 0.1,
+              valorUnitario: 1000,
+            },
+          ],
+        })
+        .expect(201);
+      const etapa = criada.body.etapas.find(
+        (item: { descricao: string }) =>
+          item.descricao === `Etapa concorrente ${rodada} ${prefixo}`,
+      );
+      const cobranca = await api()
+        .get(`/api/cobrancas/${etapa.cobranca.id}`)
+        .set('Authorization', autorizar())
+        .expect(200);
+      const resultados = await Promise.all([
+        api()
+          .post(`/api/cobrancas/${etapa.cobranca.id}/recebimentos`)
+          .set('Authorization', autorizar())
+          .send({
+            parcelaId: cobranca.body.parcelas[0].id,
+            valor: 100,
+            dataRecebimento: dataFormasPagamento,
+            formaPagamento: 'PIX',
+          }),
+        api()
+          .patch(`/api/projetos/${projetoId}/etapas/${etapa.id}/cancelar`)
+          .set('Authorization', autorizar())
+          .send({ motivo: 'Cancelamento concorrente com recebimento' }),
+      ]);
+      expect(
+        resultados.every((item) => [200, 201, 400, 409].includes(item.status)),
+      ).toBe(true);
+      expect(resultados.filter((item) => item.status < 300)).toHaveLength(1);
+      const final = await prisma.etapaProjeto.findUniqueOrThrow({
+        where: { id: etapa.id },
+        include: {
+          cobranca: {
+            include: { parcelas: { include: { recebimentos: true } } },
+          },
+        },
+      });
+      const quantidadeRecebimentos = final.cobranca!.parcelas.reduce(
+        (soma, item) => soma + item.recebimentos.length,
+        0,
+      );
+      expect(quantidadeRecebimentos).toBe(final.canceladoEm ? 0 : 1);
+    }
+    const caixasAntes = await prisma.caixa.count();
+    const consultas = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        api()
+          .get(`/api/financeiro/caixa?competencia=${competenciaFormas}`)
+          .set('Authorization', autorizar()),
+      ),
+    );
+    expect(consultas.every((item) => item.status === 200)).toBe(true);
+    expect(await prisma.caixa.count()).toBe(caixasAntes);
   });
 
   function funcionarioPayload(nomeCompleto: string, cpf: string) {
@@ -1421,7 +2526,18 @@ describe('Integracao completa da API', () => {
   }
 
   function cpfTeste(sufixo: number) {
-    return `${execucao.slice(-9)}${String(sufixo).padStart(2, '0')}`.slice(-11);
+    const base = `${execucao.slice(-7)}${String(sufixo).padStart(2, '0')}`;
+    const digito = (numero: string) => {
+      const resto =
+        [...numero].reduce(
+          (soma, valor, indice) =>
+            soma + Number(valor) * (numero.length + 1 - indice),
+          0,
+        ) % 11;
+      return resto < 2 ? 0 : 11 - resto;
+    };
+    const primeiro = digito(base);
+    return `${base}${primeiro}${digito(`${base}${primeiro}`)}`;
   }
 
   function gerarCnpj(baseOitoDigitos: string) {
@@ -1474,6 +2590,9 @@ describe('Integracao completa da API', () => {
       (item) => new Date(`${item}-01T00:00:00.000Z`),
     );
 
+    await prisma.cancelamentoRegistro.deleteMany({
+      where: { usuarioId: { in: usuarioIds } },
+    });
     await prisma.movimentacaoCaixa.deleteMany({
       where: { caixa: { competencia: { in: competenciasData } } },
     });
@@ -1506,6 +2625,12 @@ describe('Integracao completa da API', () => {
     });
     await prisma.extraServico.deleteMany({
       where: { extra: { projetoId: { in: projetoIds } } },
+    });
+    await prisma.extraGastoAvulso.deleteMany({
+      where: { extra: { projetoId: { in: projetoIds } } },
+    });
+    await prisma.auditoriaCaixa.deleteMany({
+      where: { usuarioId: { in: usuarioIds } },
     });
     await prisma.extraProjeto.deleteMany({
       where: { projetoId: { in: projetoIds } },

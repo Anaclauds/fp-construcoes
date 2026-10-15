@@ -1,6 +1,7 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusCadastro, TipoCliente } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -14,6 +15,7 @@ import {
 export class ListClientesQueryDto {
   @ApiPropertyOptional({ example: 'Joao' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   busca?: string;
 
@@ -29,7 +31,9 @@ export class ListClientesQueryDto {
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   @IsBoolean()
   cadastroCompleto?: boolean;
 

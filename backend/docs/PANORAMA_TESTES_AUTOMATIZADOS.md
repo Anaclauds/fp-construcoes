@@ -2,13 +2,20 @@
 
 ## Resultado atual
 
-- Testes unitarios: 15 aprovados em 4 suites.
-- Testes de ponta a ponta: 12 cenarios aprovados em 2 suites.
-- Verificacoes HTTP no fluxo integrado: mais de 140.
-- Cobertura E2E da API: 90,69% de statements, 68,66% de branches, 90,26%
-  de funcoes e 90,23% de linhas.
-- Banco utilizado: banco MySQL exclusivo cujo nome obrigatoriamente contem
-  `test`.
+- Atualizado em 14/10/2026: 45 testes unitarios aprovados em 11 suites.
+- Integracao HTTP: 31 cenarios em 3 suites, usando MySQL real; inclui
+  concorrencia de estoque, estorno e recebimento/cancelamento de etapa.
+- Cobertura exata: `coverage/verificacao/coverage-summary.json`.
+- Navegador Chrome: 17 telas, login, cadastro de cliente e caixa, com
+  pendencias explicitamente detectadas no front original: preco no formulario
+  de estoque, arredondamento e uso do PDF de frequencia. Nao declarar estes
+  tres fluxos integrados. Resultado em `coverage/browser/resultado.json`.
+- `npm run test:verificar` cria banco temporario aleatorio, aplica migrations,
+  executa a bateria e remove apenas esse banco ao terminar. Nao reutiliza
+  o banco de desenvolvimento.
+- Detalhes e limites: `docs/VERIFICACAO_GERAL_2026-10-14.md`. A matriz abaixo
+  descreve cenarios implementados; nao declara concluidas funcionalidades
+  ainda pendentes nem cobertura de 100% de todas as combinacoes.
 
 ## Matriz funcional
 
@@ -63,7 +70,7 @@ valor final = valor base - desconto + acrescimo
 - A consulta externa de CEP e simulada no teste de ponta a ponta para evitar
   falhas causadas pela internet. O comportamento real do cliente HTTP e
   verificado separadamente em testes unitarios.
-- Cobertura de 90% nao significa ausencia total de defeitos. Ramos de erro
+- Cobertura aproximada de 89% nao significa ausencia total de defeitos. Ramos de erro
   raros e novas regras devem receber testes conforme o sistema evoluir.
 - Os testes validam a categoria conjunta `CALHAS_RUFOS`. Separar calhas e rufos
   exigiria uma nova decisao de negocio, alteracao do schema e novos contratos.
@@ -71,6 +78,5 @@ valor final = valor base - desconto + acrescimo
 ## Como repetir
 
 ```bash
-npm run test:all
-npm run test:e2e:coverage
+npm run test:verificar
 ```

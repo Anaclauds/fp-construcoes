@@ -677,6 +677,36 @@ Para a integração funcionar:
 
 ## Testes automatizados
 
+### Verificacao completa local
+
+Com MySQL ativo, `.env` configurado, dependencias do backend e do frontend
+instaladas e Chrome disponivel, execute dentro de `backend`:
+
+```powershell
+npm run test:verificar
+```
+
+O comando audita as dependencias dos dois projetos, gera o Prisma Client, compila os dois projetos, verifica tipos e
+lint, executa testes unitarios, testes HTTP com cobertura e os testes pelo
+navegador. Usa um banco MySQL temporario com nome aleatorio, aplica migrations
+e remove somente esse banco ao terminar. O usuario MySQL de testes precisa
+poder criar e remover bancos. O banco de desenvolvimento nao e reutilizado.
+
+O navegador usa as portas 3031 e 5174: deixe essas portas livres e nao execute
+duas verificacoes simultaneas. O teste usa dados ficticios, testa cadastro de
+cliente, cadastro de material com preco, PDF de frequencia e caixa, e confirma
+a persistencia. A consulta de CEP nos testes HTTP usa respostas controladas.
+
+Os resultados locais, ignorados pelo Git, ficam em:
+
+- `coverage/verificacao/execucao.json`: resultado de cada etapa;
+- `coverage/verificacao/coverage-summary.json`: cobertura da integracao;
+- `coverage/verificacao/lcov-report/index.html`: cobertura navegavel;
+- `coverage/browser/resultado.json`: resultado dos fluxos pela interface.
+
+Testes aprovados nao significam que funcionalidades ainda pendentes estejam
+implementadas. Consulte `docs/RELATORIO_INTEGRACAO_LOCAL.md` para o alcance.
+
 ### Atenção ao banco de testes
 
 Os testes de integração utilizam `DATABASE_URL_TEST`. O nome do banco precisa
@@ -988,6 +1018,9 @@ feat(backend): adiciona implementação inicial da API
 | [`docs/GUIA_INTEGRACAO_FRONTEND.md`](docs/GUIA_INTEGRACAO_FRONTEND.md) | Contratos e orientações para integração com o Front-end |
 | [`docs/SETUP_WINDOWS.md`](docs/SETUP_WINDOWS.md) | Referência resumida de configuração no Windows |
 | [`docs/PANORAMA_TESTES_AUTOMATIZADOS.md`](docs/PANORAMA_TESTES_AUTOMATIZADOS.md) | Estratégia e cobertura dos testes |
+| [`docs/VERIFICACAO_GERAL_2026-10-14.md`](docs/VERIFICACAO_GERAL_2026-10-14.md) | Ultima verificacao completa, dependencias, alcance e limitacoes |
+| [`docs/AUDITORIA_RELATORIO_ANA.md`](docs/AUDITORIA_RELATORIO_ANA.md) | Conferencia dos 154 itens e 10 fundamentos do relatorio original |
+| [`docs/PARA_ANA_INTEGRACAO_FRONTEND.md`](docs/PARA_ANA_INTEGRACAO_FRONTEND.md) | Contratos atualizados e ajustes exclusivamente de integracao do frontend |
 | [`docs/RELATORIO_TESTES_INTEGRADOS.md`](docs/RELATORIO_TESTES_INTEGRADOS.md) | Registro dos cenários de integração verificados |
 
 ---

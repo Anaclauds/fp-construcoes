@@ -1,24 +1,18 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { FormaPagamento } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class RelatorioRecebimentosQueryDto {
   @ApiPropertyOptional({ example: '2026-08-01' })
   @IsOptional()
-  @IsDateString({ strict: true })
+  @IsDataSomenteDia()
   dataInicio?: string;
 
   @ApiPropertyOptional({ example: '2026-08-31' })
   @IsOptional()
-  @IsDateString({ strict: true })
+  @IsDataSomenteDia()
   dataFim?: string;
 
   @ApiPropertyOptional({ example: 1 })

@@ -47,6 +47,12 @@ export class UsuariosController {
     return MODULOS_SISTEMA_OPCOES;
   }
 
+  @Get('opcoes/funcionarios')
+  @RequirePermission({ modulo: 'GESTAO_USUARIOS', acao: 'gerenciar' })
+  opcoesFuncionarios() {
+    return this.usuariosService.opcoesFuncionarios();
+  }
+
   @Get(':id')
   @RequirePermission({ modulo: 'GESTAO_USUARIOS', acao: 'visualizar' })
   @ApiOperation({ summary: 'Busca um usuario pelo ID' })

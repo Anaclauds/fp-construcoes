@@ -46,6 +46,7 @@ export class FornecedoresController {
     { modulo: 'EQUIPAMENTOS', acao: 'visualizar' },
     { modulo: 'MATERIAIS', acao: 'visualizar' },
     { modulo: 'ESTOQUE', acao: 'visualizar' },
+    { modulo: 'DESPESAS', acao: 'visualizar' },
   )
   @ApiOperation({ summary: 'Lista fornecedores ativos para campos de selecao' })
   findAtivos() {

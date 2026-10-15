@@ -1,9 +1,11 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ModalidadeCobranca, TipoOrcamento } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -19,9 +21,11 @@ import { OrcamentoServicoDto } from './orcamento-servico.dto';
 
 export class CreateOrcamentoDto {
   @ApiProperty({ example: 'Instalacao de Rufos e Calhas' })
+  @AparaTexto()
   @IsString()
   @IsNotEmpty()
   @MaxLength(180)
+  @LimiteTexto(180)
   titulo: string;
 
   @ApiProperty({ enum: TipoOrcamento, example: TipoOrcamento.CALHAS })
@@ -42,8 +46,10 @@ export class CreateOrcamentoDto {
 
   @ApiPropertyOptional({ example: 'Condicoes e detalhes do orcamento.' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   @MaxLength(3000)
+  @LimiteTexto(3000)
   observacoes?: string;
 
   @ApiPropertyOptional({ example: 0, default: 0 })
@@ -71,7 +77,7 @@ export class CreateOrcamentoDto {
 
   @ApiPropertyOptional({ example: '2026-09-10' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   dataPrimeiroVencimento?: string;
 
   @ApiPropertyOptional({ type: [OrcamentoMaterialDto] })

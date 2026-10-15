@@ -1,13 +1,8 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusFrequencia } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class RelatorioFrequenciaQueryDto {
   @ApiProperty({ example: 1 })
@@ -16,11 +11,11 @@ export class RelatorioFrequenciaQueryDto {
   funcionarioId: number;
 
   @ApiProperty({ example: '2026-08-01' })
-  @IsDateString()
+  @IsDataSomenteDia()
   dataInicial: string;
 
   @ApiProperty({ example: '2026-08-31' })
-  @IsDateString()
+  @IsDataSomenteDia()
   dataFinal: string;
 
   @ApiPropertyOptional({
@@ -28,8 +23,8 @@ export class RelatorioFrequenciaQueryDto {
     example: StatusFrequencia.PRESENTE,
   })
   @IsOptional()
-  @IsEnum(StatusFrequencia)
-  status?: StatusFrequencia;
+  @IsIn([...Object.values(StatusFrequencia), 'NAO_REGISTRADO'])
+  status?: StatusFrequencia | 'NAO_REGISTRADO';
 
   @ApiPropertyOptional({ example: 'DETALHADO_POR_DIA' })
   @IsOptional()

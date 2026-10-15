@@ -1,3 +1,4 @@
+import { SimularCobrancaDto } from './dto/simular-cobranca.dto';
 import {
   Body,
   Controller,
@@ -21,6 +22,12 @@ import { IniciarProjetoDto } from './dto/iniciar-projeto.dto';
 import { ListProjetosQueryDto } from './dto/list-projetos-query.dto';
 import { UpdateStatusProjetoDto } from './dto/update-status-projeto.dto';
 import { ProjetosService } from './projetos.service';
+import { CancelarDto } from '../common/dto/cancelar.dto';
+import {
+  UpdateProjetoDto,
+  UpdateEtapaProjetoDto,
+  UpdateExtraProjetoDto,
+} from './dto/update-projeto.dto';
 
 @ApiTags('Projetos')
 @ApiBearerAuth()
@@ -28,6 +35,21 @@ import { ProjetosService } from './projetos.service';
 @Controller('projetos')
 export class ProjetosController {
   constructor(private readonly projetosService: ProjetosService) {}
+
+  @Get('opcoes/formas-pagamento')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'visualizar' })
+  formasPagamento() {
+    return this.projetosService.formasPagamento();
+  }
+
+  @Post(':id/cobranca/simular')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'visualizar' })
+  simularCobranca(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SimularCobrancaDto,
+  ) {
+    return this.projetosService.simularCobranca(id, dto);
+  }
 
   @Get()
   @RequirePermission({ modulo: 'PROJETOS', acao: 'visualizar' })
@@ -75,6 +97,65 @@ export class ProjetosController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.projetosService.iniciar(id, dto, user.sub);
+  }
+
+  @Patch(':id')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'gerenciar' })
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProjetoDto) {
+    return this.projetosService.update(id, dto);
+  }
+
+  @Patch(':id/etapas/:etapaId')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'gerenciar' })
+  updateEtapa(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('etapaId', ParseIntPipe) etapaId: number,
+    @Body() dto: UpdateEtapaProjetoDto,
+  ) {
+    return this.projetosService.updateEtapa(id, etapaId, dto);
+  }
+
+  @Patch(':id/extras/:extraId')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'gerenciar' })
+  updateExtra(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('extraId', ParseIntPipe) extraId: number,
+    @Body() dto: UpdateExtraProjetoDto,
+  ) {
+    return this.projetosService.updateExtra(id, extraId, dto);
+  }
+
+  @Patch(':id/etapas/:registroId/cancelar')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'gerenciar' })
+  cancelarEtapa(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('registroId', ParseIntPipe) registroId: number,
+    @Body() dto: CancelarDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.projetosService.cancelarRegistro(
+      id,
+      registroId,
+      'ETAPA',
+      user.sub,
+      dto.motivo,
+    );
+  }
+  @Patch(':id/extras/:registroId/cancelar')
+  @RequirePermission({ modulo: 'PROJETOS', acao: 'gerenciar' })
+  cancelarExtra(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('registroId', ParseIntPipe) registroId: number,
+    @Body() dto: CancelarDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.projetosService.cancelarRegistro(
+      id,
+      registroId,
+      'EXTRA',
+      user.sub,
+      dto.motivo,
+    );
   }
 
   @Patch(':id/status')

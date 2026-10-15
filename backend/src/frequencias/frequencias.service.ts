@@ -1,3 +1,4 @@
+import { parseDateOnly, hojeNoFusoDoNegocio } from '../common/utils/date.util';
 import {
   BadRequestException,
   Injectable,
@@ -8,11 +9,26 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ListFrequenciasQueryDto } from './dto/list-frequencias-query.dto';
 import { RelatorioFrequenciaQueryDto } from './dto/relatorio-frequencia-query.dto';
 import { SaveFrequenciaDto } from './dto/save-frequencia.dto';
+import PDFDocument from 'pdfkit';
 import { UpdateObservacaoDto } from './dto/update-observacao.dto';
 
 @Injectable()
 export class FrequenciasService {
   constructor(private readonly prisma: PrismaService) {}
+
+  opcoesFuncionarios(status?: 'ATIVO' | 'INATIVO' | 'TODOS') {
+    return this.prisma.funcionario.findMany({
+      where: { status: status === 'TODOS' ? undefined : status },
+      select: {
+        id: true,
+        nomeCompleto: true,
+        apelido: true,
+        funcao: true,
+        status: true,
+      },
+      orderBy: [{ nomeCompleto: 'asc' }, { id: 'asc' }],
+    });
+  }
 
   private readonly frequenciaSelect = {
     id: true,
@@ -103,7 +119,10 @@ export class FrequenciasService {
     });
 
     if (!frequencia) {
-      throw new NotFoundException('Registro de frequencia nao encontrado');
+      throw new NotFoundException({
+        codigo: 'FREQUENCIAS_FINDONE_NOTFOUND_01',
+        message: 'Registro de frequencia nao encontrado',
+      });
     }
 
     return frequencia;
@@ -118,9 +137,10 @@ export class FrequenciasService {
     });
 
     if (!usuario) {
-      throw new NotFoundException(
-        'Usuario responsavel pelo registro nao encontrado',
-      );
+      throw new NotFoundException({
+        codigo: 'FREQUENCIAS_SAVE_NOTFOUND_01',
+        message: 'Usuario responsavel pelo registro nao encontrado',
+      });
     }
 
     await this.validarFuncionarios(
@@ -155,12 +175,26 @@ export class FrequenciasService {
     return this.findAll({ data: saveFrequenciaDto.data });
   }
 
-  async updateObservacao(id: number, updateObservacaoDto: UpdateObservacaoDto) {
-    await this.findOne(id);
+  async updateObservacao(
+    id: number,
+    updateObservacaoDto: UpdateObservacaoDto,
+    usuarioId: number,
+  ) {
+    const atual = await this.findOne(id);
+    this.validarJustificativas([
+      {
+        funcionarioId: atual.funcionarioId,
+        status: atual.status,
+        observacao: updateObservacaoDto.observacao,
+      },
+    ]);
 
     return this.prisma.frequencia.update({
       where: { id },
-      data: { observacao: updateObservacaoDto.observacao },
+      data: {
+        observacao: updateObservacaoDto.observacao,
+        registradoPorUsuarioId: usuarioId,
+      },
       select: this.frequenciaSelect,
     });
   }
@@ -170,9 +204,10 @@ export class FrequenciasService {
     const dataFinal = this.parseDate(query.dataFinal);
 
     if (dataInicial > dataFinal) {
-      throw new BadRequestException(
-        'Data inicial deve ser menor ou igual a data final',
-      );
+      throw new BadRequestException({
+        codigo: 'FREQUENCIAS_RELATORIO_BADREQUEST_01',
+        message: 'Data inicial deve ser menor ou igual a data final',
+      });
     }
 
     const funcionario = await this.prisma.funcionario.findUnique({
@@ -186,7 +221,10 @@ export class FrequenciasService {
     });
 
     if (!funcionario) {
-      throw new NotFoundException('Funcionario nao encontrado');
+      throw new NotFoundException({
+        codigo: 'FREQUENCIAS_RELATORIO_NOTFOUND_01',
+        message: 'Funcionario nao encontrado',
+      });
     }
 
     const registros = await this.prisma.frequencia.findMany({
@@ -196,17 +234,54 @@ export class FrequenciasService {
           gte: dataInicial,
           lte: dataFinal,
         },
-        status: query.status,
       },
       orderBy: { data: 'asc' },
       select: this.frequenciaSelect,
     });
 
-    const total = registros.length;
-    const presentes = registros.filter(
-      (r) => r.status === StatusFrequencia.PRESENTE,
+    const limite =
+      dataFinal < hojeNoFusoDoNegocio() ? dataFinal : hojeNoFusoDoNegocio();
+    if ((limite.getTime() - dataInicial.getTime()) / 86400000 > 3660)
+      throw new BadRequestException({
+        codigo: 'FREQUENCIAS_RELATORIO_BADREQUEST_02',
+        message: 'O relatorio deve abranger no maximo dez anos',
+      });
+    const porDia = new Map(
+      registros.map((registro) => [
+        registro.data.toISOString().slice(0, 10),
+        registro,
+      ]),
+    );
+    const dias: Array<{
+      data: Date;
+      diaSemana: number;
+      status: StatusFrequencia | null;
+      observacao: string | null;
+    }> = [];
+    for (
+      let dia = new Date(dataInicial);
+      dia <= limite;
+      dia = new Date(dia.getTime() + 86400000)
+    ) {
+      const registro = porDia.get(dia.toISOString().slice(0, 10));
+      dias.push({
+        data: dia,
+        diaSemana: dia.getUTCDay(),
+        status: registro?.status ?? null,
+        observacao: registro?.observacao ?? null,
+      });
+    }
+    const presentes = dias.filter(
+      (dia) => dia.status === StatusFrequencia.PRESENTE,
     ).length;
-    const taxaPresenca = total ? Math.round((presentes / total) * 100) : 0;
+    const taxaPresenca = query.status
+      ? null
+      : dias.length
+        ? Math.round((presentes / dias.length) * 100)
+        : 0;
+    const corresponde = (status: StatusFrequencia | null) =>
+      !query.status ||
+      status === (query.status === 'NAO_REGISTRADO' ? null : query.status);
 
     return {
       funcionario,
@@ -216,11 +291,44 @@ export class FrequenciasService {
       },
       tipoRelatorio: query.tipoRelatorio ?? 'DETALHADO_POR_DIA',
       indicadores: {
-        ...this.calcularIndicadores(registros),
+        ...this.calcularIndicadores(dias),
+        totalDias: dias.length,
         taxaPresenca,
       },
-      registros,
+      registros: registros.filter(
+        (registro) => registro.data <= limite && corresponde(registro.status),
+      ),
+      dias: dias.filter((dia) => corresponde(dia.status)),
     };
+  }
+
+  async relatorioPdf(query: RelatorioFrequenciaQueryDto): Promise<Buffer> {
+    const relatorio = await this.relatorio(query);
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      const partes: Buffer[] = [];
+      doc.on('data', (parte: Buffer) => partes.push(parte));
+      doc.on('end', () => resolve(Buffer.concat(partes)));
+      doc.on('error', reject);
+      doc.fontSize(18).text('Relatorio de frequencia');
+      doc.moveDown().fontSize(11).text(relatorio.funcionario.nomeCompleto);
+      doc.text(`Periodo: ${query.dataInicial} a ${query.dataFinal}`);
+      doc.text(
+        `Dias: ${relatorio.indicadores.totalDias} | Presencas: ${relatorio.indicadores.presentes} | Taxa: ${relatorio.indicadores.taxaPresenca === null ? '-' : `${relatorio.indicadores.taxaPresenca}%`}`,
+      );
+      doc.moveDown();
+      for (const dia of relatorio.dias) {
+        if (doc.y > 745) doc.addPage();
+        doc
+          .fontSize(9)
+          .text(
+            `${dia.data.toISOString().slice(0, 10)} | ${(dia.status ?? 'NAO_REGISTRADO').replace(/_/g, ' ')}${dia.observacao ? ` | ${dia.observacao}` : ''}`,
+          );
+      }
+      if (!relatorio.dias.length)
+        doc.text('Nenhum dia corresponde aos filtros informados.');
+      doc.end();
+    });
   }
 
   private validarJustificativas(registros: SaveFrequenciaDto['registros']) {
@@ -233,6 +341,7 @@ export class FrequenciasService {
 
     if (pendentes.length) {
       throw new BadRequestException({
+        codigo: 'FREQUENCIAS_VALIDARJUSTIFICATIVAS_BADREQUEST_01',
         message: 'Existem funcionarios com justificativa pendente',
         funcionariosPendentes: pendentes.map(
           (registro) => registro.funcionarioId,
@@ -251,9 +360,10 @@ export class FrequenciasService {
     });
 
     if (total !== idsUnicos.length) {
-      throw new BadRequestException(
-        'Todos os funcionarios devem existir e estar ativos',
-      );
+      throw new BadRequestException({
+        codigo: 'FREQUENCIAS_VALIDARFUNCIONARIOS_BADREQUEST_01',
+        message: 'Todos os funcionarios devem existir e estar ativos',
+      });
     }
   }
 
@@ -262,6 +372,7 @@ export class FrequenciasService {
   ) {
     return {
       funcionariosAtivos: registros.length,
+      totalRegistros: registros.length,
       naoRegistrados: registros.filter((r) => r.status === null).length,
       presentes: registros.filter((r) => r.status === StatusFrequencia.PRESENTE)
         .length,
@@ -278,10 +389,10 @@ export class FrequenciasService {
   }
 
   private today() {
-    return new Date().toISOString().slice(0, 10);
+    return hojeNoFusoDoNegocio().toISOString().slice(0, 10);
   }
 
   private parseDate(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    return parseDateOnly(value);
   }
 }

@@ -1,8 +1,10 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDateString,
   IsOptional,
   IsString,
   MaxLength,
@@ -10,18 +12,21 @@ import {
 } from 'class-validator';
 import { ExtraMaterialDto } from './extra-material.dto';
 import { ExtraServicoDto } from './extra-servico.dto';
+import { ExtraGastoAvulsoDto } from './extra-gasto-avulso.dto';
 
 export class CreateExtraProjetoDto {
   @ApiProperty({
     example: 'Reforco estrutural solicitado apos alteracao do escopo',
   })
+  @AparaTexto()
   @IsString()
   @MaxLength(3000)
+  @LimiteTexto(3000)
   descricaoJustificativa: string;
 
   @ApiPropertyOptional({ example: '2026-10-20' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   dataRegistro?: string;
 
   @ApiPropertyOptional({ type: [ExtraMaterialDto] })
@@ -37,4 +42,11 @@ export class CreateExtraProjetoDto {
   @ValidateNested({ each: true })
   @Type(() => ExtraServicoDto)
   servicos?: ExtraServicoDto[];
+
+  @ApiPropertyOptional({ type: [ExtraGastoAvulsoDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExtraGastoAvulsoDto)
+  gastosAvulsos?: ExtraGastoAvulsoDto[];
 }

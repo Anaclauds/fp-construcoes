@@ -30,21 +30,21 @@ export class AuthService {
       },
     });
 
-    if (!usuario) {
-      throw new UnauthorizedException('Login ou senha invalidos');
-    }
-
+    const senhaValida = await bcrypt.compare(
+      loginDto.senha,
+      usuario?.senhaHash ??
+        '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+    );
     if (
+      !usuario ||
+      !senhaValida ||
       usuario.status !== StatusCadastro.ATIVO ||
       usuario.funcionario.status !== StatusCadastro.ATIVO
     ) {
-      throw new UnauthorizedException('Usuario inativo');
-    }
-
-    const senhaValida = await bcrypt.compare(loginDto.senha, usuario.senhaHash);
-
-    if (!senhaValida) {
-      throw new UnauthorizedException('Login ou senha invalidos');
+      throw new UnauthorizedException({
+        codigo: 'AUTH_LOGIN_UNAUTHORIZED_01',
+        message: 'CPF ou senha invalidos',
+      });
     }
 
     const payload: AuthUser = {
@@ -92,7 +92,10 @@ export class AuthService {
     });
 
     if (!usuario) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new NotFoundException({
+        codigo: 'AUTH_PROFILE_NOTFOUND_01',
+        message: 'Usuário não encontrado',
+      });
     }
 
     return {
@@ -107,9 +110,10 @@ export class AuthService {
     changePasswordDto: ChangePasswordDto,
   ) {
     if (changePasswordDto.novaSenha !== changePasswordDto.confirmarNovaSenha) {
-      throw new BadRequestException(
-        'A nova senha e a confirmação devem ser iguais',
-      );
+      throw new BadRequestException({
+        codigo: 'AUTH_CHANGEPASSWORD_BADREQUEST_01',
+        message: 'A nova senha e a confirmação devem ser iguais',
+      });
     }
 
     const usuario = await this.prisma.usuario.findUnique({
@@ -118,7 +122,10 @@ export class AuthService {
     });
 
     if (!usuario) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new NotFoundException({
+        codigo: 'AUTH_CHANGEPASSWORD_NOTFOUND_01',
+        message: 'Usuário não encontrado',
+      });
     }
 
     const senhaAtualValida = await bcrypt.compare(
@@ -127,7 +134,10 @@ export class AuthService {
     );
 
     if (!senhaAtualValida) {
-      throw new UnauthorizedException('Senha atual incorreta');
+      throw new UnauthorizedException({
+        codigo: 'AUTH_CHANGEPASSWORD_UNAUTHORIZED_01',
+        message: 'Senha atual incorreta',
+      });
     }
 
     const senhaHash = await bcrypt.hash(changePasswordDto.novaSenha, 10);

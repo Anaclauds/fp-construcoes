@@ -1,3 +1,5 @@
+import { Max as LimiteNumero } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   FormaPagamento,
@@ -7,7 +9,6 @@ import {
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -80,6 +81,7 @@ export class CreateCobrancaDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @LimiteNumero(9999999999.99)
   valorBase: number;
 
   @ApiPropertyOptional({ example: 2 })
@@ -91,7 +93,7 @@ export class CreateCobrancaDto {
 
   @ApiPropertyOptional({ example: '2026-09-10' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   primeiroVencimento?: string;
 
   @ApiPropertyOptional({ type: [ParcelaManualDto] })

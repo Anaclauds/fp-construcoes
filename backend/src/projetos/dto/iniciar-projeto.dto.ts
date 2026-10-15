@@ -1,5 +1,6 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional } from 'class-validator';
+import { IsOptional } from 'class-validator';
 import { CondicaoCobrancaProjetoDto } from './condicao-cobranca-projeto.dto';
 
 export class IniciarProjetoDto extends CondicaoCobrancaProjetoDto {
@@ -8,11 +9,11 @@ export class IniciarProjetoDto extends CondicaoCobrancaProjetoDto {
     description: 'Data efetiva de inicio. Quando omitida, usa a data atual.',
   })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   dataInicio?: string;
 
   @ApiPropertyOptional({ example: '2026-11-30' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   previsaoConclusao?: string;
 }

@@ -33,7 +33,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       usuario.status !== StatusCadastro.ATIVO ||
       usuario.funcionario.status !== StatusCadastro.ATIVO
     ) {
-      throw new UnauthorizedException('Usuario inativo ou inexistente');
+      throw new UnauthorizedException({
+        codigo: 'STRATEGIES_VALIDATE_UNAUTHORIZED_01',
+        message: 'Usuario inativo ou inexistente',
+      });
     }
 
     return {

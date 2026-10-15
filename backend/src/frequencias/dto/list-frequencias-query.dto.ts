@@ -1,12 +1,13 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusFrequencia } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsOptional } from 'class-validator';
 
 export class ListFrequenciasQueryDto {
   @ApiPropertyOptional({ example: '2026-08-20' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   data?: string;
 
   @ApiPropertyOptional({ example: 1 })

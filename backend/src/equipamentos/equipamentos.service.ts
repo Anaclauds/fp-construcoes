@@ -1,3 +1,5 @@
+import { escaparLike } from '../common/utils/like.util';
+import { parseDateOnly, hojeNoFusoDoNegocio } from '../common/utils/date.util';
 import {
   BadRequestException,
   Injectable,
@@ -56,17 +58,25 @@ export class EquipamentosService {
     const limit = query.limit ?? 10;
     const where: Prisma.EquipamentoWhereInput = {
       tipo: query.tipo,
-      status: query.status ?? StatusCadastro.ATIVO,
+      status:
+        query.status === 'TODOS'
+          ? undefined
+          : (query.status ?? StatusCadastro.ATIVO),
       OR: query.busca
         ? [
-            { codigoPatrimonial: { contains: query.busca } },
-            { nome: { contains: query.busca } },
-            { tipo: { contains: query.busca } },
-            { marca: { contains: query.busca } },
-            { modelo: { contains: query.busca } },
+            { codigoPatrimonial: { contains: escaparLike(query.busca) } },
+            { nome: { contains: escaparLike(query.busca) } },
+            { tipo: { contains: escaparLike(query.busca) } },
+            { marca: { contains: escaparLike(query.busca) } },
+            { modelo: { contains: escaparLike(query.busca) } },
             {
               fornecedor: {
-                is: { nomeFantasia: { contains: query.busca } },
+                is: { nomeFantasia: { contains: escaparLike(query.busca) } },
+              },
+            },
+            {
+              fornecedor: {
+                is: { razaoSocial: { contains: escaparLike(query.busca) } },
               },
             },
           ]
@@ -75,7 +85,7 @@ export class EquipamentosService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.equipamento.findMany({
         where,
-        orderBy: { nome: 'asc' },
+        orderBy: [{ nome: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
         include: this.detailsInclude,
@@ -95,15 +105,18 @@ export class EquipamentosService {
       include: this.detailsInclude,
     });
     if (!equipamento) {
-      throw new NotFoundException('Equipamento nao encontrado');
+      throw new NotFoundException({
+        codigo: 'EQUIPAMENTOS_FINDONE_NOTFOUND_01',
+        message: 'Equipamento nao encontrado',
+      });
     }
     return equipamento;
   }
 
   async update(id: number, dto: UpdateEquipamentoDto) {
-    await this.findOne(id);
+    const atual = await this.findOne(id);
     this.validateDataAquisicao(dto.dataAquisicao);
-    if (dto.fornecedorId) {
+    if (dto.fornecedorId && dto.fornecedorId !== atual.fornecedorId) {
       await this.ensureFornecedorAtivo(dto.fornecedorId);
     }
 
@@ -134,7 +147,7 @@ export class EquipamentosService {
         ? this.parseDate(dto.dataAquisicao)
         : null,
       valorAquisicao:
-        dto.valorAquisicao === undefined
+        dto.valorAquisicao === undefined || dto.valorAquisicao === null
           ? null
           : new Prisma.Decimal(dto.valorAquisicao),
       fornecedorId: dto.fornecedorId,
@@ -149,27 +162,32 @@ export class EquipamentosService {
       nome: dto.nome?.trim(),
       tipo: dto.tipo,
       marca: dto.marca?.trim(),
-      modelo: dto.modelo === undefined ? undefined : dto.modelo.trim() || null,
+      modelo: dto.modelo === undefined ? undefined : dto.modelo?.trim() || null,
       observacoes:
         dto.observacoes === undefined
           ? undefined
-          : dto.observacoes.trim() || null,
+          : dto.observacoes?.trim() || null,
       dataAquisicao: dto.dataAquisicao
         ? this.parseDate(dto.dataAquisicao)
-        : undefined,
+        : dto.dataAquisicao === undefined
+          ? undefined
+          : null,
       valorAquisicao:
         dto.valorAquisicao === undefined
           ? undefined
-          : new Prisma.Decimal(dto.valorAquisicao),
+          : dto.valorAquisicao === null
+            ? null
+            : new Prisma.Decimal(dto.valorAquisicao),
       fornecedorId: dto.fornecedorId,
     } satisfies Prisma.EquipamentoUncheckedUpdateInput;
   }
 
   private validateDataAquisicao(value?: string) {
     if (value && this.parseDate(value) > this.today()) {
-      throw new BadRequestException(
-        'Data de aquisicao nao pode estar no futuro',
-      );
+      throw new BadRequestException({
+        codigo: 'EQUIPAMENTOS_VALIDATEDATAAQUISICAO_BADREQUEST_01',
+        message: 'Data de aquisicao nao pode estar no futuro',
+      });
     }
   }
 
@@ -178,18 +196,18 @@ export class EquipamentosService {
       where: { id, status: StatusCadastro.ATIVO },
     });
     if (!fornecedor) {
-      throw new NotFoundException('Fornecedor ativo nao encontrado');
+      throw new NotFoundException({
+        codigo: 'FORNECEDOR_INATIVO',
+        message: 'Fornecedor ativo nao encontrado',
+      });
     }
   }
 
   private parseDate(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    return parseDateOnly(value);
   }
 
   private today() {
-    const now = new Date();
-    return new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+    return hojeNoFusoDoNegocio();
   }
 }

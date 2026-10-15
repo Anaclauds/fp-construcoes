@@ -11,6 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthUser } from './interfaces/auth-user.interface';
 import { AuthService } from './auth.service';
+import { LoginThrottlerGuard } from './guards/login-throttler.guard';
 
 @ApiTags('Autenticacao')
 @Controller('auth')
@@ -18,6 +19,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @UseGuards(LoginThrottlerGuard)
   @ApiOperation({ summary: 'Realiza login e retorna token JWT' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);

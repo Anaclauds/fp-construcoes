@@ -33,7 +33,10 @@ export class EnderecosService {
     const cep = this.somenteDigitos(cepInformado);
 
     if (cep.length !== 8) {
-      throw new BadRequestException('CEP deve conter exatamente 8 dígitos');
+      throw new BadRequestException({
+        codigo: 'CEP_INVALIDO',
+        message: 'CEP deve conter exatamente 8 dígitos',
+      });
     }
 
     let erroViaCep: unknown;
@@ -50,12 +53,17 @@ export class EnderecosService {
         erroViaCep instanceof NotFoundException ||
         erroBrasilApi instanceof NotFoundException
       ) {
-        throw new NotFoundException('CEP não encontrado');
+        throw new NotFoundException({
+          codigo: 'ENDERECOS_BUSCARPORCEP_NOTFOUND_01',
+          message: 'CEP não encontrado',
+        });
       }
 
-      throw new ServiceUnavailableException(
-        'Não foi possível consultar o CEP neste momento. Os serviços públicos estão indisponíveis',
-      );
+      throw new ServiceUnavailableException({
+        codigo: 'ENDERECOS_BUSCARPORCEP_SERVICEUNAVAILABLE_01',
+        message:
+          'Não foi possível consultar o CEP neste momento. Os serviços públicos estão indisponíveis',
+      });
     }
   }
 
@@ -66,7 +74,10 @@ export class EnderecosService {
 
     if (!response.ok) {
       if (response.status === 400 || response.status === 404) {
-        throw new NotFoundException('CEP não encontrado');
+        throw new NotFoundException({
+          codigo: 'ENDERECOS_BUSCARNOVIACEP_NOTFOUND_01',
+          message: 'CEP não encontrado',
+        });
       }
 
       throw new Error(`ViaCEP respondeu com status ${response.status}`);
@@ -75,7 +86,10 @@ export class EnderecosService {
     const dados = (await response.json()) as ViaCepResponse;
 
     if (dados.erro === true || dados.erro === 'true' || !dados.cep) {
-      throw new NotFoundException('CEP não encontrado');
+      throw new NotFoundException({
+        codigo: 'ENDERECOS_BUSCARNOVIACEP_NOTFOUND_02',
+        message: 'CEP não encontrado',
+      });
     }
 
     return {
@@ -94,7 +108,10 @@ export class EnderecosService {
 
     if (!response.ok) {
       if (response.status === 400 || response.status === 404) {
-        throw new NotFoundException('CEP não encontrado');
+        throw new NotFoundException({
+          codigo: 'ENDERECOS_BUSCARNABRASILAPI_NOTFOUND_01',
+          message: 'CEP não encontrado',
+        });
       }
 
       throw new Error(`BrasilAPI respondeu com status ${response.status}`);
@@ -103,7 +120,10 @@ export class EnderecosService {
     const dados = (await response.json()) as BrasilApiResponse;
 
     if (!dados.cep) {
-      throw new NotFoundException('CEP não encontrado');
+      throw new NotFoundException({
+        codigo: 'ENDERECOS_BUSCARNABRASILAPI_NOTFOUND_02',
+        message: 'CEP não encontrado',
+      });
     }
 
     return {

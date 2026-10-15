@@ -1,3 +1,5 @@
+import { escaparLike } from '../common/utils/like.util';
+import { parseDateOnly } from '../common/utils/date.util';
 import {
   ConflictException,
   Injectable,
@@ -8,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateFuncionarioDto } from './dto/create-funcionario.dto';
 import { ListFuncionariosQueryDto } from './dto/list-funcionarios-query.dto';
 import { UpdateFuncionarioDto } from './dto/update-funcionario.dto';
+import { protegerUltimoAdmin } from '../usuarios/ultimo-admin.util';
 
 @Injectable()
 export class FuncionariosService {
@@ -54,7 +57,10 @@ export class FuncionariosService {
     });
 
     if (funcionarioExistente) {
-      throw new ConflictException('CPF ja cadastrado para outro funcionario');
+      throw new ConflictException({
+        codigo: 'CPF_CNPJ_DUPLICADO',
+        message: 'CPF ja cadastrado para outro funcionario',
+      });
     }
 
     return this.prisma.funcionario.create({
@@ -70,11 +76,23 @@ export class FuncionariosService {
       status: query.status,
       OR: query.busca
         ? [
-            { nomeCompleto: { contains: query.busca } },
-            { apelido: { contains: query.busca } },
-            { cpf: { contains: this.onlyDigits(query.busca) || query.busca } },
-            { celular: { contains: query.busca } },
-            { funcao: { contains: query.busca } },
+            { nomeCompleto: { contains: escaparLike(query.busca) } },
+            { apelido: { contains: escaparLike(query.busca) } },
+            {
+              cpf: {
+                contains: /^[\d\s().+/-]+$/.test(query.busca)
+                  ? this.onlyDigits(query.busca)
+                  : escaparLike(query.busca),
+              },
+            },
+            {
+              celular: {
+                contains: /^[\d\s().+/-]+$/.test(query.busca)
+                  ? this.onlyDigits(query.busca)
+                  : escaparLike(query.busca),
+              },
+            },
+            { funcao: { contains: escaparLike(query.busca) } },
           ]
         : undefined,
     };
@@ -82,7 +100,7 @@ export class FuncionariosService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.funcionario.findMany({
         where,
-        orderBy: { nomeCompleto: 'asc' },
+        orderBy: [{ nomeCompleto: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
         select: this.funcionarioSelect,
@@ -108,7 +126,10 @@ export class FuncionariosService {
     });
 
     if (!funcionario) {
-      throw new NotFoundException('Funcionario nao encontrado');
+      throw new NotFoundException({
+        codigo: 'FUNCIONARIOS_FINDONE_NOTFOUND_01',
+        message: 'Funcionario nao encontrado',
+      });
     }
 
     return funcionario;
@@ -127,7 +148,10 @@ export class FuncionariosService {
       });
 
       if (funcionarioExistente) {
-        throw new ConflictException('CPF ja cadastrado para outro funcionario');
+        throw new ConflictException({
+          codigo: 'CPF_CNPJ_DUPLICADO',
+          message: 'CPF ja cadastrado para outro funcionario',
+        });
       }
     }
 
@@ -139,12 +163,14 @@ export class FuncionariosService {
   }
 
   async desativar(id: number) {
-    await this.findOne(id);
-
-    return this.prisma.funcionario.update({
-      where: { id },
-      data: { status: StatusCadastro.INATIVO },
-      select: this.funcionarioSelect,
+    const atual = await this.findOne(id);
+    return this.prisma.$transaction(async (tx) => {
+      if (atual.usuario) await protegerUltimoAdmin(tx, atual.usuario.id);
+      return tx.funcionario.update({
+        where: { id },
+        data: { status: StatusCadastro.INATIVO },
+        select: this.funcionarioSelect,
+      });
     });
   }
 
@@ -185,6 +211,6 @@ export class FuncionariosService {
   }
 
   private parseDate(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    return parseDateOnly(value);
   }
 }

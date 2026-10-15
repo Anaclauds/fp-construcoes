@@ -1,15 +1,8 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { FormaPagamento, ModalidadeCobranca } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class CondicaoCobrancaProjetoDto {
   @ApiPropertyOptional({
@@ -46,11 +39,12 @@ export class CondicaoCobrancaProjetoDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(2)
+  @Min(1)
+  @Max(60)
   numeroParcelas?: number;
 
   @ApiPropertyOptional({ example: '2026-10-10' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   primeiroVencimento?: string;
 }
