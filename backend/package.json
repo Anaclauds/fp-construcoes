@@ -20,6 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:e2e:coverage": "jest --config ./test/jest-e2e.json --coverage --runInBand --coverageDirectory coverage/e2e",
     "test:all": "npm test -- --runInBand && npm run test:e2e -- --runInBand",
+    "test:frontend": "node test/frontend.smoke.cjs",
+    "test:verificar": "node test/verificar.cjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -33,11 +35,13 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.2.4",
     "@nestjs/swagger": "^11.4.7",
+    "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-mariadb": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cpf-cnpj-validator": "^2.1.2",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "mariadb": "^3.5.4",
@@ -47,6 +51,26 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1"
+  },
+  "overrides": {
+    "@prisma/adapter-mariadb": {
+      "mariadb": "3.5.4"
+    },
+    "@nestjs/swagger": {
+      "js-yaml": "5.4.3"
+    },
+    "prisma": {
+      "mysql2": "3.24.6"
+    },
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "4.3.2"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -66,6 +90,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
+    "playwright": "^1.64.1",
     "prettier": "^3.4.2",
     "prisma": "^7.10.0",
     "source-map-support": "^0.5.21",

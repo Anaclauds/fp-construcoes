@@ -1,3 +1,4 @@
+import { escaparLike } from '../common/utils/like.util';
 import {
   BadRequestException,
   ConflictException,
@@ -28,6 +29,7 @@ export class FornecedoresService {
   async create(dto: CreateFornecedorDto) {
     const cnpj = this.normalizeCnpj(dto.cnpj);
     await this.ensureCnpjDisponivel(cnpj);
+    await this.ensureNomeDisponivel(dto.nomeFantasia);
 
     return this.prisma.fornecedor.create({
       data: this.toData(dto, cnpj),
@@ -40,22 +42,27 @@ export class FornecedoresService {
     const limit = query.limit ?? 10;
     const buscaNumerica = query.busca?.replace(/\D/g, '');
     const where: Prisma.FornecedorWhereInput = {
-      status: query.status ?? StatusCadastro.ATIVO,
+      status:
+        query.status === 'TODOS'
+          ? undefined
+          : (query.status ?? StatusCadastro.ATIVO),
       OR: query.busca
         ? [
-            { razaoSocial: { contains: query.busca } },
-            { nomeFantasia: { contains: query.busca } },
-            { cnpj: { contains: buscaNumerica || query.busca } },
-            { contato: { contains: buscaNumerica || query.busca } },
-            { cidade: { contains: query.busca } },
-            { responsavel: { contains: query.busca } },
+            { razaoSocial: { contains: escaparLike(query.busca) } },
+            { nomeFantasia: { contains: escaparLike(query.busca) } },
+            { cnpj: { contains: escaparLike(buscaNumerica || query.busca) } },
+            {
+              contato: { contains: escaparLike(buscaNumerica || query.busca) },
+            },
+            { cidade: { contains: escaparLike(query.busca) } },
+            { responsavel: { contains: escaparLike(query.busca) } },
           ]
         : undefined,
     };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.fornecedor.findMany({
         where,
-        orderBy: { razaoSocial: 'asc' },
+        orderBy: [{ razaoSocial: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -87,7 +94,10 @@ export class FornecedoresService {
       include: this.detailsInclude,
     });
     if (!fornecedor) {
-      throw new NotFoundException('Fornecedor nao encontrado');
+      throw new NotFoundException({
+        codigo: 'FORNECEDORES_FINDONE_NOTFOUND_01',
+        message: 'Fornecedor nao encontrado',
+      });
     }
     return fornecedor;
   }
@@ -98,6 +108,7 @@ export class FornecedoresService {
     if (cnpj) {
       await this.ensureCnpjDisponivel(cnpj, id);
     }
+    if (dto.nomeFantasia) await this.ensureNomeDisponivel(dto.nomeFantasia, id);
 
     return this.prisma.fornecedor.update({
       where: { id },
@@ -107,7 +118,9 @@ export class FornecedoresService {
   }
 
   async updateStatus(id: number, status: StatusCadastro) {
-    await this.findOne(id);
+    const atual = await this.findOne(id);
+    if (status === StatusCadastro.ATIVO)
+      await this.ensureNomeDisponivel(atual.nomeFantasia, id);
     return this.prisma.fornecedor.update({
       where: { id },
       data: { status },
@@ -121,7 +134,10 @@ export class FornecedoresService {
   ): Prisma.FornecedorUncheckedCreateInput {
     const cep = dto.cep?.replace(/\D/g, '');
     if (cep !== undefined && cep.length !== 8) {
-      throw new BadRequestException('CEP deve conter 8 digitos');
+      throw new BadRequestException({
+        codigo: 'CEP_INVALIDO',
+        message: 'CEP deve conter 8 digitos',
+      });
     }
 
     return {
@@ -140,14 +156,17 @@ export class FornecedoresService {
       complemento:
         dto.complemento === undefined
           ? undefined
-          : dto.complemento.trim() || null,
+          : dto.complemento?.trim() || null,
     } as Prisma.FornecedorUncheckedCreateInput;
   }
 
   private normalizeCnpj(value: string) {
     const cnpj = value.replace(/\D/g, '');
     if (!this.isCnpjValido(cnpj)) {
-      throw new BadRequestException('CNPJ invalido');
+      throw new BadRequestException({
+        codigo: 'FORNECEDORES_NORMALIZECNPJ_BADREQUEST_01',
+        message: 'CNPJ invalido',
+      });
     }
     return cnpj;
   }
@@ -176,7 +195,27 @@ export class FornecedoresService {
       where: { cnpj, id: ignoreId ? { not: ignoreId } : undefined },
     });
     if (existente) {
-      throw new ConflictException('CNPJ ja cadastrado para outro fornecedor');
+      throw new ConflictException({
+        codigo: 'CPF_CNPJ_DUPLICADO',
+        message: 'CNPJ ja cadastrado para outro fornecedor',
+      });
     }
+  }
+
+  private async ensureNomeDisponivel(nomeFantasia: string, ignoreId?: number) {
+    if (
+      await this.prisma.fornecedor.findFirst({
+        where: {
+          nomeFantasia: nomeFantasia.trim(),
+          status: StatusCadastro.ATIVO,
+          id: ignoreId ? { not: ignoreId } : undefined,
+        },
+      })
+    )
+      throw new ConflictException({
+        codigo: 'FORNECEDOR_NOME_DUPLICADO',
+        campo: 'nomeFantasia',
+        message: 'Ja existe fornecedor ativo com este nome fantasia',
+      });
   }
 }

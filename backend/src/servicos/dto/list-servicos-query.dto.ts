@@ -1,11 +1,21 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusCadastro, TipoOrcamento } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class ListServicosQueryDto {
   @ApiPropertyOptional({ example: 'guarda-corpo' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   busca?: string;
 
@@ -16,8 +26,8 @@ export class ListServicosQueryDto {
 
   @ApiPropertyOptional({ enum: StatusCadastro, default: StatusCadastro.ATIVO })
   @IsOptional()
-  @IsEnum(StatusCadastro)
-  status?: StatusCadastro;
+  @IsIn([...Object.values(StatusCadastro), 'TODOS'])
+  status?: StatusCadastro | 'TODOS';
 
   @ApiPropertyOptional({ example: 1, default: 1 })
   @IsOptional()

@@ -1,3 +1,4 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusProjeto, TipoOrcamento } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -6,6 +7,7 @@ import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 export class ListProjetosQueryDto {
   @ApiPropertyOptional({ example: 'ampliacao' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   busca?: string;
 

@@ -1,3 +1,4 @@
+import { Max as LimiteNumero } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNumber, Matches, Min } from 'class-validator';
@@ -14,5 +15,6 @@ export class AbrirCaixaDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @LimiteNumero(9999999999.99)
   valorInicial: number;
 }

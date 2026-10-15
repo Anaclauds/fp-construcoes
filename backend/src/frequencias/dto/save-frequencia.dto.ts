@@ -1,9 +1,9 @@
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusFrequencia } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -32,7 +32,7 @@ export class RegistroFrequenciaDto {
 
 export class SaveFrequenciaDto {
   @ApiProperty({ example: '2026-08-20' })
-  @IsDateString()
+  @IsDataSomenteDia()
   data: string;
 
   @ApiProperty({ type: [RegistroFrequenciaDto] })

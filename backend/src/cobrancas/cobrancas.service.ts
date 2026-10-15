@@ -1,3 +1,10 @@
+import { resumosSql, mapearResumo, ResumoSql } from './resumos.sql';
+import {
+  parseDateOnly,
+  hojeNoFusoDoNegocio,
+  somarMesesLimitandoDia,
+} from '../common/utils/date.util';
+import { caixaParaLancamento } from '../common/utils/caixa.util';
 import {
   BadRequestException,
   ConflictException,
@@ -8,7 +15,6 @@ import {
   FormaPagamento,
   ModalidadeCobranca,
   Prisma,
-  StatusCaixa,
   StatusCobranca,
   StatusParcela,
   StatusProjeto,
@@ -25,6 +31,18 @@ import { RegistrarRecebimentoDto } from './dto/registrar-recebimento.dto';
 
 @Injectable()
 export class CobrancasService {
+  simularParcelas(dto: CobrancaPersistenciaInput) {
+    const parcelas = this.buildParcelas(dto);
+    return {
+      subtotal: new Prisma.Decimal(dto.valorTotal)
+        .plus(dto.desconto ?? 0)
+        .minus(dto.acrescimo ?? 0),
+      desconto: dto.desconto ?? 0,
+      acrescimo: dto.acrescimo ?? 0,
+      valorFinal: dto.valorTotal,
+      parcelas,
+    };
+  }
   constructor(private readonly prisma: PrismaService) {}
 
   private readonly cobrancaInclude = {
@@ -86,18 +104,23 @@ export class CobrancasService {
     dto: CobrancaPersistenciaInput,
   ) {
     this.validarAcrescimo(dto.formaPagamento, dto.percentualAcrescimo ?? 0);
+    await tx.$queryRaw`SELECT id FROM projeto WHERE id = ${dto.projetoId} FOR UPDATE`;
     const projeto = await tx.projeto.findUnique({
       where: { id: dto.projetoId },
       include: { orcamento: true },
     });
 
     if (!projeto) {
-      throw new NotFoundException('Projeto nao encontrado');
+      throw new NotFoundException({
+        codigo: 'COBRANCAS_CREATEINTRANSACTION_NOTFOUND_01',
+        message: 'Projeto nao encontrado',
+      });
     }
     if (projeto.status === StatusProjeto.CANCELADO) {
-      throw new BadRequestException(
-        'Projeto cancelado nao pode receber cobrancas',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_CREATEINTRANSACTION_BADREQUEST_01',
+        message: 'Projeto cancelado nao pode receber cobrancas',
+      });
     }
 
     if (dto.etapaId) {
@@ -106,10 +129,16 @@ export class CobrancasService {
         include: { cobranca: true },
       });
       if (!etapa) {
-        throw new NotFoundException('Etapa nao encontrada neste projeto');
+        throw new NotFoundException({
+          codigo: 'COBRANCAS_CREATEINTRANSACTION_NOTFOUND_02',
+          message: 'Etapa nao encontrada neste projeto',
+        });
       }
       if (etapa.cobranca) {
-        throw new ConflictException('A etapa ja possui uma cobranca');
+        throw new ConflictException({
+          codigo: 'COBRANCAS_CREATEINTRANSACTION_CONFLICT_01',
+          message: 'A etapa ja possui uma cobranca',
+        });
       }
     }
 
@@ -137,19 +166,42 @@ export class CobrancasService {
   async findAll(query: ListCobrancasQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const { todos, filtrados } = await this.listarResumos(query);
-    const inicio = (page - 1) * limit;
-    const indicadores = this.calcularIndicadores(todos);
-
+    const base = resumosSql(query);
+    const status = query.status
+      ? Prisma.sql`WHERE status = ${query.status}`
+      : Prisma.empty;
+    const [data, totais, indicadores] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<ResumoSql[]>(
+        Prisma.sql`${base} SELECT * FROM classificados ${status} ORDER BY projetoId DESC LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
+      ),
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(
+        Prisma.sql`${base} SELECT COUNT(*) total FROM classificados ${status}`,
+      ),
+      this.prisma.$queryRaw<
+        Array<{
+          totalAReceber: Prisma.Decimal;
+          totalRecebido: Prisma.Decimal;
+          totalProjetos: bigint;
+        }>
+      >(
+        Prisma.sql`${base} SELECT COALESCE(SUM(valorTotal),0) totalAReceber, COALESCE(SUM(valorRecebido),0) totalRecebido, COUNT(*) totalProjetos FROM classificados`,
+      ),
+    ]);
+    const indicador = indicadores[0];
+    const total = Number(totais[0].total);
     return {
-      indicadores,
-      data: filtrados.slice(inicio, inicio + limit),
-      meta: {
-        total: filtrados.length,
-        page,
-        limit,
-        totalPages: Math.ceil(filtrados.length / limit),
+      indicadores: {
+        totalAReceber: Number(indicador.totalAReceber),
+        totalRecebido: Number(indicador.totalRecebido),
+        totalEmAberto: Number(
+          new Prisma.Decimal(indicador.totalAReceber).minus(
+            indicador.totalRecebido,
+          ),
+        ),
+        totalProjetos: Number(indicador.totalProjetos),
       },
+      data: data.map(mapearResumo),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -190,7 +242,12 @@ export class CobrancasService {
       fgColor: { argb: 'FF216B4E' },
     };
     for (const item of relatorio.data) {
-      sheet.addRow({ ...item, cliente: item.cliente.nome });
+      sheet.addRow({
+        ...item,
+        cliente: item.cliente.nome,
+        tipo: this.rotuloRelatorio(item.tipo),
+        status: this.rotuloRelatorio(item.status),
+      });
     }
     for (const column of ['E', 'F', 'G']) {
       sheet.getColumn(column).numFmt = 'R$ #,##0.00';
@@ -230,7 +287,7 @@ export class CobrancasService {
           .fontSize(8)
           .fillColor('#555555')
           .text(
-            `${item.cliente.nome} | ${item.tipo} | ${item.status} | Total: ${this.moeda(item.valorTotal)} | Recebido: ${this.moeda(item.valorRecebido)} | Aberto: ${this.moeda(item.valorRestante)}`,
+            `${item.cliente.nome} | ${this.rotuloRelatorio(item.tipo)} | ${this.rotuloRelatorio(item.status)} | Total: ${this.moeda(item.valorTotal)} | Recebido: ${this.moeda(item.valorRecebido)} | Aberto: ${this.moeda(item.valorRestante)}`,
           );
         doc.moveDown(0.6);
       }
@@ -252,63 +309,23 @@ export class CobrancasService {
       : undefined;
     const dataFim = query.dataFim ? this.endOfDay(query.dataFim) : undefined;
     if (dataInicio && dataFim && dataInicio > dataFim) {
-      throw new BadRequestException(
-        'A data inicial nao pode ser posterior a data final',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_LISTARRESUMOS_BADREQUEST_01',
+        message: 'A data inicial nao pode ser posterior a data final',
+      });
     }
-    const projetos = await this.prisma.projeto.findMany({
-      where: {
-        orcamento: {
-          clienteId: query.clienteId,
-          tipo: query.tipo,
-        },
-        cobrancas: {
-          some: {
-            criadaEm:
-              dataInicio || dataFim
-                ? { gte: dataInicio, lte: dataFim }
-                : undefined,
-          },
-        },
-      },
-      orderBy: { id: 'desc' },
-      include: {
-        orcamento: { include: { cliente: true } },
-        cobrancas: {
-          where: {
-            criadaEm:
-              dataInicio || dataFim
-                ? { gte: dataInicio, lte: dataFim }
-                : undefined,
-          },
-          include: {
-            parcelas: { include: { recebimentos: true } },
-          },
-        },
-      },
-    });
-
-    const todos = projetos.map((projeto) => this.toProjetoResumo(projeto));
-    const busca = query.busca?.toLocaleLowerCase('pt-BR');
-    const filtrados = todos.filter((item) => {
-      const atendeBusca =
-        !busca ||
-        item.titulo.toLocaleLowerCase('pt-BR').includes(busca) ||
-        item.numero
-          .toLocaleLowerCase('pt-BR')
-          .includes(busca.replace('#', '')) ||
-        item.cliente.nome.toLocaleLowerCase('pt-BR').includes(busca);
-      return (
-        atendeBusca &&
-        (!query.tipo || item.tipo === query.tipo) &&
-        (!query.status || item.status === query.status)
-      );
-    });
+    const registros = await this.prisma.$queryRaw<ResumoSql[]>(
+      Prisma.sql`${resumosSql(query)} SELECT * FROM classificados ORDER BY projetoId DESC`,
+    );
+    const todos = registros.map(mapearResumo);
+    const filtrados = todos.filter(
+      (item) => !query.status || item.status === query.status,
+    );
     return { todos, filtrados };
   }
 
   private calcularIndicadores(
-    itens: ReturnType<CobrancasService['toProjetoResumo']>[],
+    itens: Array<{ valorTotal: number; valorRecebido: number }>,
   ) {
     const totalAReceber = itens.reduce(
       (total, item) => total + this.toCents(item.valorTotal),
@@ -325,6 +342,19 @@ export class CobrancasService {
       totalRecebido: this.fromCents(totalRecebido),
       totalProjetos: itens.length,
     };
+  }
+
+  private rotuloRelatorio(valor: string) {
+    const rotulos: Record<string, string> = {
+      CONSTRUCAO_CIVIL: 'Constru\u00e7\u00e3o civil',
+      SERRALHERIA: 'Serralheria',
+      CALHAS_RUFOS: 'Calhas e rufos',
+      EM_ABERTO: 'Em aberto',
+      PARCIAL: 'Parcial',
+      PAGO: 'Pago',
+      CANCELADO: 'Cancelado',
+    };
+    return rotulos[valor] ?? valor.replaceAll('_', ' ');
   }
 
   async findProjeto(projetoId: number) {
@@ -345,8 +375,11 @@ export class CobrancasService {
       },
     });
 
-    if (!projeto || !projeto.cobrancas.length) {
-      throw new NotFoundException('Projeto com cobrancas nao encontrado');
+    if (!projeto) {
+      throw new NotFoundException({
+        codigo: 'COBRANCAS_FINDPROJETO_NOTFOUND_01',
+        message: 'Projeto nao encontrado',
+      });
     }
 
     return {
@@ -358,8 +391,18 @@ export class CobrancasService {
           `${this.tipoLabel(cobranca.tipo)} ${index + 1}`,
         valorRecebido: this.fromCents(this.recebidoCobranca(cobranca)),
         valorRestante: this.fromCents(
-          this.toCents(cobranca.valorTotal) - this.recebidoCobranca(cobranca),
+          cobranca.status === StatusCobranca.CANCELADO
+            ? 0
+            : this.toCents(cobranca.valorTotal) -
+                this.recebidoCobranca(cobranca),
         ),
+        parcelas: cobranca.parcelas.map((parcela) => ({
+          ...parcela,
+          vencida:
+            (parcela.status === StatusParcela.EM_ABERTO ||
+              parcela.status === StatusParcela.PARCIAL) &&
+            parcela.vencimento < this.today(),
+        })),
       })),
     };
   }
@@ -371,7 +414,10 @@ export class CobrancasService {
     });
 
     if (!cobranca) {
-      throw new NotFoundException('Cobranca nao encontrada');
+      throw new NotFoundException({
+        codigo: 'COBRANCAS_FINDONE_NOTFOUND_01',
+        message: 'Cobranca nao encontrada',
+      });
     }
 
     const valorRecebido = this.recebidoCobranca(cobranca);
@@ -379,7 +425,9 @@ export class CobrancasService {
       ...cobranca,
       valorRecebido: this.fromCents(valorRecebido),
       valorRestante: this.fromCents(
-        this.toCents(cobranca.valorTotal) - valorRecebido,
+        cobranca.status === StatusCobranca.CANCELADO
+          ? 0
+          : this.toCents(cobranca.valorTotal) - valorRecebido,
       ),
       parcelas: cobranca.parcelas.map((parcela) => {
         const recebido = parcela.recebimentos.reduce(
@@ -389,7 +437,15 @@ export class CobrancasService {
         return {
           ...parcela,
           valorRecebido: this.fromCents(recebido),
-          valorRestante: this.fromCents(this.toCents(parcela.valor) - recebido),
+          valorRestante: this.fromCents(
+            parcela.status === StatusParcela.CANCELADA
+              ? 0
+              : this.toCents(parcela.valor) - recebido,
+          ),
+          vencida:
+            (parcela.status === StatusParcela.EM_ABERTO ||
+              parcela.status === StatusParcela.PARCIAL) &&
+            parcela.vencimento < this.today(),
         };
       }),
     };
@@ -400,43 +456,62 @@ export class CobrancasService {
     dto: RegistrarRecebimentoDto,
     usuarioId: number,
   ) {
+    const referencia = await this.prisma.cobranca.findUnique({
+      where: { id: cobrancaId },
+      select: { projetoId: true },
+    });
+    if (!referencia)
+      throw new NotFoundException({
+        codigo: 'COBRANCAS_RECEBIMENTO_INEXISTENTE',
+        message: 'Cobranca nao encontrada',
+      });
     await this.prisma.$transaction(
       async (tx) => {
+        // Mesma ordem de cancelar/editar etapa: projeto antes da cobranca.
+        await tx.$queryRaw`SELECT id FROM projeto WHERE id = ${referencia.projetoId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id FROM cobranca WHERE id = ${cobrancaId} FOR UPDATE`;
         const cobranca = await tx.cobranca.findUnique({
           where: { id: cobrancaId },
           include: {
+            etapa: { select: { descricao: true } },
             projeto: { include: { orcamento: true } },
             parcelas: { include: { recebimentos: true } },
           },
         });
 
         if (!cobranca) {
-          throw new NotFoundException('Cobranca nao encontrada');
+          throw new NotFoundException({
+            codigo: 'COBRANCAS_REGISTRARRECEBIMENTO_NOTFOUND_01',
+            message: 'Cobranca nao encontrada',
+          });
         }
         if (
           cobranca.status === StatusCobranca.PAGO ||
           cobranca.status === StatusCobranca.CANCELADO
         ) {
-          throw new BadRequestException(
-            'Cobranca paga ou cancelada nao aceita recebimentos',
-          );
+          throw new BadRequestException({
+            codigo: 'COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_01',
+            message: 'Cobranca paga ou cancelada nao aceita recebimentos',
+          });
         }
 
         const parcela = cobranca.parcelas.find(
           (item) => item.id === dto.parcelaId,
         );
         if (!parcela) {
-          throw new BadRequestException(
-            'A parcela informada nao pertence a esta cobranca',
-          );
+          throw new BadRequestException({
+            codigo: 'COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_02',
+            message: 'A parcela informada nao pertence a esta cobranca',
+          });
         }
         if (
           parcela.status === StatusParcela.PAGA ||
           parcela.status === StatusParcela.CANCELADA
         ) {
-          throw new BadRequestException(
-            'Parcela paga ou cancelada nao aceita recebimentos',
-          );
+          throw new BadRequestException({
+            codigo: 'PARCELA_PAGA_OU_CANCELADA',
+            message: 'Parcela paga ou cancelada nao aceita recebimentos',
+          });
         }
 
         const recebidoParcela = parcela.recebimentos.reduce(
@@ -446,12 +521,16 @@ export class CobrancasService {
         const valorRecebido = this.toCents(dto.valor);
         const restanteParcela = this.toCents(parcela.valor) - recebidoParcela;
         if (valorRecebido > restanteParcela) {
-          throw new BadRequestException(
-            `Valor superior ao restante da parcela: R$ ${this.fromCents(restanteParcela).toFixed(2)}`,
-          );
+          throw new BadRequestException({
+            codigo: 'RECEBIMENTO_ACIMA_DO_RESTANTE',
+            campo: 'valor',
+            detalhes: { restante: this.fromCents(restanteParcela) },
+            message: `Valor superior ao restante da parcela: R$ ${this.fromCents(restanteParcela).toFixed(2)}`,
+          });
         }
 
         const dataRecebimento = this.parseDate(dto.dataRecebimento);
+        const caixa = await caixaParaLancamento(tx, dataRecebimento);
         const recebimento = await tx.recebimento.create({
           data: {
             parcelaId: parcela.id,
@@ -486,33 +565,16 @@ export class CobrancasService {
           },
         });
 
-        const competencia = new Date(
-          Date.UTC(
-            dataRecebimento.getUTCFullYear(),
-            dataRecebimento.getUTCMonth(),
-            1,
-          ),
-        );
-        const caixa = await tx.caixa.upsert({
-          where: { competencia },
-          update: {},
-          create: {
-            competencia,
-            valorInicial: 0,
-          },
-        });
-        if (caixa.status === StatusCaixa.FECHADO) {
-          throw new BadRequestException(
-            'O caixa da competencia do recebimento esta fechado',
-          );
-        }
-
         await tx.movimentacaoCaixa.create({
           data: {
             caixaId: caixa.id,
             tipo: TipoMovimentacaoCaixa.ENTRADA,
             data: dataRecebimento,
-            descricao: `Recebimento do projeto ${cobranca.projeto.orcamento.numero}, parcela ${parcela.numero}`,
+            descricao:
+              `Recebimento do projeto ${cobranca.projeto.orcamento.numero}, ${cobranca.etapa?.descricao ?? this.tipoLabel(cobranca.tipo)}, parcela ${parcela.numero}`.slice(
+                0,
+                255,
+              ),
             categoria: 'RECEBIMENTO_CLIENTE',
             valor: dto.valor,
             recebimentoId: recebimento.id,
@@ -525,6 +587,40 @@ export class CobrancasService {
     return this.findOne(cobrancaId);
   }
 
+  async cancelar(id: number) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM cobranca WHERE id = ${id} FOR UPDATE`;
+      const cobranca = await tx.cobranca.findUnique({
+        where: { id },
+        include: { parcelas: { include: { recebimentos: true } } },
+      });
+      if (!cobranca)
+        throw new NotFoundException({
+          codigo: 'COBRANCAS_CANCELAR_NOTFOUND_01',
+          message: 'Cobranca nao encontrada',
+        });
+      if (cobranca.status === StatusCobranca.CANCELADO)
+        throw new ConflictException({
+          codigo: 'COBRANCAS_CANCELAR_CONFLICT_01',
+          message: 'Cobranca ja esta cancelada',
+        });
+      if (cobranca.parcelas.some((parcela) => parcela.recebimentos.length))
+        throw new BadRequestException({
+          codigo: 'COBRANCAS_CANCELAR_BADREQUEST_01',
+          message: 'Cobranca com recebimento nao pode ser cancelada',
+        });
+      await tx.parcela.updateMany({
+        where: { cobrancaId: id },
+        data: { status: StatusParcela.CANCELADA },
+      });
+      await tx.cobranca.update({
+        where: { id },
+        data: { status: StatusCobranca.CANCELADO },
+      });
+    });
+    return this.findOne(id);
+  }
+
   private buildParcelas(dto: CobrancaPersistenciaInput) {
     const total = this.toCents(dto.valorTotal);
 
@@ -535,21 +631,31 @@ export class CobrancasService {
     const quantidade =
       dto.modalidade === ModalidadeCobranca.A_VISTA ? 1 : dto.numeroParcelas;
     if (!quantidade || quantidade < 1) {
-      throw new BadRequestException('Informe a quantidade de parcelas');
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELAS_BADREQUEST_01',
+        message: 'Informe a quantidade de parcelas',
+      });
     }
     if (
       dto.modalidade === ModalidadeCobranca.PARCELADO_AUTOMATICO &&
       quantidade < 2
     ) {
-      throw new BadRequestException(
-        'O parcelamento automatico deve ter ao menos duas parcelas',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELAS_BADREQUEST_02',
+        message: 'O parcelamento automatico deve ter ao menos duas parcelas',
+      });
     }
 
     const primeiroVencimento = dto.primeiroVencimento
       ? this.parseDate(dto.primeiroVencimento)
       : this.today();
     const valorBase = Math.floor(total / quantidade);
+    if (valorBase < 1) {
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELAS_BADREQUEST_03',
+        message: 'Cada parcela precisa ter ao menos R$ 0,01',
+      });
+    }
     let distribuido = 0;
 
     return Array.from({ length: quantidade }, (_, index) => {
@@ -569,12 +675,16 @@ export class CobrancasService {
     valorTotal: number,
   ) {
     if (!parcelas?.length) {
-      throw new BadRequestException('Informe as parcelas manuais da cobranca');
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELASMANUAIS_BADREQUEST_01',
+        message: 'Informe as parcelas manuais da cobranca',
+      });
     }
     if (new Set(parcelas.map((item) => item.numero)).size !== parcelas.length) {
-      throw new BadRequestException(
-        'Os numeros das parcelas nao podem se repetir',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELASMANUAIS_BADREQUEST_02',
+        message: 'Os numeros das parcelas nao podem se repetir',
+      });
     }
 
     const soma = parcelas.reduce(
@@ -582,9 +692,11 @@ export class CobrancasService {
       0,
     );
     if (soma !== valorTotal) {
-      throw new BadRequestException(
-        'A soma das parcelas deve ser igual ao valor total da cobranca',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_BUILDPARCELASMANUAIS_BADREQUEST_03',
+        message:
+          'A soma das parcelas deve ser igual ao valor total da cobranca',
+      });
     }
 
     return parcelas
@@ -687,9 +799,11 @@ export class CobrancasService {
       FormaPagamento.BOLETO,
     ];
     if (!formaPagamento || !formasPermitidas.includes(formaPagamento)) {
-      throw new BadRequestException(
-        'Acrescimo permitido somente para cartao de credito, cartao de debito ou boleto',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_VALIDARACRESCIMO_BADREQUEST_01',
+        message:
+          'Acrescimo permitido somente para cartao de credito, cartao de debito ou boleto',
+      });
     }
   }
 
@@ -710,9 +824,10 @@ export class CobrancasService {
     const valorFinalCentavos =
       valorBaseCentavos - descontoCentavos + acrescimoCentavos;
     if (valorFinalCentavos <= 0) {
-      throw new BadRequestException(
-        'O desconto nao pode zerar o valor da cobranca',
-      );
+      throw new BadRequestException({
+        codigo: 'COBRANCAS_CALCULARVALORES_BADREQUEST_01',
+        message: 'O desconto nao pode zerar o valor da cobranca',
+      });
     }
 
     return {
@@ -727,7 +842,7 @@ export class CobrancasService {
   }
 
   private parseDate(value: string) {
-    return new Date(`${value}T00:00:00.000Z`);
+    return parseDateOnly(value);
   }
 
   private endOfDay(value: string) {
@@ -742,15 +857,10 @@ export class CobrancasService {
   }
 
   private today() {
-    const now = new Date();
-    return new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+    return hojeNoFusoDoNegocio();
   }
 
   private addMonths(value: Date, months: number) {
-    const date = new Date(value);
-    date.setUTCMonth(date.getUTCMonth() + months);
-    return date;
+    return somarMesesLimitandoDia(value, months);
   }
 }

@@ -1,3 +1,5 @@
+import { escaparLike } from '../common/utils/like.util';
+import { parseDateOnly } from '../common/utils/date.util';
 import {
   BadRequestException,
   ConflictException,
@@ -86,20 +88,23 @@ export class ClientesService {
   async findAll(query: ListClientesQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const buscaDigits = query.busca ? this.onlyDigits(query.busca) : undefined;
+    const buscaDigits =
+      query.busca && /^[\d\s().+/-]+$/.test(query.busca)
+        ? this.onlyDigits(query.busca)
+        : undefined;
     const where: Prisma.ClienteWhereInput = {
       tipo: query.tipo,
       status: query.status,
       cadastroCompleto: query.cadastroCompleto,
       OR: query.busca
         ? [
-            { nome: { contains: query.busca } },
-            { razaoSocial: { contains: query.busca } },
-            { nomeFantasia: { contains: query.busca } },
-            { responsavel: { contains: query.busca } },
-            { cpfCnpj: { contains: buscaDigits || query.busca } },
-            { telefone: { contains: buscaDigits || query.busca } },
-            { cidade: { contains: query.busca } },
+            { nome: { contains: escaparLike(query.busca) } },
+            { razaoSocial: { contains: escaparLike(query.busca) } },
+            { nomeFantasia: { contains: escaparLike(query.busca) } },
+            { responsavel: { contains: escaparLike(query.busca) } },
+            { cpfCnpj: { contains: buscaDigits || escaparLike(query.busca) } },
+            { telefone: { contains: buscaDigits || escaparLike(query.busca) } },
+            { cidade: { contains: escaparLike(query.busca) } },
           ]
         : undefined,
     };
@@ -107,7 +112,7 @@ export class ClientesService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.cliente.findMany({
         where,
-        orderBy: { nome: 'asc' },
+        orderBy: [{ nome: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
         select: this.clienteSelect,
@@ -133,13 +138,21 @@ export class ClientesService {
     });
 
     if (!cliente) {
-      throw new NotFoundException('Cliente nao encontrado');
+      throw new NotFoundException({
+        codigo: 'CLIENTES_FINDONE_NOTFOUND_01',
+        message: 'Cliente nao encontrado',
+      });
     }
 
     return cliente;
   }
 
   async update(id: number, updateClienteDto: UpdateClienteDto) {
+    if (updateClienteDto.tipo === null)
+      throw new BadRequestException({
+        codigo: 'CLIENTES_UPDATE_BADREQUEST_01',
+        message: 'O tipo do cliente nao pode ser removido',
+      });
     const clienteAtual = await this.findOne(id);
     const cepFoiAlterado = Boolean(
       updateClienteDto.cep &&
@@ -203,7 +216,11 @@ export class ClientesService {
     });
 
     if (clienteExistente) {
-      throw new ConflictException('CPF/CNPJ ja cadastrado para outro cliente');
+      throw new ConflictException({
+        codigo: 'CPF_CNPJ_DUPLICADO',
+        campo: 'cpfCnpj',
+        message: 'CPF/CNPJ ja cadastrado para outro cliente',
+      });
     }
   }
 
@@ -211,15 +228,18 @@ export class ClientesService {
     const nomePrincipal = dto.nome || dto.razaoSocial || dto.nomeFantasia;
 
     if (!nomePrincipal) {
-      throw new BadRequestException(
-        'Informe o nome do cliente ou a razao social',
-      );
+      throw new BadRequestException({
+        codigo: 'CLIENTES_VALIDATECLIENTE_BADREQUEST_01',
+        message: 'Informe o nome do cliente ou a razao social',
+      });
     }
 
     if (!dto.cidade || !dto.estado) {
-      throw new BadRequestException(
-        'Informe cidade e estado ou utilize um CEP válido para preenchimento automático',
-      );
+      throw new BadRequestException({
+        codigo: 'CLIENTES_VALIDATECLIENTE_BADREQUEST_02',
+        message:
+          'Informe cidade e estado ou utilize um CEP válido para preenchimento automático',
+      });
     }
 
     if (!dto.tipo) {
@@ -250,9 +270,10 @@ export class ClientesService {
     );
 
     if (campoFaltando) {
-      throw new BadRequestException(
-        `Campo obrigatorio para cliente ${dto.tipo}: ${campoFaltando[0]}`,
-      );
+      throw new BadRequestException({
+        codigo: 'CLIENTES_VALIDATECLIENTE_BADREQUEST_03',
+        message: `Campo obrigatorio para cliente ${dto.tipo}: ${campoFaltando[0]}`,
+      });
     }
   }
 
@@ -261,13 +282,17 @@ export class ClientesService {
     const cadastroCompleto = this.isCadastroCompleto(dto);
 
     if (!nome) {
-      throw new BadRequestException(
-        'Informe o nome do cliente ou a razao social',
-      );
+      throw new BadRequestException({
+        codigo: 'CLIENTES_TOPRISMADATA_BADREQUEST_01',
+        message: 'Informe o nome do cliente ou a razao social',
+      });
     }
 
     if (!dto.cidade || !dto.estado) {
-      throw new BadRequestException('Cidade e estado são obrigatórios');
+      throw new BadRequestException({
+        codigo: 'CLIENTES_TOPRISMADATA_BADREQUEST_02',
+        message: 'Cidade e estado são obrigatórios',
+      });
     }
 
     return {
@@ -278,17 +303,17 @@ export class ClientesService {
       tipo: dto.tipo,
       cpfCnpj: dto.cpfCnpj ? this.onlyDigits(dto.cpfCnpj) : undefined,
       email: dto.email,
-      apelido: dto.tipo === TipoCliente.PF ? dto.apelido : undefined,
+      apelido: dto.tipo === TipoCliente.PF ? dto.apelido : null,
       dataNascimento:
         dto.tipo === TipoCliente.PF && dto.dataNascimento
           ? this.parseDate(dto.dataNascimento)
-          : undefined,
-      sexo: dto.tipo === TipoCliente.PF ? dto.sexo : undefined,
-      razaoSocial: dto.tipo === TipoCliente.PJ ? dto.razaoSocial : undefined,
-      nomeFantasia: dto.tipo === TipoCliente.PJ ? dto.nomeFantasia : undefined,
-      responsavel: dto.tipo === TipoCliente.PJ ? dto.responsavel : undefined,
+          : null,
+      sexo: dto.tipo === TipoCliente.PF ? dto.sexo : null,
+      razaoSocial: dto.tipo === TipoCliente.PJ ? dto.razaoSocial : null,
+      nomeFantasia: dto.tipo === TipoCliente.PJ ? dto.nomeFantasia : null,
+      responsavel: dto.tipo === TipoCliente.PJ ? dto.responsavel : null,
       cargoResponsavel:
-        dto.tipo === TipoCliente.PJ ? dto.cargoResponsavel : undefined,
+        dto.tipo === TipoCliente.PJ ? dto.cargoResponsavel : null,
       cep: dto.cep ? this.onlyDigits(dto.cep) : undefined,
       rua: dto.rua,
       numero: dto.numero,
@@ -351,6 +376,6 @@ export class ClientesService {
       return value;
     }
 
-    return new Date(`${value}T00:00:00.000Z`);
+    return parseDateOnly(value);
   }
 }

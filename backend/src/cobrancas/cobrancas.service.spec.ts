@@ -10,7 +10,7 @@ import { CobrancasService } from './cobrancas.service';
 describe('CobrancasService', () => {
   const projeto = {
     id: 1,
-    status: StatusProjeto.NAO_INICIADO as StatusProjeto,
+    status: StatusProjeto.PLANEJADO,
     orcamento: {},
   };
 
@@ -21,6 +21,7 @@ describe('CobrancasService', () => {
       >()
       .mockResolvedValue({ id: 1 });
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 1 }]),
       projeto: { findUnique: jest.fn().mockResolvedValue(projeto) },
       cobranca: { create },
     };

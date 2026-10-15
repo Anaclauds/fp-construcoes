@@ -1,9 +1,12 @@
+import { Max as LimiteNumero } from 'class-validator';
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsDateString,
   IsNumber,
   IsOptional,
   IsString,
@@ -19,13 +22,15 @@ export class CreateEtapaProjetoDto extends CondicaoCobrancaProjetoDto {
   @ApiProperty({
     example: 'Instalacao dos revestimentos e acabamento da primeira area',
   })
+  @AparaTexto()
   @IsString()
   @MaxLength(3000)
+  @LimiteTexto(1000)
   descricao: string;
 
   @ApiPropertyOptional({ example: '2026-10-15' })
   @IsOptional()
-  @IsDateString()
+  @IsDataSomenteDia()
   dataRegistro?: string;
 
   @ApiProperty({
@@ -35,6 +40,7 @@ export class CreateEtapaProjetoDto extends CondicaoCobrancaProjetoDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @LimiteNumero(9999999999.99)
   valorCobrado: number;
 
   @ApiProperty({ type: [EtapaServicoDto] })

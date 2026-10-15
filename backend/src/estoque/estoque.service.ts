@@ -1,5 +1,11 @@
+import { escaparLike } from '../common/utils/like.util';
+import {
+  validarEntradaEstoque,
+  validarQuantidadeUnidade,
+} from '../common/utils/quantidade.util';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -35,46 +41,65 @@ export class EstoqueService {
       categoria: query.categoria,
       OR: query.busca
         ? [
-            { nome: { contains: query.busca } },
-            { codigo: { contains: query.busca } },
-            { categoria: { contains: query.busca } },
+            { nome: { contains: escaparLike(query.busca) } },
+            { codigo: { contains: escaparLike(query.busca) } },
+            { categoria: { contains: escaparLike(query.busca) } },
           ]
         : undefined,
     };
-    const [materiais, total, todos] = await this.prisma.$transaction([
-      this.prisma.material.findMany({
-        where,
-        orderBy: { nome: 'asc' },
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          estoque: true,
-          reservas: {
-            where: { status: StatusReservaEstoque.ATIVA },
-            select: { projetoId: true },
+    const [materiais, total, comReservaAtiva, disponiveis, semSaldo] =
+      await this.prisma.$transaction([
+        this.prisma.material.findMany({
+          where,
+          orderBy: [{ nome: 'asc' }, { id: 'asc' }],
+          skip: (page - 1) * limit,
+          take: limit,
+          include: {
+            estoque: true,
+            reservas: {
+              where: { status: StatusReservaEstoque.ATIVA },
+              select: { projetoId: true },
+            },
           },
-        },
-      }),
-      this.prisma.material.count({ where }),
-      this.prisma.material.findMany({
-        where: { status: StatusCadastro.ATIVO },
-        select: { estoque: true },
-      }),
-    ]);
+        }),
+        this.prisma.material.count({ where }),
+        this.prisma.material.count({
+          where: {
+            ...where,
+            estoque: { is: { quantidadeReservada: { gt: 0 } } },
+          },
+        }),
+        this.prisma.estoqueMaterial.count({
+          where: {
+            material: where,
+            quantidadeAtual: {
+              gt: this.prisma.estoqueMaterial.fields.quantidadeReservada,
+            },
+          },
+        }),
+        this.prisma.material.count({
+          where: {
+            AND: [
+              where,
+              {
+                OR: [
+                  { estoque: { is: null } },
+                  { estoque: { is: { quantidadeAtual: { lte: 0 } } } },
+                ],
+              },
+            ],
+          },
+        }),
+      ]);
     const data = materiais.map((material) => this.toEstoqueItem(material));
-    const saldos = todos.map((item) => ({
-      atual: this.decimal(item.estoque?.quantidadeAtual ?? 0),
-      reservado: this.decimal(item.estoque?.quantidadeReservada ?? 0),
-    }));
 
     return {
       indicadores: {
-        materiaisCadastrados: todos.length,
-        comReservaAtiva: saldos.filter((item) => item.reservado.greaterThan(0))
-          .length,
-        disponiveis: saldos.filter((item) =>
-          item.atual.minus(item.reservado).greaterThan(0),
-        ).length,
+        materiaisCadastrados: total,
+        comReservaAtiva,
+        disponiveis,
+        semReserva: total - comReservaAtiva,
+        semSaldo,
       },
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -82,6 +107,20 @@ export class EstoqueService {
   }
 
   async findOne(materialId: number) {
+    const [compras, baixas] = await this.prisma.$transaction([
+      this.prisma.movimentacaoEstoque.findMany({
+        where: { materialId, tipo: 'ENTRADA_COMPRA' },
+        orderBy: [{ dataHora: 'desc' }, { id: 'desc' }],
+        take: 5,
+        select: { id: true },
+      }),
+      this.prisma.movimentacaoEstoque.findMany({
+        where: { materialId, tipo: 'BAIXA_PROJETO' },
+        orderBy: [{ dataHora: 'desc' }, { id: 'desc' }],
+        take: 5,
+        select: { id: true },
+      }),
+    ]);
     const material = await this.prisma.material.findUnique({
       where: { id: materialId },
       include: {
@@ -108,10 +147,32 @@ export class EstoqueService {
           },
         },
         movimentacoes: {
-          where: { tipo: TipoMovimentacaoEstoque.ENTRADA_COMPRA },
-          orderBy: { dataHora: 'desc' },
-          take: 5,
+          where: {
+            id: { in: [...compras, ...baixas].map((item) => item.id) },
+            tipo: {
+              in: [
+                TipoMovimentacaoEstoque.ENTRADA_COMPRA,
+                TipoMovimentacaoEstoque.BAIXA_PROJETO,
+              ],
+            },
+          },
+          orderBy: [{ dataHora: 'desc' }, { id: 'desc' }],
+          take: 10,
           include: {
+            despesaMaterial: {
+              select: {
+                valorTotal: true,
+                valorUnitario: true,
+                despesa: { select: { data: true } },
+              },
+            },
+            reservaEstoque: {
+              select: {
+                projeto: {
+                  select: { orcamento: { select: { titulo: true } } },
+                },
+              },
+            },
             registradoPorUsuario: {
               select: {
                 id: true,
@@ -123,7 +184,10 @@ export class EstoqueService {
       },
     });
     if (!material) {
-      throw new NotFoundException('Material nao encontrado');
+      throw new NotFoundException({
+        codigo: 'ESTOQUE_FINDONE_NOTFOUND_01',
+        message: 'Material nao encontrado',
+      });
     }
 
     const { estoque, reservas, movimentacoes, ...dadosMaterial } = material;
@@ -139,19 +203,36 @@ export class EstoqueService {
         quantidade: reserva.quantidade,
         criadaEm: reserva.criadaEm,
       })),
-      ultimasCompras: movimentacoes,
+      ultimasCompras: movimentacoes
+        .filter((item) => item.tipo === TipoMovimentacaoEstoque.ENTRADA_COMPRA)
+        .slice(0, 5),
+      ultimasBaixas: movimentacoes
+        .filter((item) => item.tipo === TipoMovimentacaoEstoque.BAIXA_PROJETO)
+        .slice(0, 5)
+        .map((item) => ({
+          ...item,
+          projeto: item.reservaEstoque?.projeto.orcamento.titulo ?? null,
+        })),
     };
   }
 
   async ajustar(materialId: number, dto: AjustarEstoqueDto, usuarioId: number) {
+    if (!dto.justificativa.trim())
+      throw new BadRequestException({
+        codigo: 'ESTOQUE_AJUSTAR_BADREQUEST_01',
+        message: 'Informe uma justificativa para o ajuste',
+      });
     await this.prisma.$transaction(async (tx) => {
       const material = await tx.material.findFirst({
         where: { id: materialId, status: StatusCadastro.ATIVO },
       });
       if (!material) {
-        throw new NotFoundException('Material ativo nao encontrado');
+        throw new NotFoundException({
+          codigo: 'MATERIAL_INATIVO',
+          message: 'Material ativo nao encontrado',
+        });
       }
-      const estoque = await tx.estoqueMaterial.upsert({
+      await tx.estoqueMaterial.upsert({
         where: { materialId },
         create: {
           materialId,
@@ -161,7 +242,12 @@ export class EstoqueService {
         },
         update: {},
       });
+      await tx.$queryRaw`SELECT material_id FROM estoque_material WHERE material_id = ${materialId} FOR UPDATE`;
+      const estoque = await tx.estoqueMaterial.findUniqueOrThrow({
+        where: { materialId },
+      });
       const quantidade = this.decimal(dto.quantidade);
+      validarQuantidadeUnidade(material.unidadeMedida, quantidade);
       const disponivel = this.decimal(estoque.quantidadeAtual).minus(
         estoque.quantidadeReservada,
       );
@@ -169,12 +255,15 @@ export class EstoqueService {
         dto.tipo === TipoMovimentacaoEstoque.AJUSTE_SAIDA &&
         quantidade.greaterThan(disponivel)
       ) {
-        throw new BadRequestException(
-          `Quantidade maxima para saida: ${disponivel.toFixed(3)}`,
-        );
+        throw new BadRequestException({
+          codigo: 'ESTOQUE_SAIDA_ACIMA_DO_DISPONIVEL',
+          detalhes: { maximo: Number(disponivel) },
+          message: `Quantidade maxima para saida: ${disponivel.toFixed(3)}`,
+        });
       }
 
       if (dto.tipo === TipoMovimentacaoEstoque.AJUSTE_ENTRADA) {
+        validarEntradaEstoque(materialId, estoque.quantidadeAtual, quantidade);
         await tx.estoqueMaterial.update({
           where: { materialId },
           data: {
@@ -191,9 +280,11 @@ export class EstoqueService {
             AND quantidade_atual - quantidade_reservada >= ${quantidade}
         `;
         if (alterados !== 1) {
-          throw new BadRequestException(
-            'O saldo disponivel foi alterado. Consulte o estoque e tente novamente',
-          );
+          throw new BadRequestException({
+            codigo: 'ESTOQUE_SALDO_ALTERADO',
+            message:
+              'O saldo disponivel foi alterado. Consulte o estoque e tente novamente',
+          });
         }
       }
       await tx.movimentacaoEstoque.create({
@@ -222,6 +313,7 @@ export class EstoqueService {
     });
 
     for (const item of itens) {
+      validarQuantidadeUnidade(item.material.unidadeMedida, item.quantidade);
       await this.reservarItem(tx, {
         projetoId,
         materialId: item.materialId,
@@ -246,6 +338,7 @@ export class EstoqueService {
     });
 
     for (const item of itens) {
+      validarQuantidadeUnidade(item.material.unidadeMedida, item.quantidade);
       await this.reservarItem(tx, {
         projetoId,
         materialId: item.materialId,
@@ -325,9 +418,20 @@ export class EstoqueService {
     const reservado = this.decimal(item.estoque?.quantidadeReservada ?? 0);
     const disponivel = atual.minus(reservado);
     if (item.quantidade.greaterThan(disponivel)) {
-      throw new BadRequestException(
-        `Estoque insuficiente para ${item.nomeMaterial}. Disponivel: ${disponivel.toFixed(3)}`,
-      );
+      throw new BadRequestException({
+        codigo: 'ESTOQUE_INSUFICIENTE',
+        detalhes: {
+          materiais: [
+            {
+              id: item.materialId,
+              nome: item.nomeMaterial,
+              necessario: Number(item.quantidade),
+              disponivel: Number(disponivel),
+            },
+          ],
+        },
+        message: `Estoque insuficiente para ${item.nomeMaterial}. Disponivel: ${disponivel.toFixed(3)}`,
+      });
     }
     const reserva = await tx.reservaEstoque.create({
       data: {
@@ -346,9 +450,10 @@ export class EstoqueService {
         AND quantidade_atual - quantidade_reservada >= ${item.quantidade}
     `;
     if (alterados !== 1) {
-      throw new BadRequestException(
-        `O saldo de ${item.nomeMaterial} foi alterado. Consulte o estoque e tente novamente`,
-      );
+      throw new ConflictException({
+        codigo: 'ESTOQUE_SALDO_ALTERADO',
+        message: `O saldo de ${item.nomeMaterial} foi alterado. Consulte o estoque e tente novamente`,
+      });
     }
     await tx.movimentacaoEstoque.create({
       data: {

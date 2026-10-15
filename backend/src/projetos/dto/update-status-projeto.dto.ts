@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusProjeto } from '@prisma/client';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 
 export class UpdateStatusProjetoDto {
   @ApiProperty({
@@ -9,4 +10,9 @@ export class UpdateStatusProjetoDto {
   })
   @IsEnum(StatusProjeto)
   status: StatusProjeto;
+
+  @ApiPropertyOptional({ example: '2026-10-14' })
+  @IsOptional()
+  @IsDataSomenteDia()
+  dataConclusao?: string;
 }

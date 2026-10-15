@@ -1,20 +1,16 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { parseTrustProxy } from './common/utils/trust-proxy.util';
+import type { Application } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance() as Application;
+  expressApp.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 
   app.setGlobalPrefix('api');
-  app.enableCors();
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  app.enableCors({ exposedHeaders: ['Content-Disposition'] });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('FP Construcoes API')

@@ -40,6 +40,26 @@ export class MateriaisController {
     return this.materiaisService.findAll(query);
   }
 
+  @Get('opcoes/categorias')
+  @RequirePermission(
+    { modulo: 'MATERIAIS', acao: 'visualizar' },
+    { modulo: 'ESTOQUE', acao: 'visualizar' },
+    { modulo: 'DESPESAS', acao: 'visualizar' },
+  )
+  categorias() {
+    return this.materiaisService.listarCategorias();
+  }
+
+  @Get('opcoes/unidades')
+  @RequirePermission(
+    { modulo: 'MATERIAIS', acao: 'visualizar' },
+    { modulo: 'ESTOQUE', acao: 'visualizar' },
+    { modulo: 'DESPESAS', acao: 'visualizar' },
+  )
+  unidades() {
+    return this.materiaisService.listarUnidades();
+  }
+
   @Get(':id')
   @RequirePermission({ modulo: 'MATERIAIS', acao: 'visualizar' })
   @ApiOperation({ summary: 'Visualiza os dados de um material' })

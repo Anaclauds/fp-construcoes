@@ -1,10 +1,12 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CategoriaDespesa, TipoDespesa } from '@prisma/client';
+import { TipoDespesa } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -22,15 +24,16 @@ export class CreateDespesaDto {
   tipo: TipoDespesa;
 
   @ApiPropertyOptional({
-    enum: CategoriaDespesa,
-    example: CategoriaDespesa.COMPRA_MATERIAL,
+    example: 'COMPRA_MATERIAL',
   })
   @IsOptional()
-  @IsEnum(CategoriaDespesa)
-  categoria?: CategoriaDespesa;
+  @AparaTexto()
+  @IsString()
+  @LimiteTexto(100)
+  categoria?: string;
 
   @ApiProperty({ example: '2026-08-08' })
-  @IsDateString({ strict: true })
+  @IsDataSomenteDia()
   data: string;
 
   @ApiPropertyOptional({
@@ -41,11 +44,13 @@ export class CreateDespesaDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  fornecedorId?: number;
+  fornecedorId?: number | null;
 
   @ApiProperty({ example: 'Compra de cimento para reposicao do estoque.' })
+  @AparaTexto()
   @IsString()
   @IsNotEmpty()
+  @LimiteTexto(1000)
   descricao: string;
 
   @ApiPropertyOptional({

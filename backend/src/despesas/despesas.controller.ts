@@ -19,6 +19,8 @@ import { DespesasService } from './despesas.service';
 import { CreateDespesaDto } from './dto/create-despesa.dto';
 import { ListDespesasQueryDto } from './dto/list-despesas-query.dto';
 import { UpdateDespesaDto } from './dto/update-despesa.dto';
+import { ListMateriaisQueryDto } from '../materiais/dto/list-materiais-query.dto';
+import { CancelarDto } from '../common/dto/cancelar.dto';
 
 @ApiTags('Despesas')
 @ApiBearerAuth()
@@ -48,6 +50,26 @@ export class DespesasController {
   @ApiOperation({ summary: 'Visualiza os dados completos de uma despesa' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.despesasService.findOne(id);
+  }
+
+  @Get('opcoes/materiais')
+  @RequirePermission({ modulo: 'DESPESAS', acao: 'visualizar' })
+  @ApiOperation({
+    summary:
+      'Lista materiais ativos para compra, sem acesso ao catalogo completo',
+  })
+  opcoesMateriais(@Query() query: ListMateriaisQueryDto) {
+    return this.despesasService.opcoesMateriais(query);
+  }
+
+  @Patch(':id/cancelar')
+  @RequirePermission({ modulo: 'DESPESAS', acao: 'gerenciar' })
+  cancelar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelarDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.despesasService.cancelar(id, user.sub, dto.motivo);
   }
 
   @Patch(':id')

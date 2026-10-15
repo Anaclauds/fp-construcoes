@@ -1,5 +1,9 @@
 # Relatorio de testes integrados e correcoes
 
+> Registro historico da execucao de agosto. Para o resultado atual de
+> 14/10/2026, consulte `VERIFICACAO_GERAL_2026-10-14.md` e
+> `RELATORIO_INTEGRACAO_LOCAL.md`.
+
 ## Identificacao
 
 - Projeto: FP Construcoes API

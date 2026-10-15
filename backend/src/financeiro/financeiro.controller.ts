@@ -19,6 +19,7 @@ import { AbrirCaixaDto } from './dto/abrir-caixa.dto';
 import { ConsultarCaixaQueryDto } from './dto/consultar-caixa-query.dto';
 import { RelatorioRecebimentosQueryDto } from './dto/relatorio-recebimentos-query.dto';
 import { FinanceiroService } from './financeiro.service';
+import { ListCaixasQueryDto } from './dto/list-caixas-query.dto';
 
 @ApiTags('Financeiro')
 @ApiBearerAuth()
@@ -26,6 +27,15 @@ import { FinanceiroService } from './financeiro.service';
 @Controller('financeiro')
 export class FinanceiroController {
   constructor(private readonly financeiroService: FinanceiroService) {}
+
+  @Get('caixas')
+  @RequirePermission({ modulo: 'CAIXA', acao: 'visualizar' })
+  @ApiOperation({
+    summary: 'Lista caixas existentes com saldos, sem abrir competencias',
+  })
+  listarCaixas(@Query() query: ListCaixasQueryDto) {
+    return this.financeiroService.listarCaixas(query);
+  }
 
   @Post('caixa/abrir')
   @RequirePermission({ modulo: 'CAIXA', acao: 'gerenciar' })
@@ -54,11 +64,26 @@ export class FinanceiroController {
   }
 
   @Get('relatorios/recebimentos')
-  @RequirePermission({ modulo: 'COBRANCAS', acao: 'visualizar' })
+  @RequirePermission(
+    { modulo: 'COBRANCAS', acao: 'visualizar' },
+    { modulo: 'CAIXA', acao: 'visualizar' },
+  )
   @ApiOperation({
     summary: 'Emite relatorio de recebimentos por periodo e filtros',
   })
   relatorioRecebimentos(@Query() query: RelatorioRecebimentosQueryDto) {
     return this.financeiroService.relatorioRecebimentos(query);
+  }
+
+  @Patch('caixa/:id/reabrir')
+  @RequirePermission({ modulo: 'CAIXA', acao: 'gerenciar' })
+  @ApiOperation({
+    summary: 'Reabre um caixa fechado com registro de auditoria',
+  })
+  reabrirCaixa(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.financeiroService.reabrirCaixa(id, user.sub);
   }
 }

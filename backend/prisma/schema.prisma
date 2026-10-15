@@ -160,19 +160,21 @@ model Funcionario {
 }
 
 model Usuario {
-  id                      Int                   @id @default(autoincrement())
-  funcionarioId           Int                   @unique(map: "uq_usuario_funcionario") @map("funcionario_id")
-  login                   String                @unique(map: "uq_usuario_login") @db.VarChar(50)
-  senhaHash               String                @map("senha_hash") @db.VarChar(255)
-  status                  StatusCadastro        @default(ATIVO)
-  ultimoAcesso            DateTime?             @map("ultimo_acesso") @db.DateTime(0)
-  funcionario             Funcionario           @relation(fields: [funcionarioId], references: [id], map: "fk_usuario_funcionario")
+  id                      Int                    @id @default(autoincrement())
+  funcionarioId           Int                    @unique(map: "uq_usuario_funcionario") @map("funcionario_id")
+  login                   String                 @unique(map: "uq_usuario_login") @db.VarChar(50)
+  senhaHash               String                 @map("senha_hash") @db.VarChar(255)
+  status                  StatusCadastro         @default(ATIVO)
+  ultimoAcesso            DateTime?              @map("ultimo_acesso") @db.DateTime(0)
+  funcionario             Funcionario            @relation(fields: [funcionarioId], references: [id], map: "fk_usuario_funcionario")
   permissoes              PermissaoUsuario[]
-  frequenciasRegistradas  Frequencia[]          @relation("UsuarioRegistroFrequencia")
-  recebimentosRegistrados Recebimento[]         @relation("UsuarioRegistroRecebimento")
-  despesasRegistradas     Despesa[]             @relation("UsuarioRegistroDespesa")
-  caixasFechados          Caixa[]               @relation("UsuarioFechamentoCaixa")
-  movimentacoesEstoque    MovimentacaoEstoque[] @relation("UsuarioRegistroMovimentacaoEstoque")
+  frequenciasRegistradas  Frequencia[]           @relation("UsuarioRegistroFrequencia")
+  recebimentosRegistrados Recebimento[]          @relation("UsuarioRegistroRecebimento")
+  despesasRegistradas     Despesa[]              @relation("UsuarioRegistroDespesa")
+  caixasFechados          Caixa[]                @relation("UsuarioFechamentoCaixa")
+  movimentacoesEstoque    MovimentacaoEstoque[]  @relation("UsuarioRegistroMovimentacaoEstoque")
+  auditoriasCaixa         AuditoriaCaixa[]
+  cancelamentos           CancelamentoRegistro[]
 
   @@map("usuario")
 }
@@ -404,6 +406,7 @@ model Projeto {
 }
 
 model EtapaProjeto {
+  canceladoEm          DateTime?              @map("cancelado_em") @db.DateTime(0)
   id                   Int                    @id @default(autoincrement())
   projetoId            Int                    @map("projeto_id")
   descricao            String                 @db.Text
@@ -436,6 +439,7 @@ model EtapaServico {
   etapaId              Int          @map("etapa_id")
   servicoId            Int          @map("servico_id")
   quantidade           Decimal      @db.Decimal(12, 3)
+  descricao            String?      @db.VarChar(1000)
   valorUnitario        Decimal?     @map("valor_unitario") @db.Decimal(12, 2)
   custoInternoEstimado Decimal?     @map("custo_interno_estimado") @db.Decimal(12, 2)
   etapa                EtapaProjeto @relation(fields: [etapaId], references: [id], map: "fk_etapa_servico_etapa")
@@ -447,16 +451,18 @@ model EtapaServico {
 }
 
 model ExtraProjeto {
-  id                     Int             @id @default(autoincrement())
-  projetoId              Int             @map("projeto_id")
-  descricaoJustificativa String          @map("descricao_justificativa") @db.Text
-  dataRegistro           DateTime        @map("data_registro") @db.Date
-  custoInternoEstimado   Decimal?        @map("custo_interno_estimado") @db.Decimal(12, 2)
-  despesaId              Int?            @unique(map: "uq_extra_projeto_despesa") @map("despesa_id")
-  projeto                Projeto         @relation(fields: [projetoId], references: [id], map: "fk_extra_projeto_projeto")
-  despesa                Despesa?        @relation(fields: [despesaId], references: [id], map: "fk_extra_projeto_despesa")
+  canceladoEm            DateTime?          @map("cancelado_em") @db.DateTime(0)
+  id                     Int                @id @default(autoincrement())
+  projetoId              Int                @map("projeto_id")
+  descricaoJustificativa String             @map("descricao_justificativa") @db.Text
+  dataRegistro           DateTime           @map("data_registro") @db.Date
+  custoInternoEstimado   Decimal?           @map("custo_interno_estimado") @db.Decimal(12, 2)
+  despesaId              Int?               @unique(map: "uq_extra_projeto_despesa") @map("despesa_id")
+  projeto                Projeto            @relation(fields: [projetoId], references: [id], map: "fk_extra_projeto_projeto")
+  despesa                Despesa?           @relation(fields: [despesaId], references: [id], map: "fk_extra_projeto_despesa")
   materiais              ExtraMaterial[]
   servicos               ExtraServico[]
+  gastosAvulsos          ExtraGastoAvulso[]
 
   @@index([projetoId], map: "idx_extra_projeto_projeto")
   @@map("extra_projeto")
@@ -526,6 +532,7 @@ model ExtraServico {
   extraId               Int          @map("extra_id")
   servicoId             Int          @map("servico_id")
   quantidade            Decimal      @db.Decimal(12, 3)
+  descricao             String?      @db.VarChar(1000)
   custoUnitarioEstimado Decimal?     @map("custo_unitario_estimado") @db.Decimal(12, 2)
   extra                 ExtraProjeto @relation(fields: [extraId], references: [id], map: "fk_extra_servico_extra")
   servico               Servico      @relation(fields: [servicoId], references: [id], map: "fk_extra_servico_servico")
@@ -533,6 +540,17 @@ model ExtraServico {
   @@index([extraId], map: "idx_extra_servico_extra")
   @@index([servicoId], map: "idx_extra_servico_servico")
   @@map("extra_servico")
+}
+
+model ExtraGastoAvulso {
+  id        Int          @id @default(autoincrement())
+  extraId   Int          @map("extra_id")
+  descricao String       @db.VarChar(255)
+  valor     Decimal      @db.Decimal(12, 2)
+  extra     ExtraProjeto @relation(fields: [extraId], references: [id], map: "fk_extra_gasto_avulso_extra")
+
+  @@index([extraId], map: "idx_extra_gasto_avulso_extra")
+  @@map("extra_gasto_avulso")
 }
 
 model Cobranca {
@@ -590,9 +608,10 @@ model Recebimento {
 }
 
 model Despesa {
+  canceladoEm            DateTime?          @map("cancelado_em") @db.DateTime(0)
   id                     Int                @id @default(autoincrement())
   tipo                   TipoDespesa
-  categoria              CategoriaDespesa?
+  categoria              String?            @db.VarChar(100)
   data                   DateTime           @db.Date
   fornecedorId           Int?               @map("fornecedor_id")
   descricao              String             @db.Text
@@ -636,12 +655,14 @@ model Caixa {
   fechadoPorUsuarioId Int?                @map("fechado_por_usuario_id")
   fechadoPorUsuario   Usuario?            @relation("UsuarioFechamentoCaixa", fields: [fechadoPorUsuarioId], references: [id], map: "fk_caixa_usuario_fechamento")
   movimentacoes       MovimentacaoCaixa[]
+  auditorias          AuditoriaCaixa[]
 
   @@index([fechadoPorUsuarioId], map: "idx_caixa_usuario_fechamento")
   @@map("caixa")
 }
 
 model MovimentacaoCaixa {
+  cancelamento  CancelamentoRegistro?
   id            Int                   @id @default(autoincrement())
   caixaId       Int                   @map("caixa_id")
   tipo          TipoMovimentacaoCaixa
@@ -657,4 +678,45 @@ model MovimentacaoCaixa {
 
   @@index([caixaId], map: "idx_movimentacao_caixa_caixa")
   @@map("movimentacao_caixa")
+}
+
+model CategoriaCadastro {
+  id     Int    @id @default(autoincrement())
+  tipo   String @db.VarChar(20)
+  nome   String @db.VarChar(100)
+  rotulo String @db.VarChar(100)
+
+  @@unique([tipo, nome], map: "uq_categoria_tipo_nome")
+  @@map("categoria_cadastro")
+}
+
+model CancelamentoRegistro {
+  id             Int                @id @default(autoincrement())
+  tipo           String             @db.VarChar(20)
+  registroId     Int                @map("registro_id")
+  usuarioId      Int                @map("usuario_id")
+  motivo         String             @db.VarChar(500)
+  criadoEm       DateTime           @default(now()) @map("criado_em") @db.DateTime(0)
+  movimentacaoId Int?               @unique(map: "uq_cancelamento_movimentacao") @map("movimentacao_id")
+  usuario        Usuario            @relation(fields: [usuarioId], references: [id], map: "fk_cancelamento_usuario")
+  movimentacao   MovimentacaoCaixa? @relation(fields: [movimentacaoId], references: [id], map: "fk_cancelamento_movimentacao")
+
+  @@unique([tipo, registroId], map: "uq_cancelamento_registro")
+  @@map("cancelamento_registro")
+}
+
+model AuditoriaCaixa {
+  id                 Int       @id @default(autoincrement())
+  caixaId            Int       @map("caixa_id")
+  usuarioId          Int       @map("usuario_id")
+  acao               String    @db.VarChar(30)
+  ocorridoEm         DateTime  @default(now()) @map("ocorrido_em") @db.DateTime(0)
+  fechadoEmAnterior  DateTime? @map("fechado_em_anterior") @db.DateTime(0)
+  fechadoPorAnterior Int?      @map("fechado_por_anterior")
+  caixa              Caixa     @relation(fields: [caixaId], references: [id], map: "fk_auditoria_caixa_caixa")
+  usuario            Usuario   @relation(fields: [usuarioId], references: [id], map: "fk_auditoria_caixa_usuario")
+
+  @@index([caixaId], map: "idx_auditoria_caixa_caixa")
+  @@index([usuarioId], map: "idx_auditoria_caixa_usuario")
+  @@map("auditoria_caixa")
 }

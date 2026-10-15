@@ -1,19 +1,14 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { CategoriaDespesa, TipoDespesa } from '@prisma/client';
+import { TipoDespesa } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListDespesasQueryDto {
   @ApiPropertyOptional({ example: 'cimento' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   busca?: string;
 
@@ -22,19 +17,26 @@ export class ListDespesasQueryDto {
   @IsEnum(TipoDespesa)
   tipo?: TipoDespesa;
 
-  @ApiPropertyOptional({ enum: CategoriaDespesa })
+  @ApiPropertyOptional({ example: 'FRETE' })
   @IsOptional()
-  @IsEnum(CategoriaDespesa)
-  categoria?: CategoriaDespesa;
+  @IsString()
+  categoria?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  fornecedorId?: number;
 
   @ApiPropertyOptional({ example: '2026-08-01' })
   @IsOptional()
-  @IsDateString({ strict: true })
+  @IsDataSomenteDia()
   dataInicio?: string;
 
   @ApiPropertyOptional({ example: '2026-08-31' })
   @IsOptional()
-  @IsDateString({ strict: true })
+  @IsDataSomenteDia()
   dataFim?: string;
 
   @ApiPropertyOptional({ example: 1, default: 1 })

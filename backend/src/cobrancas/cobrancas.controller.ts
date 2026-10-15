@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   StreamableFile,
@@ -97,5 +98,14 @@ export class CobrancasController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.cobrancasService.registrarRecebimento(id, dto, user.sub);
+  }
+
+  @Patch(':id/cancelar')
+  @RequirePermission({ modulo: 'COBRANCAS', acao: 'gerenciar' })
+  @ApiOperation({
+    summary: 'Cancela uma cobranca que ainda nao possui recebimento',
+  })
+  cancelar(@Param('id', ParseIntPipe) id: number) {
+    return this.cobrancasService.cancelar(id);
   }
 }

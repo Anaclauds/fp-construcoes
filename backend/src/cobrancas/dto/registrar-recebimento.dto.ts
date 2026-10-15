@@ -1,8 +1,9 @@
+import { Max as LimiteNumero } from 'class-validator';
+import { IsDataSomenteDia } from '../../common/validators/data-somente-dia.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FormaPagamento } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
@@ -23,10 +24,11 @@ export class RegistrarRecebimentoDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @LimiteNumero(9999999999.99)
   valor: number;
 
   @ApiProperty({ example: '2026-09-10' })
-  @IsDateString()
+  @IsDataSomenteDia()
   dataRecebimento: string;
 
   @ApiProperty({ enum: FormaPagamento, example: FormaPagamento.PIX })

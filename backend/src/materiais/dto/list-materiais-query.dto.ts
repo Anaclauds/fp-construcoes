@@ -1,23 +1,31 @@
+import { AparaTexto } from '../../common/validators/texto.transformer';
+import { MaxLength as LimiteTexto } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusCadastro } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListMateriaisQueryDto {
   @ApiPropertyOptional({ example: 'MAT-001' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
   busca?: string;
 
   @ApiPropertyOptional({ example: 'Aco e Metais' })
   @IsOptional()
+  @AparaTexto()
   @IsString()
+  @LimiteTexto(100)
   categoria?: string;
 
-  @ApiPropertyOptional({ enum: StatusCadastro, default: StatusCadastro.ATIVO })
+  @ApiPropertyOptional({
+    enum: ['ATIVO', 'INATIVO', 'TODOS'],
+    default: StatusCadastro.ATIVO,
+  })
   @IsOptional()
-  @IsEnum(StatusCadastro)
-  status?: StatusCadastro;
+  @IsIn(['ATIVO', 'INATIVO', 'TODOS'])
+  status?: StatusCadastro | 'TODOS';
 
   @ApiPropertyOptional({ example: 1, default: 1 })
   @IsOptional()
