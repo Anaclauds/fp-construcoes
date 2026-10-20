@@ -2,7 +2,7 @@ import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
 import { rotuloLegivel } from './formatadores'
 
 // O backend aceita texto livre nesses campos; as listas abaixo são as opções oferecidas na tela.
-export const SEXOS = ['Masculino', 'Feminino', 'Outro', 'Prefiro não informar']
+export const SEXOS = ['Masculino', 'Feminino']
 
 export const SETORES = ['Administrativo', 'Serralheria', 'Calhas', 'Construção Civil']
 
@@ -15,13 +15,10 @@ export const FUNCOES = [
   'Ajudante',
   'Servente',
   'Mestre de obras',
-  'Eletricista',
-  'Pintor',
-  'Motorista',
   'Outro',
 ]
 
-export const TIPOS_CONTRATO = ['CLT', 'Diarista', 'Autônomo', 'Temporário', 'Estágio', 'PJ']
+export const TIPOS_CONTRATO = ['CLT', 'PJ','Diarista', 'Temporário']
 
 export const GRAUS_VINCULO = ['Cônjuge', 'Pai', 'Mãe', 'Filho(a)', 'Irmão(ã)', 'Outro']
 

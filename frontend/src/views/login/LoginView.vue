@@ -14,6 +14,7 @@ const { login } = useAuth()
 
 const cpf = shallowRef('')
 const senha = shallowRef('')
+const mostrarSenha = shallowRef(false)
 const carregando = shallowRef(false)
 const erro = shallowRef('')
 
@@ -97,14 +98,53 @@ async function entrar() {
 
         <div class="login-campo">
           <label for="login-senha">Senha</label>
-          <input
-            id="login-senha"
-            v-model="senha"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Digite a senha"
-            required
-          >
+          <div class="login-senha-controle">
+            <input
+              id="login-senha"
+              v-model="senha"
+              :type="mostrarSenha ? 'text' : 'password'"
+              class="login-senha-input"
+              autocomplete="current-password"
+              placeholder="Digite a senha"
+              required
+            >
+            <button
+              type="button"
+              class="login-senha-alternar"
+              :aria-label="mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'"
+              :aria-pressed="mostrarSenha"
+              @click="mostrarSenha = !mostrarSenha"
+            >
+              <svg
+                v-if="mostrarSenha"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 3l18 18" />
+                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                <path d="M9.9 5.2A10.6 10.6 0 0 1 12 5c5.5 0 9 7 9 7a15.8 15.8 0 0 1-2.2 3.1" />
+                <path d="M6.2 6.2C3.8 7.8 2 12 2 12s3.5 7 10 7a10 10 0 0 0 3-.5" />
+              </svg>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <p
@@ -204,6 +244,46 @@ async function entrar() {
   border-radius: var(--fp-raio);
   background-color: #fff;
   font-size: 20px;
+}
+
+.login-senha-controle {
+  position: relative;
+}
+
+.login-campo .login-senha-input {
+  width: 100%;
+  padding-right: 58px;
+}
+
+.login-senha-alternar {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fp-texto-suave);
+  cursor: pointer;
+}
+
+.login-senha-alternar:hover {
+  color: var(--fp-verde);
+}
+
+.login-senha-alternar:focus-visible {
+  outline: 2px solid var(--fp-verde);
+  outline-offset: 1px;
+}
+
+.login-senha-alternar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .login-campo input::placeholder {
