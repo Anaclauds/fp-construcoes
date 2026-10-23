@@ -21,3 +21,9 @@ export function mensagemFornecedor(mensagem: string): string {
   const k = normalizarTexto(mensagem)
   return MENSAGENS.find(([padrao]) => padrao.test(k))?.[1] ?? mensagem
 }
+
+/** Nome do fornecedor já vinculado a um cadastro; se foi inativado depois, o vínculo histórico continua visível e marcado. */
+export function rotuloFornecedorVinculado(fornecedor: { nomeFantasia: string; status?: string } | null | undefined): string {
+  if (!fornecedor) return ''
+  return fornecedor.status === 'INATIVO' ? `${fornecedor.nomeFantasia} (inativo)` : fornecedor.nomeFantasia
+}

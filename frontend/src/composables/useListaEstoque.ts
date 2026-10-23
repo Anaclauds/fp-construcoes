@@ -10,7 +10,7 @@ import { useFiltrosNaUrl } from './useFiltrosNaUrl'
 const POR_PAGINA = 6
 const ATRASO_BUSCA_MS = 300
 
-/** Gerenciar Estoque: materiais ativos com saldo, indicadores globais, busca, categoria e paginação do servidor. */
+/** Gerenciar Estoque: materiais ativos com saldo, indicadores do filtro atual, busca, categoria e paginação do servidor. */
 export function useListaEstoque() {
   const busca = shallowRef('')
   const categoria = shallowRef('TODAS')

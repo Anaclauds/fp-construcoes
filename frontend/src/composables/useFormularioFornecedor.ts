@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, toRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import { buscarEnderecoPorCep } from '../services/enderecos.service'
 import type { Fornecedor, FornecedorAtualizacao, FornecedorPayload } from '../types/fornecedor'
 import { formatarTelefone, mascararCep, mascararCnpj, limparEspacos } from '../utils/formatadores'
@@ -194,12 +194,22 @@ export function useFormularioFornecedor(inicial?: Fornecedor) {
     base ? Object.keys(paraAtualizacao()).length > 0 : CHAVES.some((chave) => campos[chave].trim() !== ''),
   )
 
-  /** Interpreta o erro da API: CNPJ (inválido/duplicado) e CEP vão para o campo; o resto vira mensagem geral. */
+  /** Erros por campo (nomes do DTO = nomes do formulário) vão para o campo; CNPJ duplicado e CEP inválido têm código próprio. */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
+    erroGeral.value = null
+    const { mensagem, status, codigo } = extrairErro(erro)
     const texto = mensagemFornecedor(mensagem)
-    if (status === 409 || /cnpj/i.test(texto)) erros.cnpj = status === 409 ? 'CNPJ já cadastrado para outro fornecedor.' : texto
-    else if (/\bcep\b/i.test(texto)) erros.cep = texto
+    let mapeado = false
+    for (const [campo, msg] of Object.entries(errosPorCampo(erro))) {
+      if (!(CHAVES as string[]).includes(campo)) continue
+      erros[campo as keyof CamposFornecedor] = mensagemFornecedor(msg)
+      mapeado = true
+    }
+    if (mapeado) return
+    if (codigo === 'CPF_CNPJ_DUPLICADO' || status === 409) erros.cnpj = 'CNPJ já cadastrado para outro fornecedor.'
+    else if (codigo === 'CEP_INVALIDO') erros.cep = 'CEP inválido. Use 8 dígitos.'
+    else if (/cnpj/i.test(texto)) erros.cnpj = texto
+    else if (/cep/i.test(texto)) erros.cep = texto
     else erroGeral.value = texto
   }
 

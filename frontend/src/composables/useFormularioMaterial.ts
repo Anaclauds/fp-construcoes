@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import type { Material, MaterialAtualizacao, MaterialPayload } from '../types/material'
 import { formatarMoeda, moedaParaNumero, limparEspacos } from '../utils/formatadores'
 import {
@@ -10,10 +10,10 @@ import {
   VALOR_MAXIMO_MATERIAL,
   categoriaParaOpcao,
   mensagemMaterial,
-  opcoesCategoria,
-  opcoesUnidade,
+  opcoesDeCatalogo,
   unidadeParaOpcao,
 } from '../utils/materiais'
+import { useCatalogoMaterial } from './useCatalogoMaterial'
 
 /** Valores exatamente como aparecem nos campos (preço já com máscara de moeda; fornecedor = id em texto). */
 export interface CamposMaterial {
@@ -95,9 +95,11 @@ export function useFormularioMaterial(inicial?: Material) {
 
   const base: Normalizado | null = inicialCampos ? normalizar(inicialCampos) : null
 
+  // Categorias e unidades vêm do catálogo da API; o valor já salvo no material aparece mesmo se não estiver nele.
+  const catalogo = useCatalogoMaterial()
   const opcoes = computed(() => ({
-    categoria: opcoesCategoria(inicialCampos?.categoria),
-    unidade: opcoesUnidade(inicialCampos?.unidade),
+    categoria: opcoesDeCatalogo(catalogo.categorias.value, inicialCampos?.categoria),
+    unidade: opcoesDeCatalogo(catalogo.unidades.value, inicialCampos?.unidade),
   }))
 
   // Fornecedor atual do material (mesmo inativo): aparece como selecionado mesmo fora da lista de ativos.
@@ -143,12 +145,30 @@ export function useFormularioMaterial(inicial?: Material) {
     base ? Object.keys(paraAtualizacao()).length > 0 : CHAVES.some((chave) => campos[chave].trim() !== ''),
   )
 
-  /** O material não tem campo único: qualquer erro da API vira mensagem geral. */
-  function tratarErroApi(erro: unknown) {
-    erroGeral.value = mensagemMaterial(extrairErro(erro).mensagem)
+  /** Campo do DTO (`precoReferencia`...) -> campo do formulário. */
+  const CAMPO_DO_SERVIDOR: Record<string, keyof CamposMaterial> = {
+    nome: 'nome',
+    categoria: 'categoria',
+    unidadeMedida: 'unidade',
+    descricao: 'descricao',
+    precoReferencia: 'preco',
+    fornecedorPreferencialId: 'fornecedor',
   }
 
-  return { campos, erros, erroGeral, opcoes, fornecedorAtual, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }
+  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
+  function tratarErroApi(erro: unknown) {
+    erroGeral.value = null
+    let mapeado = false
+    for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
+      const chave = CAMPO_DO_SERVIDOR[campoServidor]
+      if (!chave) continue
+      erros[chave] = mensagemMaterial(mensagem)
+      mapeado = true
+    }
+    if (!mapeado) erroGeral.value = mensagemMaterial(extrairErro(erro).mensagem)
+  }
+
+  return { campos, erros, erroGeral, opcoes, catalogo, fornecedorAtual, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }
 }
 
 export type FormularioMaterial = ReturnType<typeof useFormularioMaterial>

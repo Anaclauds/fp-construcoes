@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { rotuloFornecedorVinculado } from '../../utils/fornecedores'
 import type { Equipamento } from '../../types/equipamento'
 import { rotuloTipoEquipamento } from '../../utils/equipamentos'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
@@ -81,7 +82,7 @@ const emit = defineEmits<{
         />
         <CampoLeitura
           rotulo="Fornecedor"
-          :valor="equipamento.fornecedor?.nomeFantasia ?? ''"
+          :valor="rotuloFornecedorVinculado(equipamento.fornecedor)"
         />
       </dl>
       <p class="nota">

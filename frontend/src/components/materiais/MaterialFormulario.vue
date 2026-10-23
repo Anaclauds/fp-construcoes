@@ -3,11 +3,13 @@ import { computed, nextTick, useTemplateRef } from 'vue'
 import type { FormularioMaterial } from '../../composables/useFormularioMaterial'
 import { useOpcoesFornecedores } from '../../composables/useOpcoesFornecedores'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
+import { rotuloFornecedorVinculado } from '../../utils/fornecedores'
 import { LIMITE_DESCRICAO_MATERIAL, LIMITE_NOME_MATERIAL, mascararValorMaterial } from '../../utils/materiais'
 import CampoAutocomplete from '../ui/CampoAutocomplete.vue'
+import CampoCategoriaMaterial from './CampoCategoriaMaterial.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 
-defineProps<{
+const props = defineProps<{
   form: FormularioMaterial
   /** Código do material já cadastrado (edição); sem ele mostra "gerado ao salvar". */
   codigo?: string
@@ -25,6 +27,9 @@ async function focarPrimeiroErro() {
 }
 
 defineExpose({ focarPrimeiroErro })
+
+// Fornecedor preferencial já salvo: se foi inativado depois, continua visível e identificado como inativo.
+const rotuloFornecedorAtual = computed(() => rotuloFornecedorVinculado(props.form.fornecedorAtual) || undefined)
 
 const apoioFornecedor = computed(() =>
   fornecedores.indisponivel.value ? 'Lista de fornecedores indisponível no momento.' : undefined,
@@ -58,14 +63,12 @@ const apoioFornecedor = computed(() =>
           :maxlength="LIMITE_NOME_MATERIAL"
           :erro="form.erros.nome"
         />
-        <CampoFormulario
+        <CampoCategoriaMaterial
           v-model="form.campos.categoria"
           class="c-categoria"
-          rotulo="Categoria:"
-          tipo="select"
-          obrigatorio
           placeholder="Selecione uma categoria"
           :opcoes="form.opcoes.value.categoria"
+          :catalogo="form.catalogo"
           :erro="form.erros.categoria"
         />
         <CampoFormulario
@@ -116,7 +119,7 @@ const apoioFornecedor = computed(() =>
           icone="lupa"
           limpavel
           :opcoes="fornecedores.opcoes.value"
-          :rotulo-selecionado="form.fornecedorAtual?.nomeFantasia"
+          :rotulo-selecionado="rotuloFornecedorAtual"
           :carregando="fornecedores.carregando.value"
           :desabilitado="fornecedores.indisponivel.value"
           :apoio="apoioFornecedor"

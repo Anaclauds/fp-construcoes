@@ -5,9 +5,10 @@ import type { AjusteEstoquePayload, TipoAjusteEstoque } from '../types/estoque'
 import {
   LIMITE_JUSTIFICATIVA,
   QUANTIDADE_MAXIMA,
-  mensagemEstoque,
+  mensagemErroEstoque,
   quantidadeComUnidade,
   quantidadeParaNumero,
+  unidadeExigeInteiro,
 } from '../utils/estoque'
 import { simboloUnidade } from '../utils/materiais'
 
@@ -20,6 +21,13 @@ export interface CamposAjusteEstoque {
 export type ErrosAjusteEstoque = Partial<Record<keyof CamposAjusteEstoque, string>>
 
 const CHAVES: (keyof CamposAjusteEstoque)[] = ['tipo', 'quantidade', 'justificativa']
+
+const CODIGOS_DE_QUANTIDADE = [
+  'ESTOQUE_SAIDA_ACIMA_DO_DISPONIVEL',
+  'ESTOQUE_LIMITE_EXCEDIDO',
+  'ESTOQUE_SALDO_ALTERADO',
+  'QUANTIDADE_INTEIRA_OBRIGATORIA',
+]
 
 export const OPCOES_TIPO_AJUSTE: OpcaoCampo[] = [
   { valor: 'AJUSTE_ENTRADA', rotulo: 'Entrada (adicionar ao estoque)' },
@@ -88,6 +96,9 @@ export function useFormularioAjusteEstoque(disponivel: Ref<number | null>, unida
     else if (quantidade === null) resultado.quantidade = 'Quantidade inválida. Use até 3 casas decimais.'
     else if (quantidade < 0.001) resultado.quantidade = 'A quantidade deve ser de pelo menos 0,001.'
     else if (quantidade > QUANTIDADE_MAXIMA) resultado.quantidade = 'Quantidade acima do limite permitido.'
+    else if (unidade.value && unidadeExigeInteiro(unidade.value) && !Number.isInteger(quantidade)) {
+      resultado.quantidade = 'Esta unidade exige quantidade inteira.'
+    }
     else if (campos.tipo === 'AJUSTE_ENTRADA' && maximoEntrada.value !== null && quantidade > maximoEntrada.value) {
       resultado.quantidade = `A entrada passaria do limite do estoque. Máximo para entrada: ${quantidadeComUnidade(maximoEntrada.value, unidade.value)}.`
     } else if (campos.tipo === 'AJUSTE_SAIDA' && disponivel.value !== null && quantidade > disponivel.value) {
@@ -114,11 +125,12 @@ export function useFormularioAjusteEstoque(disponivel: Ref<number | null>, unida
 
   /** Mostra o erro no campo certo; devolve true quando o saldo mudou no servidor (tela precisa atualizar o saldo). */
   function tratarErroApi(erro: unknown): boolean {
-    const { mensagem: bruta, status } = extrairErro(erro)
-    const mensagem = mensagemEstoque(bruta, unidade.value)
-    if (/saldo|quantidade/i.test(mensagem)) {
+    const detalhado = extrairErro(erro)
+    const mensagem = mensagemErroEstoque(detalhado, unidade.value)
+    // Erros de quantidade e de saldo ficam no campo; só o saldo alterado pede para recarregar o resumo.
+    if (CODIGOS_DE_QUANTIDADE.includes(detalhado.codigo) || detalhado.campo === 'quantidade') {
       erros.quantidade = mensagem
-      return status === 400
+      return detalhado.codigo !== 'QUANTIDADE_INTEIRA_OBRIGATORIA'
     }
     erroGeral.value = mensagem
     return false
