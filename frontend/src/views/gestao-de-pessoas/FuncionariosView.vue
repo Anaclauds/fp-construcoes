@@ -22,7 +22,7 @@ type Modal =
   | null
 
 const router = useRouter()
-const { temPermissao } = useAuth()
+const { usuario: logado, temPermissao, logout } = useAuth()
 const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('GESTAO_FUNCIONARIOS', 'gerenciar'))
@@ -50,13 +50,21 @@ function fecharModal() {
 
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Funcionário atualizado!')
   await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
+  const alvo = modal.value?.funcionario
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  // Desativou o próprio cadastro: o token deixa de valer, então encerra a sessão agora.
+  if (acao === 'desativar' && alvo && alvo.id === logado.value?.funcionarioId) {
+    logout()
+    await router.replace({ name: 'login' })
+    mostrarToast('Seu cadastro de funcionário foi desativado. Você foi desconectado.', 'info')
+    return
+  }
+  mostrarToast(acao === 'desativar' ? 'Funcionário desativado!' : 'Funcionário reativado!')
   await carregar()
 }
 

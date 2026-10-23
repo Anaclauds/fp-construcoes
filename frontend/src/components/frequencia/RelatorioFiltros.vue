@@ -5,8 +5,8 @@ import CampoData from '../ui/CampoData.vue'
 import CampoFormulario, { type OpcaoCampo } from '../ui/CampoFormulario.vue'
 import type { FuncionarioOpcao } from '../../composables/useTodosFuncionarios'
 import type { StatusFiltroRelatorio } from '../../types'
-import { dataBrParaIso } from '../../utils/formatadores'
-import { ROTULO_STATUS, STATUS_FREQUENCIA } from '../../utils/frequencia'
+import { dataBrParaIso, rotuloLegivel } from '../../utils/formatadores'
+import { ROTULO_STATUS, STATUS_FREQUENCIA, periodoExcedeLimite } from '../../utils/frequencia'
 import { dataBrValida } from '../../utils/validacao'
 
 export interface FiltrosEscolhidos {
@@ -36,7 +36,7 @@ const erros = reactive<Partial<Record<keyof typeof form, string>>>({})
 const opcoesFuncionario = computed<OpcaoCampo[]>(() =>
   props.funcionarios.map((f) => ({
     valor: String(f.id),
-    rotulo: `${f.nomeCompleto} — ${f.funcao}${f.status === 'INATIVO' ? ' (Inativo)' : ''}`,
+    rotulo: `${f.nomeCompleto} — ${rotuloLegivel(f.funcao)}${f.status === 'INATIVO' ? ' (Inativo)' : ''}`,
   })),
 )
 
@@ -64,11 +64,20 @@ function validar(): boolean {
     erros.dataFinal = 'A data final deve ser igual ou posterior à data inicial.'
   }
 
+  // Mesmo limite da API (no máximo dez anos): evita a ida e volta só para receber o 400.
+  if (
+    !erros.dataInicial &&
+    !erros.dataFinal &&
+    periodoExcedeLimite(dataBrParaIso(form.dataInicial), dataBrParaIso(form.dataFinal))
+  ) {
+    erros.dataFinal = 'O relatório deve abranger no máximo dez anos.'
+  }
+
   return !erros.funcionarioId && !erros.dataInicial && !erros.dataFinal
 }
 
 function gerar() {
-  if (!validar()) return
+  if (props.gerando || !validar()) return
   emit('gerar', {
     funcionarioId: Number(form.funcionarioId),
     dataInicial: dataBrParaIso(form.dataInicial),

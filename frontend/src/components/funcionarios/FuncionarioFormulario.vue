@@ -47,7 +47,7 @@ defineExpose({ focarPrimeiroErro })
           obrigatorio
           placeholder="Digite o nome completo"
           autocomplete="off"
-          :maxlength="150"
+          :maxlength="180"
           :erro="form.erros.nomeCompleto"
         />
         <CampoFormulario

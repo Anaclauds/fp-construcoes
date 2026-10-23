@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import { consultarCep } from '../services/viacep.service'
 import { useBuscaCep } from './useBuscaCep'
 import type { Funcionario, FuncionarioAtualizacao, FuncionarioPayload } from '../types'
@@ -65,7 +65,8 @@ const CHAVES: (keyof CamposFuncionario)[] = [
   'dataContratacao', 'nomeContatoEmergencia', 'contatoEmergencia', 'grauVinculo',
 ]
 
-const SALARIO_MAXIMO = 99_999_999.99
+/** DECIMAL(12,2) e @Max do DTO. */
+const SALARIO_MAXIMO = 9_999_999_999.99
 
 function camposVazios(): CamposFuncionario {
   return Object.fromEntries(CHAVES.map((chave) => [chave, ''])) as unknown as CamposFuncionario
@@ -140,7 +141,7 @@ function validarCampos(c: CamposFuncionario, base: Normalizado | null = null): E
     else if (max && valor.length > max) erros[chave] = `Use no máximo ${max} caracteres.`
   }
 
-  obrigatorio('nomeCompleto', 'Informe o nome completo.', 150)
+  obrigatorio('nomeCompleto', 'Informe o nome completo.', 180)
   if (c.apelido.trim().length > 80) erros.apelido = 'Use no máximo 80 caracteres.'
 
   if (c.cpf === '') erros.cpf = 'Informe o CPF.'
@@ -267,11 +268,23 @@ export function useFormularioFuncionario(inicial?: Funcionario) {
     return alterados as FuncionarioAtualizacao
   }
 
-  /** Interpreta o erro da API: 409 (CPF duplicado) vai para o campo CPF; o resto vira mensagem geral. */
+  /**
+   * Interpreta o erro da API: CPF duplicado (pelo `codigo`) e erros de validação por campo vão para o campo;
+   * o que não tiver campo conhecido vira mensagem geral.
+   */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
-    if (status === 409) erros.cpf = mensagem
-    else erroGeral.value = mensagem
+    const { mensagem, codigo } = extrairErro(erro)
+    const porCampo = errosPorCampo(erro)
+    if (codigo === 'CPF_CNPJ_DUPLICADO') porCampo.cpf = 'CPF já cadastrado para outro funcionário.'
+
+    let algumCampo = false
+    for (const chave of CHAVES) {
+      const texto = porCampo[chave]
+      if (!texto) continue
+      erros[chave] = texto
+      algumCampo = true
+    }
+    if (!algumCampo) erroGeral.value = mensagem
   }
 
   const { buscandoCep, buscarCep } = useBuscaCep({ campos, erros, consultar: consultarCep, ufs: UFS })

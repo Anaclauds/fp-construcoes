@@ -5,7 +5,7 @@ import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
 import { useToast } from '../../composables/useToast'
-import { extrairErro } from '../../services/api'
+import { CODIGO_SENHA_ATUAL_INCORRETA, errosPorCampo, extrairErro } from '../../services/api'
 import { alterarSenha } from '../../services/auth.service'
 import { validarAlterarSenha, type ErrosAlterarSenha } from '../../utils/validacao'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
@@ -52,6 +52,7 @@ async function focarPrimeiroErro() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   erroGeral.value = null
   const resultado = validarAlterarSenha(campos.senhaAtual, campos.novaSenha, campos.confirmarNovaSenha)
   erros.senhaAtual = resultado.senhaAtual
@@ -65,13 +66,18 @@ async function salvar() {
   salvando.value = true
   try {
     await alterarSenha({ ...campos })
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Senha alterada!')
     emit('salvo')
   } catch (erro) {
-    const { mensagem, status } = extrairErro(erro)
-    // 401 desta rota = senha atual errada (o interceptor não desloga aqui).
-    if (status === 401) erros.senhaAtual = 'Senha atual incorreta.'
-    else erroGeral.value = mensagem
+    const { mensagem, codigo } = extrairErro(erro)
+    const porCampo = errosPorCampo(erro)
+    // Só este 401 é senha atual errada (o interceptor não desloga aqui); outro 401 já encerrou a sessão.
+    if (codigo === CODIGO_SENHA_ATUAL_INCORRETA) erros.senhaAtual = 'Senha atual incorreta.'
+    else if (porCampo.senhaAtual || porCampo.novaSenha || porCampo.confirmarNovaSenha) {
+      erros.senhaAtual = porCampo.senhaAtual
+      erros.novaSenha = porCampo.novaSenha
+      erros.confirmarNovaSenha = porCampo.confirmarNovaSenha
+    } else erroGeral.value = mensagem
     await focarPrimeiroErro()
   } finally {
     salvando.value = false

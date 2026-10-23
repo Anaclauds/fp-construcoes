@@ -4,8 +4,10 @@ import AcessosPermitidos from '../ui/AcessosPermitidos.vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
+import ModalConfirmacao from '../ui/ModalConfirmacao.vue'
 import ModalDescartar from '../ui/ModalDescartar.vue'
-import { extrairMensagemErro } from '../../services/api'
+import { useAuth } from '../../composables/useAuth'
+import { errosPorCampo, extrairMensagemErro } from '../../services/api'
 import { atualizarUsuario } from '../../services/usuarios.service'
 import type { Usuario, UsuarioAtualizacao } from '../../types'
 import { formatarCpf, rotuloLegivel } from '../../utils/formatadores'
@@ -19,6 +21,7 @@ const emit = defineEmits<{
   salvo: []
 }>()
 
+const { usuario: logado } = useAuth()
 const idFormulario = useId()
 
 const senha = shallowRef('')
@@ -28,6 +31,7 @@ const erros = reactive<ErrosSenha>({})
 const erroApi = shallowRef<string | null>(null)
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
+const confirmandoPerdaDeAcesso = shallowRef(false)
 
 const assinaturaPermissoes = (mapa: MapaPermissoes) =>
   JSON.stringify(permissoesParaPayload(mapa).sort((a, b) => a.modulo.localeCompare(b.modulo)))
@@ -39,6 +43,14 @@ const alterado = computed(
     senha.value !== '' ||
     confirmarSenha.value !== '' ||
     assinaturaPermissoes(permissoes.value) !== permissoesOriginais,
+)
+
+// Editar a própria conta tirando o "gerenciar" de Gestão de Usuários: depois de salvar, a pessoa perde esta tela.
+const removendoPropriaGestao = computed(
+  () =>
+    logado.value?.sub === props.usuario.id &&
+    props.usuario.permissoes.some((p) => p.modulo === 'GESTAO_USUARIOS' && p.podeGerenciar) &&
+    !permissoes.value.GESTAO_USUARIOS?.podeGerenciar,
 )
 
 /** X, Esc, clique fora e Cancelar: com alterações pergunta antes de descartar. */
@@ -53,12 +65,22 @@ const opcoesFuncionario = computed(() => [
 // Nova senha é opcional; ao preenchê-la, a confirmação passa a ser obrigatória.
 const senhaPreenchida = computed(() => senha.value !== '' || confirmarSenha.value !== '')
 
-async function salvar() {
+/** Valida e, se for remover a própria gestão de usuários, pede confirmação antes de enviar. */
+function salvar() {
+  if (salvando.value) return
   erroApi.value = null
   const validacao = validarSenhas(senha.value, confirmarSenha.value, false)
   erros.senha = validacao.senha
   erros.confirmarSenha = validacao.confirmarSenha
   if (validacao.senha || validacao.confirmarSenha) return
+
+  if (removendoPropriaGestao.value) confirmandoPerdaDeAcesso.value = true
+  else void enviar()
+}
+
+async function enviar() {
+  if (salvando.value) return
+  confirmandoPerdaDeAcesso.value = false
 
   const payload: UsuarioAtualizacao = { permissoes: permissoesParaPayload(permissoes.value) }
   if (senhaPreenchida.value) {
@@ -71,7 +93,11 @@ async function salvar() {
     await atualizarUsuario(props.usuario.id, payload)
     emit('salvo')
   } catch (erro) {
-    erroApi.value = extrairMensagemErro(erro)
+    const porCampo = errosPorCampo(erro)
+    erros.senha = porCampo.senha
+    erros.confirmarSenha = porCampo.confirmarSenha
+    // Sem campo conhecido, a mensagem vai para o aviso geral do formulário.
+    if (!porCampo.senha && !porCampo.confirmarSenha) erroApi.value = extrairMensagemErro(erro)
   } finally {
     salvando.value = false
   }
@@ -142,6 +168,15 @@ async function salvar() {
       />
 
       <p
+        v-if="removendoPropriaGestao"
+        class="aviso-acesso largura-total"
+        role="status"
+      >
+        Você está removendo o seu próprio acesso de gerenciamento em Gestão de Usuários. Depois de salvar, você
+        não poderá mais gerenciar usuários.
+      </p>
+
+      <p
         v-if="erroApi"
         class="erro-api largura-total"
         role="alert"
@@ -167,6 +202,19 @@ async function salvar() {
       </BotaoFp>
     </template>
   </ModalBase>
+
+  <ModalConfirmacao
+    :aberto="confirmandoPerdaDeAcesso"
+    titulo="Remover o seu acesso?"
+    titulo-aviso="Esta é a sua conta"
+    texto-confirmar="Sim, remover meu acesso"
+    :carregando="salvando"
+    @confirmar="enviar"
+    @fechar="confirmandoPerdaDeAcesso = false"
+  >
+    Você perderá a permissão de gerenciar <strong>Gestão de Usuários</strong> e não poderá desfazer isso sozinho:
+    outro administrador precisará devolvê-la.
+  </ModalConfirmacao>
 
   <ModalDescartar
     :aberto="confirmandoSaida"
@@ -194,6 +242,17 @@ async function salvar() {
 
 .largura-total {
   grid-column: 1 / -1;
+}
+
+.aviso-acesso {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: var(--fp-vermelho-escuro);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .erro-api {

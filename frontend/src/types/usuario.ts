@@ -53,6 +53,8 @@ export interface UsuarioAtualizacao {
 export interface FiltrosUsuarios {
   busca?: string
   status?: StatusCadastro
+  page?: number
+  limit?: number
 }
 
 export interface OpcaoModulo {
