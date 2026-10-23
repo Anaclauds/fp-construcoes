@@ -48,10 +48,24 @@ api.interceptors.response.use(
   },
 )
 
+/** Erro de um campo, no 400 de validação do backend (`erros[]`). */
+export interface ErroCampo {
+  campo: string
+  mensagem: string
+}
+
 interface CorpoErro {
   message?: string | string[]
+  /** Código estável do backend (ex.: VALIDACAO, CPF_CNPJ_DUPLICADO, ESTOQUE_INSUFICIENTE). */
+  codigo?: string
+  /** Campo ao qual o erro de negócio se refere (ex.: cpfCnpj, valor). */
+  campo?: string
+  /** Dados extras do erro de negócio (ex.: { restante }, { maximo }, { materiais }). */
+  detalhes?: Record<string, unknown>
+  /** Erros de validação por campo (codigos VALIDACAO e CAMPO_NAO_ACEITO). */
+  erros?: ErroCampo[]
   funcionariosPendentes?: number[]
-  /** Falta de estoque ao iniciar projeto ou registrar extra (backend atualizado). */
+  /** Falta de estoque ao iniciar projeto ou registrar extra (também vem em `detalhes.materiais`). */
   materiais?: MaterialSemSaldo[]
 }
 
@@ -65,14 +79,22 @@ export interface MaterialSemSaldo {
 export interface ErroApi {
   mensagem: string
   status: number | null
+  /** Código do backend; vazio em erro de rede ou resposta sem corpo no formato da API. */
+  codigo: string
+  /** Campo citado pelo erro de negócio; vazio quando não há. */
+  campo: string
+  detalhes: Record<string, unknown>
+  /** Erros de validação por campo; vazio fora do 400 de validação. */
+  erros: ErroCampo[]
   funcionariosPendentes: number[]
-  /** Materiais sem saldo, quando o backend os detalha no 400 de estoque; vazio no backend antigo. */
+  /** Materiais sem saldo (do campo `materiais` ou de `detalhes.materiais`); vazio quando o erro não é de estoque. */
   materiais: MaterialSemSaldo[]
 }
 
 const MENSAGEM_LIMITE_TENTATIVAS = 'Muitas tentativas. Aguarde 1 minuto e tente novamente.'
 const MENSAGEM_LIMITE_REQUISICOES = 'Muitas requisições. Aguarde um instante e tente novamente.'
 const MENSAGEM_SERVIDOR = 'Erro no servidor. Tente novamente em instantes.'
+const MENSAGEM_SEM_PERMISSAO = 'Você não tem permissão para esta operação.'
 const MENSAGEM_DADOS_INVALIDOS = 'Dados inválidos. Verifique os campos.'
 
 // Mensagens padrão (em inglês) do class-validator, que não devem chegar ao usuário.
@@ -87,16 +109,18 @@ function traduzirMensagem(message: string | string[] | undefined, padrao: string
   return portugues.length > 0 ? portugues.join(' ') : MENSAGEM_DADOS_INVALIDOS
 }
 
-/** Normaliza o erro no formato do Nest (message string ou string[]). */
+const erroVazio = { codigo: '', campo: '', detalhes: {}, erros: [], funcionariosPendentes: [], materiais: [] }
+
+/** Normaliza o erro no formato do backend (message string ou string[], mais codigo, campo, detalhes e erros[]). */
 export function extrairErro(erro: unknown): ErroApi {
   const padrao = 'Não foi possível concluir a operação. Tente novamente.'
 
   if (isAxiosError<CorpoErro>(erro)) {
     if (!erro.response) {
-      return { mensagem: 'Sem conexão com o servidor.', status: null, funcionariosPendentes: [], materiais: [] }
+      return { ...erroVazio, mensagem: 'Sem conexão com o servidor.', status: null }
     }
     const status = erro.response.status
-    const { message, funcionariosPendentes, materiais } = erro.response.data ?? {}
+    const corpo = erro.response.data ?? {}
     // 429: o limite de tentativas (10 por minuto) é do login; nas demais rotas é limite geral de requisições.
     const ehLogin = erro.config?.url?.includes('/auth/login') ?? false
     const mensagem =
@@ -104,52 +128,43 @@ export function extrairErro(erro: unknown): ErroApi {
         ? ehLogin
           ? MENSAGEM_LIMITE_TENTATIVAS
           : MENSAGEM_LIMITE_REQUISICOES
-        : status >= 500
-          ? MENSAGEM_SERVIDOR
-          : traduzirMensagem(message, padrao)
+        : status === 403
+          ? MENSAGEM_SEM_PERMISSAO
+          : status >= 500
+            ? MENSAGEM_SERVIDOR
+            : traduzirMensagem(corpo.message, padrao)
+    const detalhes =
+      corpo.detalhes && typeof corpo.detalhes === 'object' && !Array.isArray(corpo.detalhes) ? corpo.detalhes : {}
+    const materiais = Array.isArray(corpo.materiais)
+      ? corpo.materiais
+      : Array.isArray(detalhes.materiais)
+        ? (detalhes.materiais as MaterialSemSaldo[])
+        : []
     return {
       mensagem,
       status,
-      funcionariosPendentes: funcionariosPendentes ?? [],
-      materiais: Array.isArray(materiais) ? materiais : [],
+      codigo: typeof corpo.codigo === 'string' ? corpo.codigo : '',
+      campo: typeof corpo.campo === 'string' ? corpo.campo : '',
+      detalhes,
+      erros: Array.isArray(corpo.erros) ? corpo.erros : [],
+      funcionariosPendentes: Array.isArray(corpo.funcionariosPendentes) ? corpo.funcionariosPendentes : [],
+      materiais,
     }
   }
 
-  return {
-    mensagem: erro instanceof Error ? erro.message : padrao,
-    status: null,
-    funcionariosPendentes: [],
-    materiais: [],
-  }
+  return { ...erroVazio, mensagem: erro instanceof Error ? erro.message : padrao, status: null }
 }
 
 /**
- * Campos que o backend recusou por não existirem nele ("property X should not exist", do forbidNonWhitelisted).
- * Só o backend antigo responde assim a um campo novo: quem envia campos opcionais usa isto para reenviar no formato antigo.
+ * Mensagem de cada campo recusado pelo backend, pelo nome do campo (ex.: `{ cpfCnpj: '...' }`, `'itens.0.quantidade'`).
+ * Junta `erros[]` (validação) e `campo` (erro de negócio, com a mensagem geral); em campo repetido vale a primeira.
  */
-export function propriedadesNaoAceitas(erro: unknown): string[] {
-  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 400) return []
-  const message = erro.response.data?.message
-  const lista = Array.isArray(message) ? message : message ? [message] : []
-  return lista.flatMap((m) => {
-    const achado = /property (\w+) should not exist/i.exec(m)
-    return achado ? [achado[1]!] : []
-  })
-}
-
-/** Mensagem original do 400 da API (sem tradução), para reconhecer que campo ela recusou. */
-export function mensagemOriginal400(erro: unknown): string {
-  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 400) return ''
-  const message = erro.response.data?.message
-  return Array.isArray(message) ? message.join(' ') : (message ?? '')
-}
-
-/** O endpoint ainda não existe neste backend (404 de rota, não de registro). */
-export function endpointInexistente(erro: unknown): boolean {
-  if (!isAxiosError<CorpoErro>(erro) || erro.response?.status !== 404) return false
-  const message = erro.response.data?.message
-  const texto = Array.isArray(message) ? message.join(' ') : (message ?? '')
-  return /^cannot (get|post|patch|put|delete) /i.test(texto)
+export function errosPorCampo(erro: unknown): Record<string, string> {
+  const { erros, campo, mensagem } = extrairErro(erro)
+  const porCampo: Record<string, string> = {}
+  for (const item of erros) porCampo[item.campo] ??= item.mensagem
+  if (campo) porCampo[campo] ??= mensagem
+  return porCampo
 }
 
 export function extrairMensagemErro(erro: unknown): string {
