@@ -54,9 +54,8 @@ const opcoes = computed<OpcaoStatus[]>(() => {
       descricao: planejado ? 'O projeto não será iniciado.' : 'A obra não será mais executada.',
       efeitos: [
         ...(planejado ? [] : ['O estoque reservado para o projeto é liberado e volta a ficar disponível.']),
-        ...(planejado
-          ? []
-          : ['Cobranças sem recebimento podem ser canceladas; as que já têm recebimento ficam como estão. O resultado é informado ao confirmar: acerte o que sobrar em Cobranças.']),
+        // Vale também para o planejado: o servidor cancela as cobranças dele (por exemplo, a entrada do orçamento aprovado).
+        'Cobranças sem recebimento podem ser canceladas; as que já têm recebimento ficam como estão. O resultado é informado ao confirmar: acerte o que sobrar em Cobranças.',
         'Um projeto cancelado não pode ser reaberto.',
       ],
     },
@@ -117,7 +116,7 @@ async function confirmar() {
     emit('atualizado', escolha.value, resposta)
   } catch (e) {
     const { mensagem, status, codigo } = extrairErro(e)
-    erro.value = mensagemProjeto(mensagem)
+    erro.value = mensagemProjeto(mensagem, codigo)
     // Já concluído/cancelado ou removido: a lista está desatualizada (nunca reenvia sozinho).
     if (codigo === 'PROJETO_STATUS_INVALIDO' || status === 404) emit('desatualizado')
   } finally {

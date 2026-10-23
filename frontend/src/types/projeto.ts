@@ -94,8 +94,6 @@ export interface ParcelaProjeto {
   valor: string
   status: StatusParcela
   recebimentos: RecebimentoProjeto[]
-  /** O detalhe do projeto não calcula; só `/cobrancas` informa. */
-  vencida?: boolean
 }
 
 export interface CobrancaProjeto {

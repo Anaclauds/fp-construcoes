@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioIniciarProjeto } from '../../composables/useFormularioIniciarProjeto'
+import { extrairMensagemErro } from '../../services/api'
 import { buscarProjeto, iniciarProjeto } from '../../services/projetos.service'
-import type { ProjetoResumo } from '../../types/projeto'
+import type { ProjetoDetalhe, ProjetoResumo } from '../../types/projeto'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { centavosParaMoeda, formatarNumeroOrcamento } from '../../utils/orcamentos'
 import { ANO_MINIMO_DATA_PROJETO, enderecoDaObra, equivalenteEmMeses, textoDias } from '../../utils/projetos'
@@ -20,8 +21,8 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  /** Projeto iniciado; leva a mensagem de sucesso. */
-  iniciado: [mensagem: string]
+  /** Projeto iniciado; leva a mensagem de sucesso e o projeto atualizado. */
+  iniciado: [mensagem: string, projeto: ProjetoDetalhe]
   /** O backend indicou que o projeto mudou (já iniciado...): a lista precisa recarregar. */
   desatualizado: []
 }>()
@@ -36,24 +37,37 @@ const confirmandoSaida = shallowRef(false)
 const { orcamento } = props.projeto
 const codigo = formatarNumeroOrcamento(orcamento.numero)
 
+// Sem cobrança a fazer (Construção Civil, ou entradas que já cobrem o orçamento): só o cronograma, numa etapa.
 const titulo = computed(() => {
-  if (form.construcaoCivil) return 'Iniciar Projeto'
+  if (!form.geraCobranca.value) return 'Iniciar Projeto'
   return etapa.value === 1 ? 'Etapa 1/2 - Iniciar Projeto' : 'Etapa 2/2 - Realizar Cobrança do Projeto'
 })
 
 const nota = computed(() => {
-  if (form.construcaoCivil) return 'O status será alterado para "Em Execução" e a obra será iniciada.'
+  if (!form.construcaoCivil && !form.geraCobranca.value) {
+    return 'O status será alterado para "Em Execução". As entradas já cobrem o valor do orçamento: nenhuma nova cobrança será gerada.'
+  }
+  if (!form.geraCobranca.value) return 'O status será alterado para "Em Execução" e a obra será iniciada.'
   return etapa.value === 1
     ? 'O status será alterado para "Em Execução" e a cobrança será gerada.'
     : 'Ao confirmar, a cobrança será registrada conforme as condições selecionadas.'
 })
 
-const linhasInformacoes = computed(() => [
-  { rotulo: 'Título:', valor: orcamento.titulo },
-  { rotulo: 'Código:', valor: codigo },
-  { rotulo: 'Cliente:', valor: orcamento.cliente.nome },
-  { rotulo: 'Endereço:', valor: enderecoDaObra(props.projeto) },
-])
+const linhasInformacoes = computed(() => {
+  const linhas = [
+    { rotulo: 'Título:', valor: orcamento.titulo },
+    { rotulo: 'Código:', valor: codigo },
+    { rotulo: 'Cliente:', valor: orcamento.cliente.nome },
+    { rotulo: 'Endereço:', valor: enderecoDaObra(props.projeto) },
+  ]
+  if (!form.construcaoCivil && form.entradasCentavos.value > 0) {
+    linhas.push(
+      { rotulo: 'Entradas já cobradas:', valor: centavosParaMoeda(form.entradasCentavos.value) },
+      { rotulo: 'Saldo a cobrar:', valor: centavosParaMoeda(form.valorBase.value) },
+    )
+  }
+  return linhas
+})
 
 const linhasCobranca = computed(() => {
   const { campos, resultado, parcelasValidas } = form.cobranca
@@ -62,6 +76,13 @@ const linhasCobranca = computed(() => {
     { rotulo: 'Cliente:', valor: orcamento.cliente.nome },
     { rotulo: 'Valor Original:', valor: formatarMoeda(orcamento.valorTotal) },
   ]
+  // Entradas prévias: o servidor cobra o restante, então o valor da cobrança deixa de ser o do orçamento.
+  if (form.entradasCentavos.value > 0) {
+    linhas.push(
+      { rotulo: 'Entradas já cobradas:', valor: centavosParaMoeda(form.entradasCentavos.value) },
+      { rotulo: 'Valor a cobrar:', valor: centavosParaMoeda(form.valorBase.value) },
+    )
+  }
   if (campos.modalidade === 'PARCELADO_AUTOMATICO' && parcelasValidas.value) {
     const { quantidade, valorParcela, valorUltimaParcela } = resultado.value
     const ultima = valorUltimaParcela !== valorParcela ? ` (última ${centavosParaMoeda(valorUltimaParcela)})` : ''
@@ -94,21 +115,26 @@ async function irParaEtapa(destino: 1 | 2) {
 }
 
 const verificandoEstoque = shallowRef(false)
+const erroVerificacao = shallowRef<string | null>(null)
 
 /**
- * Confere o saldo de estoque antes de pedir qualquer dado: o detalhe do projeto diz se os materiais do orçamento
- * têm saldo para reservar. Falha na consulta não bloqueia (a falta de saldo ainda aparece como erro ao confirmar).
+ * Confere o saldo de estoque e as entradas já cobradas antes de pedir qualquer dado: o detalhe do projeto diz se os
+ * materiais do orçamento têm saldo e quanto já foi cobrado (muda o valor da cobrança). Se a consulta falhar, o
+ * usuário vê o erro e tenta de novo; confirmar fica bloqueado até a verificação dar certo.
  */
 async function verificarEstoque() {
+  if (verificandoEstoque.value) return
   verificandoEstoque.value = true
+  erroVerificacao.value = null
   try {
     const detalhe = await buscarProjeto(props.projeto.id)
     const faltando = detalhe.estoqueSuficiente ? [] : detalhe.materiaisSemSaldo
+    form.definirEntradas(detalhe.cobrancas)
     form.semEstoque.value = faltando.length > 0
     form.materiaisSemSaldo.value = faltando
     if (!form.semEstoque.value) form.erroGeral.value = null
-  } catch {
-    form.semEstoque.value = false
+  } catch (erro) {
+    erroVerificacao.value = extrairMensagemErro(erro)
   } finally {
     verificandoEstoque.value = false
   }
@@ -116,14 +142,19 @@ async function verificarEstoque() {
 
 onMounted(verificarEstoque)
 
+const bloqueadoPelaVerificacao = computed(
+  () => verificandoEstoque.value || erroVerificacao.value !== null || form.semEstoque.value,
+)
+
 const textoSemEstoque =
   'Não há estoque suficiente para reservar os materiais deste projeto. Registre a compra em Despesas (ou ajuste o estoque) e verifique novamente.'
 
 async function enviar() {
+  if (enviando.value) return
   enviando.value = true
   try {
-    await iniciarProjeto(props.projeto.id, form.paraPayload())
-    emit('iniciado', form.geraCobranca ? 'Cobrança Realizada!' : 'Projeto iniciado com sucesso!')
+    const iniciado = await iniciarProjeto(props.projeto.id, form.paraPayload())
+    emit('iniciado', form.geraCobranca.value ? 'Projeto iniciado e cobrança registrada!' : 'Projeto iniciado!', iniciado)
   } catch (erro) {
     const onde = form.tratarErroApi(erro)
     if (form.desatualizado.value) emit('desatualizado')
@@ -135,15 +166,15 @@ async function enviar() {
 }
 
 async function confirmar() {
-  if (enviando.value || form.semEstoque.value) return
+  if (enviando.value || bloqueadoPelaVerificacao.value) return
 
-  if (etapa.value === 1) {
+  if (etapa.value === 1 || !form.geraCobranca.value) {
     if (!form.validarCronograma()) {
       await focarPrimeiroErroDoModal()
       return
     }
-    // Serralheria e Calhas seguem para a cobrança; Construção Civil inicia já (a cobrança vem por etapa).
-    if (form.geraCobranca) await irParaEtapa(2)
+    // Serralheria e Calhas seguem para a cobrança (se ainda restar saldo); Construção Civil inicia já (a cobrança vem por etapa).
+    if (form.geraCobranca.value) await irParaEtapa(2)
     else await enviar()
     return
   }
@@ -156,7 +187,7 @@ async function confirmar() {
 }
 
 const textoConfirmar = computed(() => {
-  if (form.construcaoCivil) return 'Iniciar Projeto'
+  if (!form.geraCobranca.value) return 'Iniciar Projeto'
   return etapa.value === 1 ? 'Continuar para a cobrança →' : 'Confirmar cobrança'
 })
 </script>
@@ -178,7 +209,22 @@ const textoConfirmar = computed(() => {
       @submit.prevent="confirmar"
     >
       <div
-        v-if="form.semEstoque.value"
+        v-if="erroVerificacao"
+        class="sem-estoque"
+      >
+        <ProjetoAvisoErro :mensagem="`Não foi possível verificar o estoque e as entradas do projeto. ${erroVerificacao}`" />
+        <BotaoFp
+          variante="secundario"
+          tamanho="compacto"
+          :carregando="verificandoEstoque"
+          @click="verificarEstoque"
+        >
+          Tentar novamente
+        </BotaoFp>
+      </div>
+
+      <div
+        v-else-if="form.semEstoque.value"
         class="sem-estoque"
       >
         <ProjetoAvisoErro
@@ -278,6 +324,10 @@ const textoConfirmar = computed(() => {
           :parcelado="form.cobranca.parcelado.value"
           :acrescimo-habilitado="form.cobranca.acrescimoHabilitado.value"
           :resultado="form.cobranca.resultado.value"
+          :opcoes-forma="form.cobranca.formas.opcoes.value"
+          :carregando-formas="form.cobranca.formas.carregando.value"
+          :erro-formas="form.cobranca.formas.erro.value"
+          @recarregar-formas="form.cobranca.formas.recarregar"
         />
 
         <p
@@ -330,7 +380,7 @@ const textoConfirmar = computed(() => {
         type="submit"
         :form="idFormulario"
         :carregando="enviando"
-        :desabilitado="form.semEstoque.value"
+        :desabilitado="bloqueadoPelaVerificacao"
       >
         {{ textoConfirmar }}
       </BotaoFp>

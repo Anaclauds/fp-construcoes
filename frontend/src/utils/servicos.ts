@@ -1,8 +1,10 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
-import { mascararMoeda, semAcento as semAcentoMensagem } from './formatadores'
+import type { ErroApi } from '../services/api'
+import { interpretarPorCodigo, type ErroInterpretado } from './erros-cadastro'
+import { mascararMoeda, normalizarTexto } from './formatadores'
 import { rotuloUnidade } from './orcamentos'
 
-/** Limites do cadastro. A descrição não tem limite no backend (coluna TEXT): o do front evita textos absurdos. */
+/** Limites do DTO de serviço no backend (nome 150, descrição 1000, unidade 50). */
 export const LIMITE_NOME_SERVICO = 150
 export const LIMITE_DESCRICAO_SERVICO = 1000
 export const LIMITE_UNIDADE_SERVICO = 50
@@ -20,13 +22,6 @@ export const UNIDADES_SERVICO: OpcaoCampo[] = [
   'Diária',
   'Empreitada',
 ].map((rotulo) => ({ valor: rotulo, rotulo }))
-
-const semAcento = (texto: string) =>
-  texto
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .trim()
-    .toLowerCase()
 
 /** Grafias já cadastradas (siglas e variações) que equivalem a uma das opções da lista. */
 const EQUIVALENTES: Record<string, string> = {
@@ -52,8 +47,8 @@ const EQUIVALENTES: Record<string, string> = {
 
 /** Valor salvo -> opção equivalente da lista; se não houver equivalente devolve o texto como está. */
 export function unidadeParaOpcao(valor: string): string {
-  const chave = semAcento(valor)
-  const exata = UNIDADES_SERVICO.find((o) => semAcento(o.valor) === chave)
+  const chave = normalizarTexto(valor)
+  const exata = UNIDADES_SERVICO.find((o) => normalizarTexto(o.valor) === chave)
   return exata?.valor ?? EQUIVALENTES[chave] ?? valor.trim()
 }
 
@@ -67,8 +62,22 @@ export function opcoesUnidade(atual?: string): OpcaoCampo[] {
 export const mascararValorServico = (valor: string) => mascararMoeda(valor, 12)
 
 
-/** A comparação ignora acentos: a API responde com ou sem. */
-export function mensagemServico(mensagem: string): string {
-  if (/servico nao encontrado/i.test(semAcentoMensagem(mensagem))) return 'Serviço não encontrado. Atualize a lista.'
-  return mensagem
+/** Campo do formulário de serviço citado por um erro de negócio. */
+export type CampoErroServico = 'nome' | 'categoria'
+
+/**
+ * Erros de negócio de serviços decididos pelo `codigo` (`servicos.service.ts`). Todos são gerados pelo nome do método
+ * no backend (terminam em `_01`), sem código legível: ficam só aqui e precisam acompanhar o backend.
+ */
+const ERROS_SERVICO: Record<string, ErroInterpretado<CampoErroServico>> = {
+  SERVICOS_FINDONE_NOTFOUND_01: { mensagem: 'Serviço não encontrado. Atualize a lista.' },
+  SERVICOS_VALIDARNOME_CONFLICT_01: { campo: 'nome', mensagem: 'Já existe um serviço ativo com este nome nesta categoria.' },
+  SERVICOS_UPDATE_CONFLICT_01: { campo: 'categoria', mensagem: 'Serviço já utilizado: a categoria não pode ser alterada.' },
+  SERVICOS_UPDATE_BADREQUEST_01: { mensagem: 'Preencha nome, categoria, valor e unidade do serviço.' },
 }
+
+export const interpretarErroServico = (erro: ErroApi): ErroInterpretado<CampoErroServico> =>
+  interpretarPorCodigo(ERROS_SERVICO, erro)
+
+/** Mensagem para o usuário (modal de ativar/desativar, que não tem campos). */
+export const mensagemServico = (erro: ErroApi): string => interpretarErroServico(erro).mensagem

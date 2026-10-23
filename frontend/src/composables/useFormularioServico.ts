@@ -9,7 +9,7 @@ import {
   LIMITE_NOME_SERVICO,
   LIMITE_UNIDADE_SERVICO,
   VALOR_MAXIMO_SERVICO,
-  mensagemServico,
+  interpretarErroServico,
   opcoesUnidade,
   unidadeParaOpcao,
 } from '../utils/servicos'
@@ -146,17 +146,22 @@ export function useFormularioServico(inicial?: Servico) {
     unidadeMedida: 'unidade',
   }
 
-  /** Erros do servidor vão para o campo citado; o que não tem campo (ex.: nome repetido) vira mensagem geral. */
+  /** Erros de negócio (por `codigo`) e de validação (por campo) vão para o campo citado; o que não tem campo vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
     erroGeral.value = null
+    const interpretado = interpretarErroServico(extrairErro(erro))
+    if (interpretado.campo) {
+      erros[interpretado.campo] = interpretado.mensagem
+      return
+    }
     let mapeado = false
     for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
       const chave = CAMPO_DO_SERVIDOR[campoServidor]
       if (!chave) continue
-      erros[chave] = mensagemServico(mensagem)
+      erros[chave] = mensagem
       mapeado = true
     }
-    if (!mapeado) erroGeral.value = mensagemServico(extrairErro(erro).mensagem)
+    if (!mapeado) erroGeral.value = interpretado.mensagem
   }
 
   return { campos, erros, erroGeral, opcoes, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }

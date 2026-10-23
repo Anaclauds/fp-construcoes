@@ -20,7 +20,7 @@ import type { Servico } from '../../types/servico'
 import { formatarMoeda } from '../../utils/formatadores'
 import { ROTULO_TIPO_ORCAMENTO, rotuloUnidade } from '../../utils/orcamentos'
 
-type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; servico: Servico } | null
+type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; servico: Servico; deVisualizar: boolean } | null
 
 const router = useRouter()
 const { temPermissao } = useAuth()
@@ -31,9 +31,9 @@ const podeGerenciar = computed(() => temPermissao('SERVICOS', 'gerenciar'))
 const { busca, categoria, status, pagina, porPagina, servicos, total, carregando, erro, carregar } =
   useListaServicos()
 
-// Figma: filtro "Todos | Serralheria | Construção Civil"; Calhas é a terceira categoria do sistema.
+// Figma: filtro "Todas | Serralheria | Construção Civil"; Calhas é a terceira categoria do sistema.
 const opcoesCategoria: OpcaoFiltro<FiltroCategoriaServico>[] = [
-  { valor: 'TODOS', rotulo: 'Todos' },
+  { valor: 'TODOS', rotulo: 'Todas' },
   { valor: 'SERRALHERIA', rotulo: ROTULO_TIPO_ORCAMENTO.SERRALHERIA },
   { valor: 'CONSTRUCAO_CIVIL', rotulo: ROTULO_TIPO_ORCAMENTO.CONSTRUCAO_CIVIL },
   { valor: 'CALHAS', rotulo: ROTULO_TIPO_ORCAMENTO.CALHAS },
@@ -42,30 +42,37 @@ const opcoesCategoria: OpcaoFiltro<FiltroCategoriaServico>[] = [
 const colunas: ColunaTabela[] = [
   { chave: 'categoria', rotulo: 'Categoria', largura: '17%' },
   { chave: 'nome', rotulo: 'Nome do Serviço', largura: '37%' },
-  { chave: 'valor', rotulo: 'Valor Unitário', largura: '15%' },
+  { chave: 'valor', rotulo: 'Valor Unitário', largura: '15%', numerica: true },
   { chave: 'unidade', rotulo: 'Unidade de Medida', largura: '17%' },
   { chave: 'acoes', rotulo: 'Ações', largura: '14%' },
 ]
 
 const modal = shallowRef<Modal>(null)
 
-function abrir(tipoModal: NonNullable<Modal>['tipo'], servico: Servico) {
-  modal.value = { tipo: tipoModal, servico }
+function abrir(tipoModal: NonNullable<Modal>['tipo'], servico: Servico, deVisualizar = false) {
+  modal.value = { tipo: tipoModal, servico, deVisualizar }
 }
 
 function fecharModal() {
   modal.value = null
 }
 
+/** Desistiu de editar a partir dos detalhes: volta a eles (se partiu da lista, só fecha). */
+function cancelarEdicao() {
+  const atual = modal.value
+  if (atual?.deVisualizar) abrir('visualizar', atual.servico)
+  else fecharModal()
+}
+
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Serviço atualizado!')
   await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Serviço desativado!' : 'Serviço reativado!')
   await carregar()
 }
 
@@ -190,13 +197,13 @@ onMounted(carregar)
       :servico="modal.servico"
       :pode-editar="podeGerenciar"
       @fechar="fecharModal"
-      @editar="abrir('editar', modal.servico)"
+      @editar="abrir('editar', modal.servico, true)"
     />
     <ServicoModalEditar
       v-else-if="modal?.tipo === 'editar'"
       :key="modal.servico.id"
       :servico="modal.servico"
-      @fechar="fecharModal"
+      @fechar="cancelarEdicao"
       @salvo="aoSalvar"
     />
     <ServicoModalStatus

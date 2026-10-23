@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CobrancaProjeto, ParcelaProjeto, StatusProjeto } from '../../types/projeto'
-import { ROTULO_FORMA_PAGAMENTO, ROTULO_TIPO_COBRANCA } from '../../utils/cobrancas'
-import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
+import { recebidoDaParcelaEmCentavos, ROTULO_FORMA_PAGAMENTO, ROTULO_TIPO_COBRANCA } from '../../utils/cobrancas'
+import { hojeIso } from '../../utils/datas'
+import { formatarMoeda, isoParaDataBr, paraCentavos } from '../../utils/formatadores'
 import SeloStatusCobranca from '../cobrancas/SeloStatusCobranca.vue'
 
 const props = defineProps<{
@@ -43,6 +44,22 @@ function descricaoCobranca(cobranca: CobrancaProjeto): string {
   const forma = cobranca.formaPagamento ? ROTULO_FORMA_PAGAMENTO[cobranca.formaPagamento] : ''
   const modalidade = cobranca.parcelas.length > 1 ? `${cobranca.parcelas.length}x` : 'À vista'
   return [tipo, modalidade, forma].filter(Boolean).join(' · ')
+}
+
+/**
+ * O detalhe do projeto não traz `vencida` (só `/cobrancas` calcula): mesma regra de Cobranças, parcela em aberto ou
+ * parcial com vencimento antes de hoje (fuso do negócio).
+ */
+function estaVencida(parcela: ParcelaProjeto): boolean {
+  return (parcela.status === 'EM_ABERTO' || parcela.status === 'PARCIAL') && parcela.vencimento.slice(0, 10) < hojeIso()
+}
+
+/** Soma dos recebimentos já registrados na parcela, em centavos (mostrada nas parcelas parciais). */
+const totalRecebido = recebidoDaParcelaEmCentavos
+
+/** Quanto falta receber da parcela, em centavos. */
+function restante(parcela: ParcelaProjeto): number {
+  return Math.max(paraCentavos(parcela.valor) - totalRecebido(parcela), 0)
 }
 
 /** Data do último recebimento da parcela paga ("Pago no dia"). */
@@ -93,10 +110,17 @@ function dataDoPagamento(parcela: ParcelaProjeto): string {
                 Vencimento: {{ isoParaDataBr(parcela.vencimento) }}
               </template>
             </span>
+            <span
+              v-if="parcela.status === 'PARCIAL' && totalRecebido(parcela) > 0"
+              class="parcela-data"
+            >
+              Recebido {{ formatarMoeda(totalRecebido(parcela) / 100) }} · restante
+              {{ formatarMoeda(restante(parcela) / 100) }}
+            </span>
           </div>
           <SeloStatusCobranca
             :status="parcela.status"
-            :vencida="parcela.vencida"
+            :vencida="estaVencida(parcela)"
           />
           <span class="parcela-valor">{{ formatarMoeda(parcela.valor) }}</span>
         </li>

@@ -4,8 +4,10 @@ import { useFormularioEtapaProjeto } from '../../composables/useFormularioEtapaP
 import { useOpcoesProjeto } from '../../composables/useOpcoesProjeto'
 import { useProjetoDetalhe } from '../../composables/useProjetoDetalhe'
 import { registrarEtapa } from '../../services/projetos.service'
-import type { ProjetoResumo } from '../../types/projeto'
+import type { ProjetoDetalhe, ProjetoResumo } from '../../types/projeto'
+import { extrairErro } from '../../services/api'
 import { focarPrimeiroErro } from '../../utils/foco'
+import { paraCentavos } from '../../utils/formatadores'
 import { centavosParaMoeda } from '../../utils/orcamentos'
 import { totalMedidoEmCentavos } from '../../utils/projetos'
 import BotaoFp from '../ui/BotaoFp.vue'
@@ -23,7 +25,8 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  registrado: []
+  /** Etapa registrada; leva o projeto atualizado. */
+  registrado: [projeto: ProjetoDetalhe]
   /** O backend indicou que o projeto mudou (não está mais em execução...): a lista precisa recarregar. */
   desatualizado: []
 }>()
@@ -34,8 +37,12 @@ const raiz = useTemplateRef<HTMLElement>('raiz')
 const detalhe = useProjetoDetalhe(props.projeto.id)
 const opcoes = useOpcoesProjeto(props.projeto.orcamento.tipo)
 
-// As etapas já registradas vêm do detalhe do projeto: delas sai o total já medido (o teto é o valor do orçamento).
-const medido = computed(() => totalMedidoEmCentavos(detalhe.projeto.value?.etapas ?? []))
+// O total já medido (o teto é o valor do orçamento) é o da API (`medicoes.totalMedido`, que ignora etapas canceladas);
+// sem ele, soma das etapas do detalhe.
+const medido = computed(() => {
+  const medicoes = detalhe.projeto.value?.medicoes
+  return medicoes ? paraCentavos(medicoes.totalMedido) : totalMedidoEmCentavos(detalhe.projeto.value?.etapas ?? [])
+})
 const form = useFormularioEtapaProjeto(props.projeto, opcoes.servicos, medido)
 
 const enviando = shallowRef(false)
@@ -85,11 +92,13 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarEtapa(props.projeto.id, form.paraPayload())
-    emit('registrado')
+    emit('registrado', await registrarEtapa(props.projeto.id, form.paraPayload()))
   } catch (erro) {
     form.tratarErroApi(erro)
     if (form.desatualizado.value) emit('desatualizado')
+    // 400/409 podem vir de uma medição feita por outra pessoa (saldo mudou): atualiza o detalhe e o saldo da tela.
+    const { status } = extrairErro(erro)
+    if (status === 400 || status === 409) void detalhe.atualizar()
     await focarErro()
   } finally {
     enviando.value = false
@@ -188,6 +197,10 @@ async function confirmar() {
           :parcelado="form.cobranca.parcelado.value"
           :acrescimo-habilitado="form.cobranca.acrescimoHabilitado.value"
           :resultado="form.cobranca.resultado.value"
+          :opcoes-forma="form.cobranca.formas.opcoes.value"
+          :carregando-formas="form.cobranca.formas.carregando.value"
+          :erro-formas="form.cobranca.formas.erro.value"
+          @recarregar-formas="form.cobranca.formas.recarregar"
         />
         <ProjetoCobrancaResumo
           :resultado="form.cobranca.resultado.value"

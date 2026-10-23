@@ -3,9 +3,9 @@ import { computed } from 'vue'
 import type { CamposCobrancaProjeto, ErrosCobrancaProjeto } from '../../composables/useCobrancaProjeto'
 import { isoParaDataBr } from '../../utils/formatadores'
 import { filtrarDecimal, normalizarDecimal } from '../../utils/orcamentos'
-import { ANO_MINIMO_DATA_PROJETO, opcoesFormaPagamento, type CobrancaCalculada } from '../../utils/projetos'
+import { ANO_MINIMO_DATA_PROJETO, type CobrancaCalculada } from '../../utils/projetos'
 import CampoData from '../ui/CampoData.vue'
-import CampoFormulario from '../ui/CampoFormulario.vue'
+import CampoFormulario, { type OpcaoCampo } from '../ui/CampoFormulario.vue'
 import ProjetoSeletorModalidade from './ProjetoSeletorModalidade.vue'
 
 const props = defineProps<{
@@ -14,9 +14,14 @@ const props = defineProps<{
   parcelado: boolean
   acrescimoHabilitado: boolean
   resultado: CobrancaCalculada
+  /** Formas aceitas na modalidade escolhida, vindas da API. */
+  opcoesForma: OpcaoCampo[]
+  carregandoFormas: boolean
+  /** Mensagem de falha ao carregar as formas de pagamento; null quando deu certo. */
+  erroFormas: string | null
 }>()
 
-const opcoesForma = computed(() => opcoesFormaPagamento(props.campos.modalidade))
+defineEmits<{ 'recarregar-formas': [] }>()
 
 const mascararPercentual = (valor: string) => filtrarDecimal(valor, 2, 3)
 const normalizarPercentual = (valor: string) => normalizarDecimal(valor, 2, 3)
@@ -43,7 +48,7 @@ const diaDoVencimento = computed(() => Number(props.resultado.parcelas[0]?.venci
 const notaMesCurto = computed(() => props.parcelado && seguintes.value.length > 0 && diaDoVencimento.value >= 29)
 
 const avisoAcrescimo = computed(() =>
-  props.acrescimoHabilitado ? undefined : 'Disponível com cartão de crédito, cartão de débito ou boleto.',
+  props.acrescimoHabilitado ? undefined : 'Disponível apenas em formas de pagamento que aceitam acréscimo.',
 )
 </script>
 
@@ -130,8 +135,23 @@ const avisoAcrescimo = computed(() =>
       obrigatorio
       placeholder="Selecione..."
       :opcoes="opcoesForma"
+      :desabilitado="carregandoFormas"
       :erro="erros.forma"
     />
+    <p
+      v-if="erroFormas"
+      class="formas-erro"
+      role="alert"
+    >
+      {{ erroFormas }}
+      <button
+        type="button"
+        class="formas-tentar"
+        @click="$emit('recarregar-formas')"
+      >
+        Tentar novamente
+      </button>
+    </p>
   </div>
 </template>
 
@@ -192,6 +212,22 @@ const avisoAcrescimo = computed(() =>
   color: #333;
   font-size: 14px;
   font-weight: 600;
+}
+
+.formas-erro {
+  margin: -8px 0 0;
+  color: var(--fp-vermelho-escuro);
+  font-size: 13px;
+}
+
+.formas-tentar {
+  margin-left: 8px;
+  border: 0;
+  background: none;
+  color: var(--fp-verde);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 @media (max-width: 560px) {

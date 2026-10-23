@@ -6,7 +6,7 @@ import { servicosDaCategoria } from '../utils/projetos'
 
 /**
  * Opções dos formulários de etapa e extra: serviços ativos da categoria do projeto (a API devolve as
- * de todas as categorias) e, quando pedido, os materiais ativos (sem saldo de estoque).
+ * de todas as categorias) e, quando pedido, os materiais ativos com o estoque livre (`saldoDisponivel`).
  */
 export function useOpcoesProjeto(tipoDoProjeto: string, { materiais: comMateriais = false } = {}) {
   const servicos = shallowRef<OpcaoServico[]>([])

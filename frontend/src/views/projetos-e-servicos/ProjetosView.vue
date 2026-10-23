@@ -28,7 +28,7 @@ import { useToast } from '../../composables/useToast'
 import type { ProjetoDetalhe, ProjetoResumo, RegistroEditavel, RespostaProjeto, StatusFinalProjeto } from '../../types/projeto'
 import { formatarMoeda } from '../../utils/formatadores'
 import { formatarNumeroOrcamento } from '../../utils/orcamentos'
-import { resumoCancelamento } from '../../utils/projetos'
+import { avisosDoStatus } from '../../utils/projetos'
 
 type TipoModal = 'visualizar' | 'iniciar' | 'etapa' | 'extra' | 'status' | 'editar' | 'editarRegistro' | 'cancelarRegistro'
 interface Modal {
@@ -38,6 +38,8 @@ interface Modal {
   deVisualizar: boolean
   /** Etapa ou extra em edição ou cancelamento (`tipo: 'editarRegistro'` ou `'cancelarRegistro'`). */
   registro?: RegistroEditavel
+  /** Detalhe devolvido pela ação que reabriu os detalhes (evita um GET repetido). */
+  detalhe?: ProjetoDetalhe
 }
 
 const { temPermissao } = useAuth()
@@ -71,15 +73,23 @@ const colunas: ColunaTabela[] = [
   { chave: 'numero', rotulo: 'Nº', largura: '9%' },
   { chave: 'titulo', rotulo: 'Título / Tipo', largura: '27%' },
   { chave: 'cliente', rotulo: 'Cliente', largura: '22%' },
-  { chave: 'valor', rotulo: 'Valor Total', largura: '13%' },
+  { chave: 'valor', rotulo: 'Valor Total', largura: '13%', numerica: true },
   { chave: 'status', rotulo: 'Status', largura: '16%' },
   { chave: 'acoes', rotulo: 'Ações', largura: '120px' },
 ]
 
 const modal = shallowRef<Modal | null>(null)
+/** "Registros da obra" aberto nos detalhes: vive aqui porque o modal é recriado depois de cada ação. */
+const registrosAbertos = shallowRef(false)
 
 function abrir(tipoModal: TipoModal, projeto: ProjetoResumo, deVisualizar = false, registro?: RegistroEditavel) {
   modal.value = { tipo: tipoModal, projeto, deVisualizar, registro }
+}
+
+/** Abre os detalhes a partir da lista: a seção "Registros da obra" começa fechada. */
+function abrirDetalhes(projeto: ProjetoResumo) {
+  registrosAbertos.value = false
+  abrir('visualizar', projeto)
 }
 
 function fecharModal() {
@@ -93,30 +103,23 @@ function cancelarAcao() {
   else fecharModal()
 }
 
-/** Fecha a ação, mostra a mensagem (com os avisos do servidor, se houver) e recarrega a lista. */
-async function aoConcluirAcao(mensagem: string, avisos: string[] = []) {
-  fecharModal()
-  // Um único aviso, com os detalhes dentro, em vez de dois empilhados sobre a tabela.
-  mostrarToast(mensagem, avisos.length > 0 ? 'info' : 'sucesso', avisos.length > 0 ? 12000 : undefined, avisos)
-  await carregar()
-}
-
 function aoAlterarStatus(destino: StatusFinalProjeto, resposta: RespostaProjeto) {
-  const avisos = [resumoCancelamento(resposta.cancelamento), ...resposta.avisos].filter(Boolean)
-  void aoConcluirAcao(destino === 'CONCLUIDO' ? 'Projeto concluído com sucesso!' : 'Projeto cancelado.', avisos)
+  void aoConcluirAcao(destino === 'CONCLUIDO' ? 'Projeto concluído!' : 'Projeto cancelado!', resposta, avisosDoStatus(resposta))
 }
 
 /**
- * Editar projeto, etapa ou extra salvo (ou etapa/extra cancelado): atualiza a lista e, se partiu dos detalhes, volta a eles já com os dados novos
- * (o resumo da linha é refeito com a resposta, para o cabeçalho do detalhe não ficar velho).
+ * Ação gravada com sucesso (iniciar, etapa, extra, status, editar projeto/etapa/extra, cancelar etapa/extra): atualiza a
+ * lista e, se partiu dos detalhes, volta a eles já com os dados novos (o resumo da linha é refeito com a resposta, para o
+ * cabeçalho do detalhe não ficar velho). Com avisos do servidor, um único toast os traz dentro, em vez de dois empilhados.
  */
-async function aoEditar(mensagem: string, resposta: ProjetoDetalhe) {
+async function aoConcluirAcao(mensagem: string, resposta: ProjetoDetalhe, avisos: string[] = []) {
   const atual = modal.value
   if (atual?.deVisualizar) {
     const { etapas, extras } = resposta
     abrir('visualizar', { ...atual.projeto, ...resposta, _count: { etapas: etapas.length, extras: extras.length } })
+    if (modal.value) modal.value = { ...modal.value, detalhe: resposta }
   } else fecharModal()
-  mostrarToast(mensagem)
+  mostrarToast(mensagem, avisos.length > 0 ? 'info' : 'sucesso', avisos.length > 0 ? 12000 : undefined, avisos)
   await carregar()
 }
 
@@ -234,7 +237,7 @@ onMounted(carregar)
           <BotaoAcao
             tipo="visualizar"
             :alvo="rotuloProjeto(linha)"
-            @click="abrir('visualizar', linha)"
+            @click="abrirDetalhes(linha)"
           />
           <BotaoAcao
             v-if="podeGerenciar && linha.status === 'PLANEJADO'"
@@ -257,6 +260,9 @@ onMounted(carregar)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       :pode-gerenciar="podeGerenciar"
+      :detalhe-inicial="modal.detalhe"
+      :registros-abertos="registrosAbertos"
+      @registros-abertos="registrosAbertos = $event"
       @fechar="fecharModal"
       @iniciar="abrir('iniciar', modal.projeto, true)"
       @etapa="abrir('etapa', modal.projeto, true)"
@@ -271,7 +277,7 @@ onMounted(carregar)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @salvo="aoEditar('Salvo com sucesso!', $event)"
+      @salvo="aoConcluirAcao('Projeto atualizado!', $event)"
       @desatualizado="carregar"
     />
     <ProjetoModalEditarRegistro
@@ -280,7 +286,7 @@ onMounted(carregar)
       :projeto-id="modal.projeto.id"
       :registro="modal.registro"
       @fechar="cancelarAcao"
-      @salvo="aoEditar('Salvo com sucesso!', $event)"
+      @salvo="aoConcluirAcao(modal.registro.tipo === 'etapa' ? 'Etapa atualizada!' : 'Extra atualizado!', $event)"
       @desatualizado="carregar"
     />
     <ProjetoModalCancelarRegistro
@@ -289,7 +295,7 @@ onMounted(carregar)
       :projeto-id="modal.projeto.id"
       :registro="modal.registro"
       @fechar="cancelarAcao"
-      @cancelado="aoEditar(modal.registro.tipo === 'etapa' ? 'Etapa cancelada.' : 'Extra cancelado.', $event)"
+      @cancelado="aoConcluirAcao(modal.registro.tipo === 'etapa' ? 'Etapa cancelada!' : 'Extra cancelado!', $event)"
       @desatualizado="carregar"
     />
     <ProjetoModalIniciar
@@ -305,7 +311,7 @@ onMounted(carregar)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @registrado="aoConcluirAcao('Cobrança Realizada!')"
+      @registrado="aoConcluirAcao('Etapa registrada e cobrança gerada!', $event)"
       @desatualizado="carregar"
     />
     <ProjetoModalExtra
@@ -313,7 +319,7 @@ onMounted(carregar)
       :key="modal.projeto.id"
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
-      @registrado="aoConcluirAcao('Salvo com sucesso!')"
+      @registrado="aoConcluirAcao('Extra cadastrado!', $event)"
       @desatualizado="carregar"
     />
     <ProjetoModalStatus

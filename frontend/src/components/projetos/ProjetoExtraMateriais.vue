@@ -4,6 +4,7 @@ import type { ErrosLinhaExtra, LinhaExtraMaterial } from '../../composables/useF
 import type { OpcaoMaterial } from '../../types/orcamento'
 import { mascararMoeda } from '../../utils/formatadores'
 import { centavosParaMoeda, filtrarDecimal, normalizarDecimal, rotuloUnidade, textoParaEscala } from '../../utils/orcamentos'
+import { quantidadeComUnidade } from '../../utils/estoque'
 import { centavosDoCampoMoeda } from '../../utils/projetos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoAutocomplete from '../ui/CampoAutocomplete.vue'
@@ -32,7 +33,7 @@ function opcoesDaLinha(linha: LinhaExtraMaterial) {
   return props.opcoes.map((m) => ({
     valor: String(m.id),
     rotulo: m.nome,
-    detalhe: `${m.codigo} · ${rotuloUnidade(m.unidadeMedida)}`,
+    detalhe: `${m.codigo} · ${rotuloUnidade(m.unidadeMedida)}${m.saldoDisponivel === undefined ? '' : ` · Saldo: ${quantidadeComUnidade(m.saldoDisponivel, m.unidadeMedida)}`}`,
     desabilitado: emUso.has(String(m.id)),
     motivo: 'já adicionado',
   }))
@@ -41,6 +42,18 @@ function opcoesDaLinha(linha: LinhaExtraMaterial) {
 function unidadeDaLinha(linha: LinhaExtraMaterial): string {
   const material = materiais.value.get(linha.materialId)
   return material ? rotuloUnidade(material.unidadeMedida) : ''
+}
+
+/** Saldo livre do material escolhido e se a quantidade digitada passa dele (o servidor recusaria o registro). */
+function saldoDaLinha(linha: LinhaExtraMaterial): { texto: string; excedido: boolean } | null {
+  const material = materiais.value.get(linha.materialId)
+  if (!material || material.saldoDisponivel === undefined) return null
+  const quantidade = textoParaEscala(linha.quantidade, 3)
+  const saldoMilesimos = Math.round(material.saldoDisponivel * 1000)
+  return {
+    texto: `Saldo disponível em estoque: ${quantidadeComUnidade(material.saldoDisponivel, material.unidadeMedida)}`,
+    excedido: quantidade !== null && quantidade > saldoMilesimos,
+  }
 }
 
 function totalDaLinha(linha: LinhaExtraMaterial): string {
@@ -131,6 +144,17 @@ function editarCusto(linha: LinhaExtraMaterial, valor: string) {
           placeholder="—"
         />
       </div>
+      <p
+        v-if="saldoDaLinha(linha)"
+        class="linha-saldo"
+        :class="{ 'linha-saldo--excedido': saldoDaLinha(linha)?.excedido }"
+        :role="saldoDaLinha(linha)?.excedido ? 'alert' : undefined"
+      >
+        {{ saldoDaLinha(linha)?.texto }}.
+        <template v-if="saldoDaLinha(linha)?.excedido">
+          A quantidade informada passa do saldo: o registro será recusado. Reduza a quantidade ou registre a compra do material.
+        </template>
+      </p>
     </article>
 
     <div>
@@ -211,6 +235,17 @@ function editarCusto(linha: LinhaExtraMaterial, valor: string) {
 .linha-remover:focus-visible {
   outline: none;
   box-shadow: var(--fp-foco);
+}
+
+.linha-saldo {
+  margin: -4px 0 0;
+  color: #6a7282;
+  font-size: 12.5px;
+}
+
+.linha-saldo--excedido {
+  color: var(--fp-vermelho-escuro);
+  font-weight: 600;
 }
 
 .linha-grade {

@@ -2,6 +2,7 @@ import { computed, onScopeDispose, reactive, shallowRef, watch, type Ref } from 
 import { simularCobrancaDoProjeto } from '../services/projetos.service'
 import type { FormaPagamento } from '../types/cobranca'
 import type { CondicaoCobrancaPayload, ModalidadeCobrancaProjeto, SimularCobrancaPayload } from '../types/projeto'
+import { useFormasPagamentoProjeto } from './useFormasPagamentoProjeto'
 import { dataBrParaIso } from '../utils/formatadores'
 import { decimalApiParaCentavos } from '../utils/orcamentos'
 import {
@@ -9,6 +10,7 @@ import {
   type CobrancaCalculada,
   formaAceitaAcrescimo,
   formaValidaNaModalidade,
+  opcoesFormaPagamento,
   ANO_MINIMO_DATA_PROJETO,
   MAXIMO_PARCELAS,
   MINIMO_PARCELAS,
@@ -56,7 +58,10 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: Simulac
   const erros = reactive<ErrosCobrancaProjeto>({})
 
   const parcelado = computed(() => campos.modalidade === 'PARCELADO_AUTOMATICO')
-  const acrescimoHabilitado = computed(() => formaAceitaAcrescimo(campos.forma))
+  const formasApi = useFormasPagamentoProjeto()
+  const formaValida = (forma: string, modalidade: ModalidadeCobrancaProjeto) => formaValidaNaModalidade(formasApi.formas.value, forma, modalidade)
+  const opcoesForma = computed(() => opcoesFormaPagamento(formasApi.formas.value, campos.modalidade))
+  const acrescimoHabilitado = computed(() => formaAceitaAcrescimo(formasApi.formas.value, campos.modalidade, campos.forma))
 
   for (const chave of CHAVES) {
     watch(
@@ -68,22 +73,19 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: Simulac
     )
   }
 
-  // Trocar a modalidade limpa a forma que ela não aceita (débito só à vista; no parcelado só 3 formas).
+  // Trocar a modalidade limpa a forma que ela não aceita (a lista de formas por modalidade vem da API).
   watch(
     () => campos.modalidade,
     (modalidade) => {
-      if (campos.forma && !formaValidaNaModalidade(campos.forma, modalidade)) campos.forma = ''
+      if (campos.forma && !formaValida(campos.forma, modalidade)) campos.forma = ''
       if (modalidade === 'PARCELADO_AUTOMATICO' && campos.parcelas.trim() === '') campos.parcelas = PARCELAS_PADRAO
     },
   )
 
-  // Acréscimo só existe para crédito, débito e boleto: outra forma zera o campo (e o desabilita).
-  watch(
-    () => campos.forma,
-    () => {
-      if (!acrescimoHabilitado.value) campos.acrescimo = ''
-    },
-  )
+  // Forma que não aceita acréscimo (segundo a API) zera o campo e o desabilita.
+  watch(acrescimoHabilitado, (habilitado) => {
+    if (!habilitado) campos.acrescimo = ''
+  })
 
   const parcelasNumero = computed(() => {
     if (!/^\d+$/.test(campos.parcelas.trim())) return null
@@ -113,7 +115,7 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: Simulac
 
   /** Condição completa e válida o bastante para o servidor simular; null enquanto faltar algo. */
   const payloadSimulacao = computed<SimularCobrancaPayload | null>(() => {
-    if (!servidor || baseCentavos.value <= 0 || campos.forma === '' || !formaValidaNaModalidade(campos.forma, campos.modalidade)) return null
+    if (!servidor || baseCentavos.value <= 0 || campos.forma === '' || !formaValida(campos.forma, campos.modalidade)) return null
     if (vencimentoIso.value === '' || descontoNumero.value === null || acrescimoNumero.value === null) return null
     if (parcelado.value && (parcelasNumero.value === null || parcelasNumero.value < MINIMO_PARCELAS || parcelasNumero.value > MAXIMO_PARCELAS)) {
       return null
@@ -211,11 +213,12 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: Simulac
     if (descontoNumero.value === null) erros.desconto = 'Use um percentual entre 0 e 99,99.'
     if (acrescimoNumero.value === null) erros.acrescimo = 'Use um percentual entre 0 e 99,99.'
     else if (acrescimoNumero.value > 0 && !acrescimoHabilitado.value) {
-      erros.acrescimo = 'Acréscimo só vale para cartão de crédito, cartão de débito ou boleto.'
+      erros.acrescimo = 'Esta forma de pagamento não aceita acréscimo.'
     }
 
-    if (campos.forma === '') erros.forma = 'Selecione a forma de pagamento.'
-    else if (!formaValidaNaModalidade(campos.forma, campos.modalidade)) {
+    if (formasApi.erro.value) erros.forma = 'Não foi possível carregar as formas de pagamento. Tente novamente.'
+    else if (campos.forma === '') erros.forma = 'Selecione a forma de pagamento.'
+    else if (!formaValida(campos.forma, campos.modalidade)) {
       erros.forma = 'Esta forma de pagamento não está disponível para a modalidade escolhida.'
     }
 
@@ -252,5 +255,7 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: Simulac
     }
   }
 
-  return { campos, erros, parcelado, acrescimoHabilitado, resultado, parcelasValidas, alterado, validar, paraPayload }
+  const formas = { opcoes: opcoesForma, carregando: formasApi.carregando, erro: formasApi.erro, recarregar: formasApi.carregar }
+
+  return { campos, erros, parcelado, acrescimoHabilitado, formas, resultado, parcelasValidas, alterado, validar, paraPayload }
 }

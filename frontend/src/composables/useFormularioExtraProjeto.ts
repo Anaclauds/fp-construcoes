@@ -342,7 +342,7 @@ export function useFormularioExtraProjeto(materiaisOpcoes: Ref<OpcaoMaterial[]>,
   function tratarErroApi(erro: unknown) {
     const { mensagem, codigo, status, materiais: semSaldo } = extrairErro(erro)
     materiaisSemSaldo.value = semSaldo
-    erroGeral.value = mensagemProjeto(mensagem)
+    erroGeral.value = mensagemProjeto(mensagem, codigo)
     erroEstoque.value = ehEstoqueInsuficiente(codigo)
     // Projeto que já não está em execução ou foi removido: a lista está desatualizada.
     if (codigo === 'PROJETO_STATUS_INVALIDO' || status === 404) desatualizado.value = true

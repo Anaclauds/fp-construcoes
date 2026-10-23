@@ -81,8 +81,8 @@ async function confirmar() {
       : await cancelarExtra(props.projetoId, props.registro.id, motivoFinal)
     emit('cancelado', projeto)
   } catch (e) {
-    const { mensagem, status } = extrairErro(e)
-    erroGeral.value = mensagemProjeto(mensagem)
+    const { mensagem, status, codigo } = extrairErro(e)
+    erroGeral.value = mensagemProjeto(mensagem, codigo)
     // Conflito ou registro sumido: a tela está velha. Mostra o motivo, recarrega os detalhes e não reenvia.
     if (status === 409 || status === 404) {
       recusado.value = true

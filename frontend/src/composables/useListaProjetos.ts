@@ -1,5 +1,4 @@
 import { computed, shallowRef, watch } from 'vue'
-import { useRoute, useRouter, type LocationQuery, type LocationQueryValue } from 'vue-router'
 import { extrairMensagemErro } from '../services/api'
 import { listarProjetos } from '../services/projetos.service'
 import type { TipoOrcamento } from '../types/orcamento'
@@ -7,6 +6,7 @@ import type { FiltrosProjetos, IndicadoresProjetos, ProjetoResumo, StatusProjeto
 import { termoDeBusca } from '../utils/formatadores'
 import { STATUS_PROJETO } from '../utils/projetos'
 import { useDebounce } from './useDebounce'
+import { useFiltrosNaUrl } from './useFiltrosNaUrl'
 
 // O Figma mostra 4 linhas por página ("Mostrando 4 de 8 registros"): cabem na altura de 856px com as linhas de 76px.
 const POR_PAGINA = 4
@@ -17,69 +17,24 @@ export type FiltroTipoProjeto = 'TODOS' | TipoOrcamento
 
 const TIPOS: TipoOrcamento[] = ['CONSTRUCAO_CIVIL', 'SERRALHERIA', 'CALHAS']
 
-const primeiro = (valor: LocationQueryValue | LocationQueryValue[] | undefined) =>
-  (Array.isArray(valor) ? valor[0] : valor) ?? ''
-
-interface EstadoLista {
-  busca: string
-  status: FiltroStatusProjeto
-  tipo: FiltroTipoProjeto
-  pagina: number
-}
-
-/** Estado da lista a partir da query; parâmetros inválidos ou ausentes viram o padrão. */
-function lerQuery(query: LocationQuery): EstadoLista {
-  const statusDaUrl = primeiro(query.status) as StatusProjeto
-  const tipoDaUrl = primeiro(query.tipo) as TipoOrcamento
-  const paginaDaUrl = Number(primeiro(query.pagina))
-  return {
-    busca: primeiro(query.busca).trim(),
-    status: STATUS_PROJETO.includes(statusDaUrl) ? statusDaUrl : 'TODOS',
-    tipo: TIPOS.includes(tipoDaUrl) ? tipoDaUrl : 'TODOS',
-    pagina: Number.isInteger(paginaDaUrl) && paginaDaUrl > 1 ? paginaDaUrl : 1,
-  }
-}
-
-/** Query canônica do estado: só o que difere do padrão. */
-function paraQuery(estado: EstadoLista): Record<string, string> {
-  const novos: Record<string, string> = {}
-  if (estado.busca.trim()) novos.busca = estado.busca.trim()
-  if (estado.status !== 'TODOS') novos.status = estado.status
-  if (estado.tipo !== 'TODOS') novos.tipo = estado.tipo
-  if (estado.pagina > 1) novos.pagina = String(estado.pagina)
-  return novos
-}
-
-function querysIguais(a: LocationQuery, b: Record<string, string>): boolean {
-  const chaves = Object.keys(a)
-  return chaves.length === Object.keys(b).length && chaves.every((chave) => a[chave] === b[chave])
-}
-
 /**
  * Lista de projetos: busca (debounce), filtros de status e tipo e paginação feita pelo servidor.
  * Busca, status, tipo e página ficam na query string (`?busca=&status=&tipo=&pagina=`): recarregar a página
  * ou voltar de outra tela reabre a lista como estava.
  *
- * Os cartões usam os indicadores filtrados da API (`indicadores`/`indicadoresFiltrados`): respeitam busca e tipo,
- * mas não o filtro de status (para os cartões continuarem somando todos os status do recorte). Sem busca nem tipo
- * eles coincidem com `indicadoresGlobais`, que a lista também guarda para quem precisar do total geral.
+ * Os cartões usam os indicadores filtrados da API (`indicadoresFiltrados`): respeitam busca e tipo, mas não o filtro
+ * de status (para os cartões continuarem somando todos os status do recorte).
  */
 export function useListaProjetos() {
-  const route = useRoute()
-  const router = useRouter()
-
-  const inicial = lerQuery(route.query)
-
-  const busca = shallowRef(inicial.busca)
-  const status = shallowRef<FiltroStatusProjeto>(inicial.status)
-  const tipo = shallowRef<FiltroTipoProjeto>(inicial.tipo)
+  const busca = shallowRef('')
+  const status = shallowRef<FiltroStatusProjeto>('TODOS')
+  const tipo = shallowRef<FiltroTipoProjeto>('TODOS')
   const buscaAplicada = useDebounce(busca, ATRASO_BUSCA_MS)
-  const pagina = shallowRef(inicial.pagina)
+  const pagina = shallowRef(1)
 
   const projetos = shallowRef<ProjetoResumo[]>([])
   const total = shallowRef(0)
   const indicadores = shallowRef<IndicadoresProjetos | null>(null)
-  const indicadoresGlobais = shallowRef<IndicadoresProjetos | null>(null)
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
 
@@ -108,7 +63,6 @@ export function useListaProjetos() {
       projetos.value = resposta.data
       total.value = resposta.meta.total
       indicadores.value = resposta.indicadoresFiltrados
-      indicadoresGlobais.value = resposta.indicadoresGlobais
       // A página deixou de existir (ex.: filtrou e sobrou menos): volta para a última.
       if (resposta.data.length === 0 && pagina.value > 1) {
         pagina.value = Math.max(1, resposta.meta.totalPages)
@@ -118,7 +72,6 @@ export function useListaProjetos() {
         projetos.value = []
         total.value = 0
         indicadores.value = null
-        indicadoresGlobais.value = null
         erro.value = extrairMensagemErro(e)
       }
     } finally {
@@ -126,41 +79,39 @@ export function useListaProjetos() {
     }
   }
 
-  function estadoAtual(): EstadoLista {
-    return { busca: buscaAplicada.value, status: status.value, tipo: tipo.value, pagina: pagina.value }
-  }
-
-  function sincronizarUrl() {
-    // Já navegou para outra tela (o componente ainda não desmontou): não mexe na URL dela.
-    if (route.name !== 'projetos') return
-    const novos = paraQuery(estadoAtual())
-    if (!querysIguais(route.query, novos)) void router.replace({ name: 'projetos', query: novos })
-  }
-
-  /**
-   * A URL mudou por fora (ex.: clicar "Projeto" no menu, que abre `/projetos` sem filtros, ou um link com
-   * query): a lista passa a refletir a URL. Parâmetros inválidos são normalizados na própria URL.
-   */
-  function aplicarQuery(query: LocationQuery) {
-    if (route.name !== 'projetos') return
-    const alvo = lerQuery(query)
-    const atual = estadoAtual()
-    if (alvo.busca !== atual.busca.trim()) {
-      busca.value = alvo.busca
-      buscaAplicada.value = alvo.busca // na hora: senão a URL voltaria a receber a busca antiga
-    }
-    if (alvo.status !== atual.status) status.value = alvo.status
-    if (alvo.tipo !== atual.tipo) tipo.value = alvo.tipo
-    if (alvo.pagina !== atual.pagina) pagina.value = alvo.pagina
-
-    const canonica = paraQuery(alvo)
-    if (!querysIguais(query, canonica)) void router.replace({ name: 'projetos', query: canonica })
-  }
+  // Busca, status, tipo e página ficam na URL: recarregar ou voltar de outra tela reabre a lista como estava. Clicar em
+  // "Projeto" no menu (`/projetos` sem filtros) zera os filtros. Antes dos `watch` abaixo, para a leitura inicial não consultar duas vezes.
+  useFiltrosNaUrl(
+    'projetos',
+    [
+      {
+        param: 'busca',
+        ler: () => buscaAplicada.value.trim(),
+        definir: (valor) => {
+          busca.value = valor
+          buscaAplicada.value = valor // na hora: senão a URL voltaria a receber a busca antiga
+        },
+        padrao: '',
+      },
+      {
+        param: 'status',
+        ler: () => status.value,
+        definir: (valor) => (status.value = valor as FiltroStatusProjeto),
+        padrao: 'TODOS',
+        valido: (valor) => STATUS_PROJETO.includes(valor as StatusProjeto),
+      },
+      {
+        param: 'tipo',
+        ler: () => tipo.value,
+        definir: (valor) => (tipo.value = valor as FiltroTipoProjeto),
+        padrao: 'TODOS',
+        valido: (valor) => TIPOS.includes(valor as TipoOrcamento),
+      },
+    ],
+    pagina,
+  )
 
   // Trocar status/tipo/busca devolve a página 1, e o watch de pagina recarrega.
-  watch(() => route.query, aplicarQuery)
-  aplicarQuery(route.query)
-
   watch(pagina, () => void carregar())
 
   // Mudou o critério: volta para a primeira página (o watch acima recarrega) ou recarrega direto.
@@ -168,8 +119,6 @@ export function useListaProjetos() {
     if (pagina.value !== 1) pagina.value = 1
     else void carregar()
   })
-
-  watch([buscaAplicada, status, tipo, pagina], sincronizarUrl)
 
   return {
     busca,
@@ -180,7 +129,6 @@ export function useListaProjetos() {
     projetos,
     total,
     indicadores,
-    indicadoresGlobais,
     carregando,
     erro,
     carregar,

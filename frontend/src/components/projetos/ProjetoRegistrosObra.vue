@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { EtapaRegistrada, ExtraRegistrado, RegistroEditavel } from '../../types/projeto'
+import type { CobrancaProjeto, EtapaRegistrada, ExtraRegistrado, RegistroEditavel } from '../../types/projeto'
 import { formatarMoeda, instanteParaDataBrNegocio, isoParaDataBr } from '../../utils/formatadores'
 import { decimalApiParaTexto, rotuloUnidade } from '../../utils/orcamentos'
 
 const props = defineProps<{
   etapas: EtapaRegistrada[]
   extras: ExtraRegistrado[]
+  /** Todas as cobranças do projeto (com recebimentos): o back recusa cancelar extra em projeto com qualquer recebimento. */
+  cobrancas: CobrancaProjeto[]
   /** Mostra "Editar" e "Cancelar" nos registros ativos (gerenciar projetos e projeto em execução). */
   editavel?: boolean
+  /** Seção expandida (controlada pelo pai para sobreviver à recarga do detalhe). */
+  aberto?: boolean
 }>()
 
 const emit = defineEmits<{
   editar: [registro: RegistroEditavel]
   cancelar: [registro: RegistroEditavel]
+  alternar: [aberto: boolean]
 }>()
 
 interface Registro {
@@ -28,7 +33,17 @@ interface Registro {
   detalhes: { rotulo: string; texto: string }[]
   /** Valores em destaque (cobrado, custo interno). */
   valores: { rotulo: string; valor: string }[]
+  /** Motivo de a edição não ser oferecida (o back recusaria); null quando pode editar. */
+  bloqueioEditar: string | null
+  /** Motivo de o cancelamento não ser oferecido; null quando pode cancelar. */
+  bloqueioCancelar: string | null
 }
+
+const temRecebimento = (cobranca: CobrancaProjeto | null | undefined) =>
+  !!cobranca && cobranca.parcelas.some((parcela) => parcela.recebimentos.length > 0)
+
+/** Qualquer recebimento no projeto: o cancelamento simples de extra é recusado (PROJETOS_CANCELARREGISTRO_CONFLICT_04). */
+const projetoTemRecebimento = computed(() => props.cobrancas.some(temRecebimento))
 
 const quantidade = (valor: string, unidade: string) => `${decimalApiParaTexto(valor)} ${rotuloUnidade(unidade)}`.trim()
 
@@ -51,6 +66,10 @@ const registros = computed<Registro[]>(() => {
         texto: etapa.materiaisCliente.map((m) => `${m.nome} (${quantidade(m.quantidade, m.unidadeMedida)})`).join('; '),
       })
     }
+    // Etapa com recebimento na cobrança dela não pode ser editada nem cancelada (CONFLICT_02 do back).
+    const bloqueioEtapa = temRecebimento(etapa.cobranca)
+      ? 'A cobrança desta etapa já tem recebimento: não é possível editar nem cancelar a etapa.'
+      : null
     return {
       chave: `etapa-${etapa.id}`,
       editavel: { tipo: 'etapa', id: etapa.id, texto: etapa.descricao, data: etapa.dataRegistro.slice(0, 10), dataTravada: false },
@@ -63,6 +82,8 @@ const registros = computed<Registro[]>(() => {
         { rotulo: 'Valor medido', valor: formatarMoeda(etapa.valorCobrado) },
         { rotulo: 'Custo interno estimado', valor: formatarMoeda(etapa.custoInternoEstimado) },
       ],
+      bloqueioEditar: bloqueioEtapa,
+      bloqueioCancelar: bloqueioEtapa,
     }
   })
 
@@ -102,6 +123,12 @@ const registros = computed<Registro[]>(() => {
       descricao: extra.descricaoJustificativa,
       detalhes,
       valores: [{ rotulo: 'Custo interno estimado', valor: formatarMoeda(extra.custoInternoEstimado) }],
+      // Editar extra não depende de recebimento. Material do extra já consumido (CONFLICT_05) o detalhe não informa:
+      // nesse caso o botão aparece e a recusa do servidor é mostrada no modal.
+      bloqueioEditar: null,
+      bloqueioCancelar: projetoTemRecebimento.value
+        ? 'O projeto já tem recebimento registrado: o extra não pode ser cancelado por aqui.'
+        : null,
     }
   })
 
@@ -113,6 +140,8 @@ const registros = computed<Registro[]>(() => {
   <details
     v-if="registros.length > 0"
     class="registros"
+    :open="aberto"
+    @toggle="emit('alternar', ($event.target as HTMLDetailsElement).open)"
   >
     <summary class="registros-titulo">
       Registros da obra ({{ registros.length }})
@@ -139,6 +168,8 @@ const registros = computed<Registro[]>(() => {
               <button
                 type="button"
                 class="registro-editar"
+                :disabled="!!registro.bloqueioEditar"
+                :title="registro.bloqueioEditar ?? undefined"
                 :aria-label="`Editar ${registro.tipo.toLowerCase()} de ${isoParaDataBr(registro.data)}`"
                 @click="emit('editar', registro.editavel)"
               >
@@ -147,6 +178,8 @@ const registros = computed<Registro[]>(() => {
               <button
                 type="button"
                 class="registro-editar registro-editar--perigo"
+                :disabled="!!registro.bloqueioCancelar"
+                :title="registro.bloqueioCancelar ?? undefined"
                 :aria-label="`Cancelar ${registro.tipo.toLowerCase()} de ${isoParaDataBr(registro.data)}`"
                 @click="emit('cancelar', registro.editavel)"
               >
@@ -155,6 +188,12 @@ const registros = computed<Registro[]>(() => {
             </template>
           </span>
         </div>
+        <p
+          v-if="editavel && !registro.canceladoEm && (registro.bloqueioEditar || registro.bloqueioCancelar)"
+          class="registro-bloqueio"
+        >
+          {{ registro.bloqueioEditar ?? registro.bloqueioCancelar }}
+        </p>
         <p class="registro-descricao">
           {{ registro.descricao }}
         </p>
@@ -258,6 +297,19 @@ const registros = computed<Registro[]>(() => {
   outline: none;
   box-shadow: var(--fp-foco);
   border-radius: 4px;
+}
+
+.registro-editar:disabled {
+  color: var(--fp-cinza-rotulo);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.registro-bloqueio {
+  margin: 6px 0 0;
+  color: #6a7282;
+  font-size: 12px;
+  font-style: italic;
 }
 
 .registro-editar--perigo {

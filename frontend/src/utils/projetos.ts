@@ -1,9 +1,9 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
-import type { FormaPagamento } from '../types/cobranca'
 import type { OpcaoServico } from '../types/orcamento'
 import type {
   CancelamentoProjeto,
   EtapaRegistrada,
+  FormasPagamentoDaModalidade,
   ModalidadeCobrancaProjeto,
   ProjetoBase,
   StatusProjeto,
@@ -25,11 +25,6 @@ export const ROTULO_STATUS_PROJETO: Record<StatusProjeto, string> = {
 
 /** Chips do filtro de status (ordem do Figma: Todos, Em Execução, Planejado, Concluído, Cancelado). */
 export const STATUS_PROJETO: StatusProjeto[] = ['PLANEJADO', 'EM_EXECUCAO', 'CONCLUIDO', 'CANCELADO']
-
-/** O projeto aceita registrar etapa/extra e mudar de status só quando está em execução. */
-export function projetoEmExecucao(status: StatusProjeto): boolean {
-  return status === 'EM_EXECUCAO'
-}
 
 /** Endereço da obra numa linha: "Rua X, 100, Apto 2 - Bairro - Cidade/UF (CEP 00000-000)". */
 export function enderecoDaObra(
@@ -81,36 +76,33 @@ export function equivalenteEmMeses(dias: number): string {
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Formas de pagamento da cobrança (textos e ordem do Figma, por modalidade)
+   Formas de pagamento da cobrança: modalidades, formas permitidas e acréscimo vêm da API
+   (ver `useFormasPagamentoProjeto`); aqui só a leitura da lista.
 ------------------------------------------------------------------------------------------------ */
 
-const FORMAS_A_VISTA: FormaPagamento[] = [
-  'PIX',
-  'BOLETO',
-  'TRANSFERENCIA',
-  'CHEQUE',
-  'CARTAO_DEBITO',
-  'CARTAO_CREDITO',
-  'DINHEIRO',
-]
-
-/** Parcelado automático não aceita cartão de débito, nem as formas sem parcelamento. */
-const FORMAS_PARCELADO: FormaPagamento[] = ['BOLETO', 'CARTAO_CREDITO', 'TRANSFERENCIA']
-
-export function opcoesFormaPagamento(modalidade: ModalidadeCobrancaProjeto): OpcaoCampo[] {
-  const formas = modalidade === 'A_VISTA' ? FORMAS_A_VISTA : FORMAS_PARCELADO
-  return formas.map((valor) => ({ valor, rotulo: ROTULO_FORMA_PAGAMENTO[valor] }))
+/** A API chama o parcelado de `PARCELADO`; o payload de cobrança usa `PARCELADO_AUTOMATICO`. */
+function chaveDaModalidade(modalidade: ModalidadeCobrancaProjeto): FormasPagamentoDaModalidade['modalidade'] {
+  return modalidade === 'A_VISTA' ? 'A_VISTA' : 'PARCELADO'
 }
 
-const FORMAS_COM_ACRESCIMO: FormaPagamento[] = ['CARTAO_CREDITO', 'CARTAO_DEBITO', 'BOLETO']
-
-/** Acréscimo só vale para cartão de crédito, cartão de débito e boleto (regra do backend). */
-export function formaAceitaAcrescimo(forma: string): boolean {
-  return FORMAS_COM_ACRESCIMO.includes(forma as FormaPagamento)
+function formasDaModalidade(
+  lista: FormasPagamentoDaModalidade[],
+  modalidade: ModalidadeCobrancaProjeto,
+): FormasPagamentoDaModalidade['formas'] {
+  const chave = chaveDaModalidade(modalidade)
+  return lista.find((item) => item.modalidade === chave)?.formas ?? []
 }
 
-export function formaValidaNaModalidade(forma: string, modalidade: ModalidadeCobrancaProjeto): boolean {
-  return (modalidade === 'A_VISTA' ? FORMAS_A_VISTA : FORMAS_PARCELADO).includes(forma as FormaPagamento)
+export function opcoesFormaPagamento(lista: FormasPagamentoDaModalidade[], modalidade: ModalidadeCobrancaProjeto): OpcaoCampo[] {
+  return formasDaModalidade(lista, modalidade).map(({ valor, rotulo }) => ({ valor, rotulo: ROTULO_FORMA_PAGAMENTO[valor] ?? rotulo }))
+}
+
+export function formaAceitaAcrescimo(lista: FormasPagamentoDaModalidade[], modalidade: ModalidadeCobrancaProjeto, forma: string): boolean {
+  return formasDaModalidade(lista, modalidade).some((item) => item.valor === forma && item.aceitaAcrescimo)
+}
+
+export function formaValidaNaModalidade(lista: FormasPagamentoDaModalidade[], forma: string, modalidade: ModalidadeCobrancaProjeto): boolean {
+  return formasDaModalidade(lista, modalidade).some((item) => item.valor === forma)
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -246,12 +238,6 @@ export function servicosDaCategoria(servicos: OpcaoServico[], tipo: string): Opc
   return servicos.filter((servico) => servico.categoria === tipo)
 }
 
-/** Unidade de medida cadastrada para exibir ao lado da quantidade ("5", "m²"). */
-export function quantidadeComUnidade(quantidade: string, unidade: string): string {
-  const numero = decimalApiParaTexto(quantidade)
-  return unidade ? `${numero} ${unidade}` : numero
-}
-
 /* ------------------------------------------------------------------------------------------------
    Mensagens da API (com ou sem acento) -> texto para o usuário
 ------------------------------------------------------------------------------------------------ */
@@ -278,6 +264,8 @@ const TRADUCOES: [RegExp, string][] = [
   [/nao repita o mesmo servico/i, 'Não repita o mesmo serviço.'],
   [/nao repita o mesmo material/i, 'Não repita o mesmo material.'],
   [/ao menos um material ou servico extra/i, 'Adicione ao menos um material, serviço ou gasto avulso ao extra.'],
+  [/cobrancas com recebimentos foram mantidas/i, 'Cobranças com recebimento foram mantidas. Confira o saldo em Cobranças.'],
+  [/projeto foi concluido com cobrancas em aberto/i, 'O projeto foi concluído com cobranças em aberto. As cobranças não foram alteradas.'],
   [/projeto concluido ou cancelado nao pode ser editado/i, 'Só é possível editar projetos planejados ou em execução. A lista foi atualizada.'],
   [/responsavel deve ser um funcionario ativo/i, 'O responsável escolhido está inativo. Escolha outro funcionário.'],
   [/responsavel nao pode ser removido/i, 'O responsável não pode ser removido.'],
@@ -292,14 +280,20 @@ const TRADUCOES: [RegExp, string][] = [
   [/(etapa ja cancelada|extra ja cancelado)/i, 'Este registro já foi cancelado. Os detalhes foram atualizados.'],
   [/reserva foi alterada/i, 'A reserva de estoque mudou durante o cancelamento. Os detalhes foram atualizados: confira e tente de novo.'],
   [/(etapa nao encontrada|extra nao encontrado)/i, 'Registro não encontrado neste projeto. Os detalhes foram atualizados.'],
-  [/nao ha caixa aberto|abra o caixa da competencia/i, 'Não há caixa aberto para o mês de hoje. Abra o caixa (em Caixa) antes de registrar um extra com custo.'],
-  [/caixa da competencia.*fechado/i, 'O caixa do mês deste registro está fechado e o serviço adicional com custo precisa lançar a saída nele. Remova os serviços com custo ou registre o extra quando houver um caixa aberto.'],
+  // Sem código legível no back (só os gerados UTILS_CAIXAPARALANCAMENTO_BADREQUEST_03/04, instáveis): último recurso, pelo texto.
+  [/nao ha caixa aberto|abra o caixa da competencia/i, 'Não há caixa aberto para o mês de hoje. Abra o caixa (em Caixa) antes de registrar um extra com serviços ou gastos avulsos com custo.'],
 ]
+
+/** Caixa do mês fechado (`codigo` CAIXA_FECHADO): extra com serviços ou gastos avulsos com custo lança a saída no caixa. */
+const MENSAGEM_CAIXA_FECHADO =
+  'O caixa do mês deste registro está fechado e o extra com serviços ou gastos avulsos com custo precisa lançar a saída nele. Remova esses custos ou registre o extra quando houver um caixa aberto.'
 
 /** Sobra do formato "Estoque insuficiente para X. Disponivel: 1.000" (saída de estoque). */
 const ESTOQUE_INSUFICIENTE = /estoque insuficiente para (.+?)\. disponivel: ([\d.,-]+)/i
 
-export function mensagemProjeto(mensagem: string): string {
+/** Mensagem da API em texto para o usuário. Sempre que houver, o `codigo` legível decide antes do texto. */
+export function mensagemProjeto(mensagem: string, codigo = ''): string {
+  if (codigo === 'CAIXA_FECHADO') return MENSAGEM_CAIXA_FECHADO
   const normalizada = semAcento(mensagem)
   const estoque = ESTOQUE_INSUFICIENTE.exec(normalizada)
   if (estoque) {
@@ -333,4 +327,16 @@ export function resumoCancelamento(cancelamento: CancelamentoProjeto | null | un
     partes.push(`${plural(cancelamento.reservasLiberadas, 'reserva de estoque liberada', 'reservas de estoque liberadas')}`)
   }
   return partes.length > 0 ? `${partes.join('; ')}.` : ''
+}
+
+/**
+ * Avisos exibidos depois de concluir ou cancelar: o resumo do cancelamento e os avisos do servidor traduzidos.
+ * O aviso de "cobranças mantidas" é omitido quando o resumo já o diz.
+ */
+export function avisosDoStatus(resposta: { cancelamento: CancelamentoProjeto | null; avisos: string[] }): string[] {
+  const resumo = resumoCancelamento(resposta.cancelamento)
+  const avisos = resposta.avisos.filter(
+    (aviso) => !(resumo !== '' && (resposta.cancelamento?.cobrancasMantidas.length ?? 0) > 0 && /cobrancas com recebimentos foram mantidas/i.test(semAcento(aviso))),
+  )
+  return [resumo, ...avisos.map((aviso) => mensagemProjeto(aviso))].filter(Boolean)
 }
