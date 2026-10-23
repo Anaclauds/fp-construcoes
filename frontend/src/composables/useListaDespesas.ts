@@ -1,17 +1,18 @@
 import { computed, shallowRef, watch } from 'vue'
 import { extrairMensagemErro } from '../services/api'
 import { listarDespesas } from '../services/despesas.service'
-import type { CategoriaDespesa, Despesa, FiltrosDespesas, IndicadoresDespesas, TipoDespesa } from '../types/despesa'
+import type { Despesa, FiltrosDespesas, IndicadoresDespesas, TipoDespesa } from '../types/despesa'
 import { dataBrParaIso, termoDeBusca } from '../utils/formatadores'
 import { dataBrValida } from '../utils/validacao'
-import { ANO_MINIMO_DESPESA, CATEGORIAS_DIVERSA, mensagemDespesa } from '../utils/despesas'
+import { ANO_MINIMO_DESPESA, mensagemDespesa } from '../utils/despesas'
 import { useDebounce } from './useDebounce'
 import { useFiltrosNaUrl } from './useFiltrosNaUrl'
 
 const POR_PAGINA = 8
 const ATRASO_BUSCA_MS = 300
 
-export type FiltroCategoriaDespesa = 'TODAS' | CategoriaDespesa
+/** `TODAS` ou o nome de uma categoria do catálogo (também `SEM_CATEGORIA`, para despesas legadas). */
+export type FiltroCategoriaDespesa = string
 export type FiltroTipoDespesa = 'TODOS' | TipoDespesa
 
 /**
@@ -76,9 +77,10 @@ export function useListaDespesas() {
       {
         param: 'categoria',
         ler: () => categoria.value,
-        definir: (valor) => (categoria.value = valor as FiltroCategoriaDespesa),
+        definir: (valor) => (categoria.value = valor),
         padrao: 'TODAS',
-        valido: (valor) => (CATEGORIAS_DIVERSA as string[]).includes(valor) || valor === 'COMPRA_MATERIAL',
+        // As categorias vêm do catálogo (e podem ser cadastradas): a URL só precisa de um nome plausível.
+        valido: (valor) => valor.length <= 100,
       },
       {
         param: 'tipo',

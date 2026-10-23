@@ -1,17 +1,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Despesa } from '../../types/despesa'
-import { formatarMoeda, formatarCnpj, isoParaDataBr } from '../../utils/formatadores'
+import { formatarMoeda, formatarCnpj, formatarDataHoraIso, isoParaDataBr } from '../../utils/formatadores'
 import { formatarQuantidade } from '../../utils/estoque'
 import { rotuloUnidade } from '../../utils/materiais'
-import { nomeFornecedor, projetoDoExtra } from '../../utils/despesas'
+import {
+  caixaDaDespesaFechado,
+  despesaEstornada,
+  nomeFornecedor,
+  podeEstornarDespesa,
+  projetoDoExtra,
+} from '../../utils/despesas'
 import BotaoFp from '../ui/BotaoFp.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import SeloCategoriaDespesa from './SeloCategoriaDespesa.vue'
 
-const props = defineProps<{ despesa: Despesa }>()
+const props = defineProps<{
+  despesa: Despesa
+  /** Usuário com DESPESAS gerenciar: vê o botão de estorno. */
+  podeGerenciar: boolean
+}>()
 
-const emit = defineEmits<{ fechar: [] }>()
+const emit = defineEmits<{
+  fechar: []
+  estornar: [despesa: Despesa]
+}>()
+
+const estornada = computed(() => despesaEstornada(props.despesa))
+const mostrarEstorno = computed(() => props.podeGerenciar && podeEstornarDespesa(props.despesa))
+/** Caixa fechado: nem edição nem estorno enquanto o caixa do mês não for reaberto. */
+const caixaFechado = computed(() => !estornada.value && caixaDaDespesaFechado(props.despesa))
 
 const projetoExtra = computed(() => projetoDoExtra(props.despesa))
 const registradoPor = computed(
@@ -37,10 +55,26 @@ const competencia = computed(() => {
     </div>
 
     <p
-      v-if="projetoExtra !== null"
+      v-if="estornada && despesa.canceladoEm"
+      class="aviso aviso--estorno"
+      role="status"
+    >
+      Despesa estornada em {{ formatarDataHoraIso(despesa.canceladoEm) }}. Ela fica no histórico, sem edição, e o caixa
+      recebeu a compensação.
+    </p>
+    <p
+      v-else-if="projetoExtra !== null"
       class="aviso"
     >
-      Despesa gerada pelo extra do projeto {{ projetoExtra }}. Ela acompanha o projeto e não pode ser editada aqui.
+      Despesa gerada pelo extra do projeto {{ projetoExtra }}. O valor e a data acompanham o projeto (só a descrição
+      pode ser editada) e o estorno é feito cancelando o extra no projeto.
+    </p>
+    <p
+      v-if="caixaFechado"
+      class="aviso"
+    >
+      O caixa de {{ competencia }} está fechado: esta despesa não pode ser editada nem estornada até o caixa ser
+      reaberto.
     </p>
 
     <dl class="linhas">
@@ -117,7 +151,10 @@ const competencia = computed(() => {
     </section>
 
     <p class="nota">
-      <template v-if="despesa.tipo === 'COMPRA_MATERIAL'">
+      <template v-if="estornada">
+        O valor saiu do caixa de {{ competencia }} e voltou como estorno no mesmo mês.
+      </template>
+      <template v-else-if="despesa.tipo === 'COMPRA_MATERIAL'">
         Esta compra deu entrada no estoque dos materiais acima e saiu do caixa de {{ competencia }}.
       </template>
       <template v-else>
@@ -126,6 +163,13 @@ const competencia = computed(() => {
     </p>
 
     <template #rodape>
+      <BotaoFp
+        v-if="mostrarEstorno"
+        variante="perigo-suave"
+        @click="emit('estornar', despesa)"
+      >
+        Estornar Despesa
+      </BotaoFp>
       <BotaoFp
         variante="secundario"
         @click="emit('fechar')"
@@ -166,6 +210,12 @@ const competencia = computed(() => {
   background-color: #fffbeb;
   color: #b45309;
   font-size: 13px;
+}
+
+.aviso--estorno {
+  border-color: #fca5a5;
+  background-color: #fef2f2;
+  color: var(--fp-vermelho-escuro);
 }
 
 .linhas {

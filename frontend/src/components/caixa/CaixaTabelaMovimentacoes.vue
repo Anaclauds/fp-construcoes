@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import type { MovimentacaoCaixa } from '../../types/caixa'
-import { rotuloCategoriaCaixa } from '../../utils/caixa'
+import { contextoMovimentacao, rotuloCategoriaCaixa } from '../../utils/caixa'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 
 const props = defineProps<{
@@ -82,15 +82,19 @@ const textoVazio = computed(() =>
             </td>
             <td
               class="col-descricao"
-              :title="movimentacao.descricao"
+              :title="[movimentacao.descricao, contextoMovimentacao(movimentacao)].filter(Boolean).join(' · ')"
             >
               <span class="descricao">{{ movimentacao.descricao }}</span>
+              <span
+                v-if="contextoMovimentacao(movimentacao)"
+                class="contexto"
+              >{{ contextoMovimentacao(movimentacao) }}</span>
             </td>
             <td
               class="col-categoria"
-              :title="rotuloCategoriaCaixa(movimentacao.categoria)"
+              :title="rotuloCategoriaCaixa(movimentacao)"
             >
-              {{ rotuloCategoriaCaixa(movimentacao.categoria) }}
+              {{ rotuloCategoriaCaixa(movimentacao) }}
             </td>
             <td
               class="col-valor"
@@ -230,6 +234,16 @@ td.col-valor {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+}
+
+.contexto {
+  /* Projeto, cliente ou fornecedor do lançamento, em uma linha. */
+  display: block;
+  overflow: hidden;
+  color: var(--fp-cinza-rotulo);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lado-vazio {

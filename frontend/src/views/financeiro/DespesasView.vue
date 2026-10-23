@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
 import DespesaFiltros from '../../components/despesas/DespesaFiltros.vue'
+import DespesaModalEstornar from '../../components/despesas/DespesaModalEstornar.vue'
 import DespesaModalFormulario from '../../components/despesas/DespesaModalFormulario.vue'
 import DespesaModalVisualizar from '../../components/despesas/DespesaModalVisualizar.vue'
 import DespesaResumo from '../../components/despesas/DespesaResumo.vue'
@@ -9,11 +10,12 @@ import BotaoFp from '../../components/ui/BotaoFp.vue'
 import CabecalhoPagina from '../../components/ui/CabecalhoPagina.vue'
 import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
+import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
 import { useListaDespesas } from '../../composables/useListaDespesas'
 import { useToast } from '../../composables/useToast'
 import type { Despesa } from '../../types/despesa'
 
-type Modal = { tipo: 'visualizar' | 'editar'; despesa: Despesa } | { tipo: 'nova' } | null
+type Modal = { tipo: 'visualizar' | 'editar' | 'estornar'; despesa: Despesa } | { tipo: 'nova' } | null
 
 const { temPermissao } = useAuth()
 const { mostrarToast } = useToast()
@@ -21,6 +23,7 @@ const { mostrarToast } = useToast()
 const podeGerenciar = computed(() => temPermissao('DESPESAS', 'gerenciar'))
 
 const lista = useListaDespesas()
+const categorias = useCategoriasDespesa()
 
 const modal = shallowRef<Modal>(null)
 
@@ -36,7 +39,22 @@ async function aoSalvar(_despesa: Despesa, edicao: boolean) {
   else await lista.carregar()
 }
 
-onMounted(lista.carregar)
+/** Estorno confirmado pela API: fecha o modal e recarrega a lista (os totais e a despesa estornada mudam). */
+async function aoEstornar() {
+  fecharModal()
+  mostrarToast('Despesa estornada.')
+  await lista.carregar()
+}
+
+/** A API recusou por conflito: o modal mostra o motivo e a lista é atualizada por baixo, sem reenviar nada. */
+function aoConflito() {
+  void lista.carregar()
+}
+
+onMounted(() => {
+  void categorias.carregar()
+  void lista.carregar()
+})
 </script>
 
 <template>
@@ -100,7 +118,17 @@ onMounted(lista.carregar)
     <DespesaModalVisualizar
       v-if="modal?.tipo === 'visualizar'"
       :despesa="modal.despesa"
+      :pode-gerenciar="podeGerenciar"
       @fechar="fecharModal"
+      @estornar="(despesa) => (modal = { tipo: 'estornar', despesa })"
+    />
+    <DespesaModalEstornar
+      v-else-if="modal?.tipo === 'estornar'"
+      :key="modal.despesa.id"
+      :despesa="modal.despesa"
+      @fechar="fecharModal"
+      @estornada="aoEstornar"
+      @conflito="aoConflito"
     />
     <DespesaModalFormulario
       v-else-if="modal?.tipo === 'nova'"

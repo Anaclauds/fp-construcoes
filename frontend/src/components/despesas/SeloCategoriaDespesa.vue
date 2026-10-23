@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
 import type { CategoriaDespesa } from '../../types/despesa'
-import { rotuloCategoriaDespesa } from '../../utils/despesas'
 
-/** Selo da categoria (Figma: `CategoriaBadge`). Despesa sem categoria aparece em cinza. */
+/** Selo da categoria (Figma: `CategoriaBadge`). O texto vem do catálogo; categoria desconhecida ou ausente aparece em cinza. */
 const props = defineProps<{ categoria: CategoriaDespesa | null }>()
 
-const classe = computed(() => `selo-categoria--${(props.categoria ?? 'NENHUMA').toLowerCase().replace(/_/g, '-')}`)
+const { rotuloDe } = useCategoriasDespesa()
+
+const classe = computed(
+  () => `selo-categoria--${(props.categoria ?? 'nenhuma').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+)
 </script>
 
 <template>
@@ -18,7 +22,7 @@ const classe = computed(() => `selo-categoria--${(props.categoria ?? 'NENHUMA').
       class="selo-categoria-ponto"
       aria-hidden="true"
     />
-    {{ rotuloCategoriaDespesa(categoria) }}
+    {{ rotuloDe(categoria) }}
   </span>
 </template>
 
@@ -27,6 +31,11 @@ const classe = computed(() => `selo-categoria--${(props.categoria ?? 'NENHUMA').
   display: inline-flex;
   align-items: center;
   gap: 6px;
+
+  /* Categoria sem cor própria (ex.: cadastrada pelo usuário) usa o cinza. */
+  --sc-fundo: #f3f4f6;
+  --sc-borda: #d1d5db;
+  --sc-texto: #6b7280;
 
   max-width: 100%;
   padding: 3px 12px;
@@ -91,10 +100,21 @@ const classe = computed(() => `selo-categoria--${(props.categoria ?? 'NENHUMA').
   --sc-texto: #be185d;
 }
 
-.selo-categoria--outros,
-.selo-categoria--nenhuma {
-  --sc-fundo: #f3f4f6;
-  --sc-borda: #d1d5db;
-  --sc-texto: #6b7280;
+.selo-categoria--salario {
+  --sc-fundo: #e0f2fe;
+  --sc-borda: #7dd3fc;
+  --sc-texto: #0369a1;
+}
+
+.selo-categoria--frete {
+  --sc-fundo: #fef9c3;
+  --sc-borda: #fde047;
+  --sc-texto: #854d0e;
+}
+
+.selo-categoria--extra-projeto {
+  --sc-fundo: #ffe4e6;
+  --sc-borda: #fda4af;
+  --sc-texto: #be123c;
 }
 </style>

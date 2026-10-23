@@ -1,7 +1,6 @@
 import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
 import type {
-  CategoriaDespesa,
   Despesa,
   DespesaAtualizacao,
   DespesaPayload,
@@ -9,19 +8,19 @@ import type {
   TipoDespesa,
 } from '../types/despesa'
 import { hojeIso } from '../utils/datas'
+import { CATEGORIA_COMPRA_MATERIAL } from '../types/despesa'
 import {
   ANO_MINIMO_DESPESA,
-  CATEGORIAS_DIVERSA,
   LIMITE_DESCRICAO_DESPESA,
   LIMITE_UNIDADE_COMPRA,
   QUANTIDADE_MAXIMA_COMPRA,
   VALOR_MAXIMO_DESPESA,
   mensagemDeCaixaFechado,
   mensagemDespesa,
-  mensagemSaldoLimite,
+  projetoDoExtra,
   totalItemCompraCentavos,
 } from '../utils/despesas'
-import { QUANTIDADE_MAXIMA, quantidadeComUnidade } from '../utils/estoque'
+import { QUANTIDADE_MAXIMA, mensagemErroEstoque, quantidadeComUnidade, unidadeExigeInteiro } from '../utils/estoque'
 import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero, limparEspacos } from '../utils/formatadores'
 import { decimalApiParaTexto, textoParaEscala } from '../utils/orcamentos'
 import { dataBrValida } from '../utils/validacao'
@@ -39,6 +38,7 @@ export interface LinhaCompra {
 export interface CamposDespesa {
   tipo: TipoDespesa
   data: string
+  /** Nome da categoria no catálogo (o formulário mostra o rótulo e envia este nome). */
   categoria: string
   valor: string
   descricao: string
@@ -51,6 +51,10 @@ export interface ErrosLinhaCompra {
   quantidade?: string
   valorUnitario?: string
 }
+
+/** Códigos do backend cuja mensagem vem de `mensagemErroEstoque` (usa `detalhes`, ex.: o máximo de entrada). */
+// ESTOQUE_SALDO_ALTERADO fica fora: em despesas significa "o estoque não comporta reduzir esta compra" (mensagemDespesa).
+const CODIGOS_ESTOQUE = ['ESTOQUE_LIMITE_EXCEDIDO', 'QUANTIDADE_INTEIRA_OBRIGATORIA']
 
 /** Texto curto do campo; o detalhe ("Máximo para esta compra: ...") aparece na linha abaixo, que cabe a frase inteira. */
 export const ERRO_LIMITE_ESTOQUE = 'Acima do máximo da compra.'
@@ -105,9 +109,9 @@ function normalizar(c: CamposDespesa, linhas: LinhaCompra[]): Normalizado {
   return {
     data: dataBrValida(c.data, ANO_MINIMO_DESPESA) ? dataBrParaIso(c.data) : '',
     descricao: limparEspacos(c.descricao),
-    categoria: ehCompra ? 'COMPRA_MATERIAL' : c.categoria,
+    categoria: ehCompra ? CATEGORIA_COMPRA_MATERIAL : c.categoria,
     valorTotal: ehCompra ? null : moedaParaNumero(c.valor),
-    fornecedorId: ehCompra && c.fornecedorId !== '' ? Number(c.fornecedorId) : null,
+    fornecedorId: c.fornecedorId !== '' ? Number(c.fornecedorId) : null,
     materiais: ehCompra
       ? linhas
           .map((l) => ({
@@ -138,6 +142,7 @@ function mesmosItens(a: ItemNormalizado[], b: ItemNormalizado[]): boolean {
  * Estado, validação e conversão do formulário de despesa (cadastro e edição, tipo Diversa e Compra de Material).
  * Com `inicial`, preenche os campos e serve de base para enviar só o que mudou no PATCH.
  * `saldoAtual` (opcional) informa o saldo do estoque do material; com ele a quantidade é barrada antes de o estoque passar do limite.
+ * Despesa gerada por extra de projeto só tem a descrição editável: valor, data, categoria e fornecedor vêm do extra.
  */
 export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId: number) => number | null) {
   const camposIniciais = inicial ? camposDaDespesa(inicial) : null
@@ -155,6 +160,8 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
   const caixaFechado = shallowRef(false)
 
   const compra = computed(() => campos.tipo === 'COMPRA_MATERIAL')
+  /** Despesa de extra de projeto: só a descrição pode mudar. */
+  const somenteDescricao = inicial !== undefined && projetoDoExtra(inicial) !== null
   const base: Normalizado | null =
     camposIniciais && inicial ? normalizar(camposIniciais, linhasDaDespesa(inicial)) : null
 
@@ -239,6 +246,7 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
       const quantidade = textoParaEscala(linha.quantidade, 3)
       if (linha.quantidade.trim() === '' || quantidade === null) e.quantidade = 'Informe a quantidade.'
       else if (quantidade < 1) e.quantidade = 'Mínimo 0,001.'
+      else if (unidadeExigeInteiro(linha.unidade) && quantidade % 1000 !== 0) e.quantidade = 'Esta unidade exige quantidade inteira.'
       else if (quantidade / 1000 > QUANTIDADE_MAXIMA_COMPRA) e.quantidade = 'Quantidade acima do limite.'
       else if (maximoCompra(linha) !== null && quantidade > maximoCompra(linha)!) {
         e.quantidade = ERRO_LIMITE_ESTOQUE
@@ -270,11 +278,13 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
     const resultado: ErrosDespesa = {}
     let errosDasLinhas: Record<number, ErrosLinhaCompra> = {}
 
-    // Data real, a partir do ano mínimo e nunca futura (data futura criaria o caixa de um mês que ainda não existe).
-    if (campos.data.trim() === '') resultado.data = 'Informe a data.'
-    else if (!dataBrValida(campos.data, ANO_MINIMO_DESPESA)) resultado.data = 'Data inválida.'
-    else if (dataBrParaIso(campos.data) > hojeIso() && dataBrParaIso(campos.data) !== base?.data) {
-      resultado.data = 'A data não pode ser futura.'
+    // Data real, a partir do ano mínimo e nunca futura (a API só aceita de 2000 até hoje). Em despesa de extra a data não muda.
+    if (!somenteDescricao) {
+      if (campos.data.trim() === '') resultado.data = 'Informe a data.'
+      else if (!dataBrValida(campos.data, ANO_MINIMO_DESPESA)) resultado.data = 'Data inválida.'
+      else if (dataBrParaIso(campos.data) > hojeIso() && dataBrParaIso(campos.data) !== base?.data) {
+        resultado.data = 'A data não pode ser futura.'
+      }
     }
 
     const descricao = campos.descricao.trim()
@@ -283,14 +293,13 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
       resultado.descricao = `Use no máximo ${LIMITE_DESCRICAO_DESPESA} caracteres.`
     }
 
-    if (compra.value) {
+    if (somenteDescricao) {
+      // Valor, categoria e fornecedor do extra não são validados nem enviados.
+    } else if (compra.value) {
       errosDasLinhas = validarCompra(resultado)
     } else {
-      // Despesa antiga sem categoria não trava a edição de outros campos enquanto a categoria não for mexida.
-      if (campos.categoria === '' && !(base && base.categoria === '')) resultado.categoria = 'Selecione a categoria.'
-      else if (campos.categoria !== '' && !CATEGORIAS_DIVERSA.includes(campos.categoria as CategoriaDespesa)) {
-        resultado.categoria = 'Categoria inválida.'
-      }
+      // A categoria da despesa diversa é obrigatória e precisa estar no catálogo (a API confere o catálogo).
+      if (campos.categoria === '') resultado.categoria = 'Selecione a categoria.'
 
       const valor = moedaParaNumero(campos.valor)
       if (valor === null) resultado.valor = 'Informe o valor.'
@@ -305,16 +314,17 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
     return Object.keys(resultado).length === 0 && Object.keys(errosDasLinhas).length === 0
   }
 
-  /** Corpo do POST: diversa leva categoria e valor; compra leva fornecedor e itens (o total a API calcula). */
+  /** Corpo do POST: diversa leva categoria, valor e fornecedor opcional; compra leva fornecedor e itens (a categoria e o total a API define). */
   function paraPayload(): DespesaPayload {
     const n = normalizar(campos, itens.value)
     if (campos.tipo === 'DIVERSA') {
       return {
         tipo: 'DIVERSA',
-        categoria: n.categoria as CategoriaDespesa,
+        categoria: n.categoria,
         data: n.data,
         descricao: n.descricao,
         valorTotal: n.valorTotal ?? 0,
+        ...(n.fornecedorId !== null ? { fornecedorId: n.fornecedorId } : {}),
       }
     }
     return {
@@ -326,18 +336,21 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
     }
   }
 
-  /** Corpo do PATCH: só o que mudou. Se algum item da compra mudou, a lista inteira vai (a API a substitui). */
+  /**
+   * Corpo do PATCH: só o que mudou. Se algum item da compra mudou, a lista inteira vai (a API a substitui).
+   * Na despesa diversa, `fornecedorId: null` remove o fornecedor. Na de extra, só a descrição.
+   */
   function paraAtualizacao(): DespesaAtualizacao {
     const atual = normalizar(campos, itens.value)
     const mudou: DespesaAtualizacao = {}
     if (!base) return mudou
-    if (atual.data !== base.data) mudou.data = atual.data
     if (atual.descricao !== base.descricao) mudou.descricao = atual.descricao
+    if (somenteDescricao) return mudou
+    if (atual.data !== base.data) mudou.data = atual.data
     if (campos.tipo === 'DIVERSA') {
-      if (atual.categoria !== base.categoria && atual.categoria !== '') {
-        mudou.categoria = atual.categoria as CategoriaDespesa
-      }
+      if (atual.categoria !== base.categoria && atual.categoria !== '') mudou.categoria = atual.categoria
       if (atual.valorTotal !== base.valorTotal && atual.valorTotal !== null) mudou.valorTotal = atual.valorTotal
+      if (atual.fornecedorId !== base.fornecedorId) mudou.fornecedorId = atual.fornecedorId
     } else {
       if (atual.fornecedorId !== base.fornecedorId && atual.fornecedorId !== null) {
         mudou.fornecedorId = atual.fornecedorId
@@ -362,14 +375,11 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
 
   /** Erros da API: sem campo único, tudo vira mensagem geral (com travas para o que não se resolve no formulário). */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
-    caixaFechado.value = mensagemDeCaixaFechado(mensagem)
-    // Sem saldo conhecido, o backend antigo responde 500 quando a compra leva o estoque além do limite da coluna.
-    const semChecagemDeSaldo = compra.value && itens.value.some((l) => maximoCompra(l) === null)
-    erroGeral.value =
-      status !== null && status >= 500 && semChecagemDeSaldo
-        ? `${mensagem} ${mensagemSaldoLimite()}`
-        : mensagemDespesa(mensagem)
+    const detalhado = extrairErro(erro)
+    caixaFechado.value = mensagemDeCaixaFechado(detalhado.mensagem, detalhado.codigo)
+    erroGeral.value = CODIGOS_ESTOQUE.includes(detalhado.codigo)
+      ? mensagemErroEstoque(detalhado)
+      : mensagemDespesa(detalhado.mensagem)
   }
 
   return {
@@ -380,6 +390,7 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
     erroGeral,
     caixaFechado,
     compra,
+    somenteDescricao,
     totalCompraCentavos,
     totalCompraTexto,
     totalDaLinha,

@@ -38,7 +38,7 @@ function pedirFechar() {
 }
 
 async function salvar() {
-  if (semComoSalvar.value) return
+  if (salvando.value || semComoSalvar.value) return
   // O limite do estoque precisa do saldo de cada material: espera as consultas em andamento antes de validar.
   if (form.compra.value) await opcoes.carregarSaldos(form.itens.value.map((l) => l.materialId))
   if (!form.validar()) {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
 import type { FiltroCategoriaDespesa, FiltroTipoDespesa } from '../../composables/useListaDespesas'
-import { ROTULO_CATEGORIA_DESPESA } from '../../utils/despesas'
-import type { CategoriaDespesa } from '../../types/despesa'
+import { CATEGORIA_SEM_CATEGORIA } from '../../types/despesa'
+import { ROTULO_SEM_CATEGORIA } from '../../utils/despesas'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoData from '../ui/CampoData.vue'
 import CardBuscaFiltro, { type OpcaoFiltro } from '../ui/CardBuscaFiltro.vue'
@@ -21,22 +23,14 @@ const tipo = defineModel<FiltroTipoDespesa>('tipo', { required: true })
 const dataInicio = defineModel<string>('dataInicio', { required: true })
 const dataFim = defineModel<string>('dataFim', { required: true })
 
-// Figma: Todas | Compra de Material | Combustível | Ferramenta | Manutenção | Alimentação | Outros; a API ainda tem Mão de Obra e Aluguel.
-const ORDEM: CategoriaDespesa[] = [
-  'COMPRA_MATERIAL',
-  'COMBUSTIVEL',
-  'FERRAMENTA',
-  'MANUTENCAO',
-  'ALIMENTACAO',
-  'MAO_DE_OBRA',
-  'ALUGUEL',
-  'OUTROS',
-]
+// As pílulas vêm do catálogo de categorias (inclui as cadastradas pelo usuário), mais "Sem categoria" para despesas legadas.
+const { categorias } = useCategoriasDespesa()
 
-const opcoesCategoria: OpcaoFiltro<FiltroCategoriaDespesa>[] = [
+const opcoesCategoria = computed<OpcaoFiltro<FiltroCategoriaDespesa>[]>(() => [
   { valor: 'TODAS', rotulo: 'Todas' },
-  ...ORDEM.map((valor) => ({ valor, rotulo: ROTULO_CATEGORIA_DESPESA[valor] })),
-]
+  ...categorias.value.map((c) => ({ valor: c.nome, rotulo: c.rotulo })),
+  { valor: CATEGORIA_SEM_CATEGORIA, rotulo: ROTULO_SEM_CATEGORIA },
+])
 
 const opcoesTipo: OpcaoFiltro<FiltroTipoDespesa>[] = [
   { valor: 'TODOS', rotulo: 'Todos' },
@@ -95,7 +89,7 @@ const opcoesTipo: OpcaoFiltro<FiltroTipoDespesa>[] = [
   gap: 12px;
 }
 
-/* Categoria tem 9 pílulas: não cabem ao lado da busca em telas médias, então descem juntas. */
+/* Categoria tem muitas pílulas (o catálogo cresce): não cabem ao lado da busca, então descem juntas. */
 .filtros-busca {
   flex-wrap: wrap;
 }

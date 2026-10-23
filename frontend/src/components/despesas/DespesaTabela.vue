@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import type { Despesa } from '../../types/despesa'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
-import { nomeFornecedor, primeiraLinha, projetoDoExtra, resumoMateriais } from '../../utils/despesas'
+import {
+  despesaEstornada,
+  nomeFornecedor,
+  podeEditarDespesa,
+  primeiraLinha,
+  projetoDoExtra,
+  resumoMateriais,
+} from '../../utils/despesas'
 import BotaoAcao from '../ui/BotaoAcao.vue'
 import TabelaDados, { type ColunaTabela } from '../ui/TabelaDados.vue'
 import SeloCategoriaDespesa from './SeloCategoriaDespesa.vue'
@@ -65,7 +72,16 @@ function apoio(despesa: Despesa): string {
       <SeloCategoriaDespesa :categoria="linha.categoria" />
     </template>
     <template #celula-descricao="{ linha }">
-      <span class="fp-celula-nome celula-bloco">{{ primeiraLinha(linha.descricao) }}</span>
+      <span
+        class="fp-celula-nome celula-bloco"
+        :class="{ 'celula-estornada': despesaEstornada(linha) }"
+      >
+        {{ primeiraLinha(linha.descricao) }}
+        <span
+          v-if="despesaEstornada(linha)"
+          class="tag-estornada"
+        >Estornada</span>
+      </span>
       <span
         v-if="apoio(linha)"
         class="celula-secundaria"
@@ -85,7 +101,10 @@ function apoio(despesa: Despesa): string {
       </span>
     </template>
     <template #celula-valor="{ linha }">
-      <span class="celula-principal celula-valor">{{ formatarMoeda(linha.valorTotal) }}</span>
+      <span
+        class="celula-principal celula-valor"
+        :class="{ 'celula-estornada': despesaEstornada(linha) }"
+      >{{ formatarMoeda(linha.valorTotal) }}</span>
     </template>
     <template #celula-acoes="{ linha }">
       <div class="acoes">
@@ -95,7 +114,7 @@ function apoio(despesa: Despesa): string {
           @click="emit('visualizar', linha)"
         />
         <BotaoAcao
-          v-if="podeGerenciar && projetoDoExtra(linha) === null"
+          v-if="podeGerenciar && podeEditarDespesa(linha)"
           tipo="editar"
           :alvo="`despesa de ${isoParaDataBr(linha.data)}`"
           @click="emit('editar', linha)"
@@ -136,6 +155,27 @@ function apoio(despesa: Despesa): string {
 
 .celula-valor {
   font-weight: 600;
+}
+
+/* Despesa estornada continua na lista, esmaecida e com o valor riscado. */
+.celula-estornada {
+  color: var(--fp-cinza-rotulo);
+}
+
+.celula-valor.celula-estornada {
+  text-decoration: line-through;
+}
+
+.tag-estornada {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background-color: #fef2f2;
+  color: var(--fp-vermelho-escuro);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .celula-secundaria {
