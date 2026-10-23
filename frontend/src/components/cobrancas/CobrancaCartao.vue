@@ -10,7 +10,6 @@ import {
   descricaoCobranca,
 } from '../../utils/cobrancas'
 import { formatarMoeda, instanteParaDataBr, isoParaDataBr } from '../../utils/formatadores'
-import { cancelamentoDeCobrancaDisponivel } from '../../services/cobrancas.service'
 import BotaoFp from '../ui/BotaoFp.vue'
 import SeloStatusCobranca from './SeloStatusCobranca.vue'
 
@@ -32,11 +31,10 @@ const parcelada = computed(() => props.cobranca.parcelas.length > 1)
 const aceitaRecebimento = computed(() => cobrancaAceitaRecebimento(props.cobranca))
 // Cobrança cancelada não recebe nada: sem "Restante", barra nem percentual.
 const cancelada = computed(() => props.cobranca.status === 'CANCELADO')
-// Só cancela cobrança sem nenhum recebimento (a API recusa as demais) e se o backend tiver a rota.
+// Só cancela cobrança sem nenhum recebimento (a API recusa as demais).
 const podeCancelar = computed(
   () =>
     props.podeGerenciar &&
-    cancelamentoDeCobrancaDisponivel.value &&
     !cancelada.value &&
     props.cobranca.parcelas.every((parcela) => parcela.recebimentos.length === 0),
 )

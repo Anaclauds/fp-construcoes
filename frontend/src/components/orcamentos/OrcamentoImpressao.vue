@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { nextTick, onMounted, shallowRef, useTemplateRef } from 'vue'
+import { nextTick, onMounted, useTemplateRef } from 'vue'
 import { useAuth } from '../../composables/useAuth'
 import { useImpressao } from '../../composables/useImpressao'
-import { buscarCliente } from '../../services/clientes.service'
 import type { Orcamento } from '../../types'
 import { formatarDataHora } from '../../utils/datas'
 import { enderecoEmUmaLinha, nomeArquivoOrcamento } from '../../utils/orcamentos'
@@ -18,26 +17,17 @@ const props = defineProps<{ orcamento: Orcamento }>()
 
 const emit = defineEmits<{ concluido: [] }>()
 
-const { usuario, temPermissao } = useAuth()
+const { usuario } = useAuth()
 const { imprimir } = useImpressao()
 
 const area = useTemplateRef<HTMLElement>('area')
-const endereco = shallowRef<string | null>(null)
+// O orçamento já traz o endereço do cliente; sem ele o PDF usa cidade/UF.
+const endereco = enderecoEmUmaLinha(props.orcamento.cliente) || null
 // Fixado ao pedir o PDF: a data/hora do papel não muda enquanto o diálogo está aberto.
 const emitidoEm = formatarDataHora()
 const emitidoPor = usuario.value?.nomeCompleto ?? 'Usuário'
 
 onMounted(async () => {
-  // O endereço do cliente exige acesso ao módulo Clientes; sem ele o PDF usa cidade/UF do orçamento.
-  try {
-    if (temPermissao('CLIENTES', 'visualizar')) {
-      const cliente = await buscarCliente(props.orcamento.clienteId)
-      endereco.value = enderecoEmUmaLinha(cliente) || null
-    }
-  } catch {
-    endereco.value = null
-  }
-
   await nextTick()
   // Espera o logo carregar: imprimir antes dele sair em branco.
   const imagens = Array.from(area.value?.querySelectorAll('img') ?? [])

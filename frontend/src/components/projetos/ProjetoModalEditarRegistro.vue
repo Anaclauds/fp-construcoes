@@ -5,7 +5,7 @@ import { editarEtapa, editarExtra } from '../../services/projetos.service'
 import type { ProjetoDetalhe, RegistroEditavel } from '../../types/projeto'
 import { hojeIso } from '../../utils/datas'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
-import { dataBrParaIso, isoParaDataBr, semAcento } from '../../utils/formatadores'
+import { dataBrParaIso, isoParaDataBr } from '../../utils/formatadores'
 import { ANO_MINIMO_DATA_PROJETO, mensagemProjeto } from '../../utils/projetos'
 import { dataBrValida } from '../../utils/validacao'
 import BotaoFp from '../ui/BotaoFp.vue'
@@ -32,7 +32,10 @@ const emit = defineEmits<{
 const ehEtapa = props.registro.tipo === 'etapa'
 const nome = ehEtapa ? 'Etapa' : 'Extra'
 const rotuloTexto = ehEtapa ? 'Descrição:' : 'Justificativa:'
-const LIMITE_TEXTO = 3000
+/** Limite do backend ao editar a descrição da etapa e a justificativa do extra. */
+const LIMITE_TEXTO = 1000
+/** Códigos de conflito que indicam tela desatualizada (projeto fora de execução ou registro já cancelado). */
+const CODIGOS_DESATUALIZADO = ['PROJETO_STATUS_INVALIDO', 'PROJETOS_UPDATEETAPA_CONFLICT_01', 'PROJETOS_UPDATEEXTRA_CONFLICT_01']
 
 const idFormulario = useId()
 const raiz = useTemplateRef<HTMLElement>('raiz')
@@ -98,10 +101,10 @@ async function salvar() {
         })
     emit('salvo', projeto)
   } catch (e) {
-    const { mensagem, status } = extrairErro(e)
+    const { mensagem, status, codigo } = extrairErro(e)
     erroGeral.value = mensagemProjeto(mensagem)
-    // 404 (registro/projeto sumiu) e 409 por status do projeto mudam a tela de fundo; 409 de recebimento/despesa não.
-    if (status === 404 || /somente projeto em execucao|registros de execucao/i.test(semAcento(mensagem))) emit('desatualizado')
+    // 404 (registro/projeto sumiu) e 409 por status do projeto ou do registro mudam a tela de fundo; 409 de recebimento/despesa não.
+    if (status === 404 || CODIGOS_DESATUALIZADO.includes(codigo)) emit('desatualizado')
   } finally {
     salvando.value = false
   }

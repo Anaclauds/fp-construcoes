@@ -1,8 +1,8 @@
 import { computed, reactive, shallowRef, toRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import { buscarEnderecoPorCep } from '../services/enderecos.service'
 import type { EditarProjetoPayload, ProjetoBase } from '../types/projeto'
-import { dataBrParaIso, isoParaDataBr, mascararCep, normalizarTexto, semAcento } from '../utils/formatadores'
+import { dataBrParaIso, isoParaDataBr, mascararCep, normalizarTexto } from '../utils/formatadores'
 import { UFS } from '../utils/opcoes-cliente'
 import { ANO_MINIMO_DATA_PROJETO, mensagemProjeto } from '../utils/projetos'
 import { dataBrValida } from '../utils/validacao'
@@ -30,6 +30,20 @@ const CHAVES: (keyof CamposEdicaoProjeto)[] = [
 
 const digitos = (valor: string) => valor.replace(/\D/g, '')
 
+/** Nome do campo no backend -> campo do formulário (para mostrar o erro de validação no lugar certo). */
+const CAMPO_DA_API: Record<string, keyof CamposEdicaoProjeto> = {
+  responsavelId: 'responsavelId',
+  previsaoInicio: 'previsaoInicio',
+  previsaoConclusao: 'previsaoConclusao',
+  cepObra: 'cep',
+  ruaObra: 'rua',
+  numeroObra: 'numero',
+  bairroObra: 'bairro',
+  cidadeObra: 'cidade',
+  estadoObra: 'estado',
+  complementoObra: 'complemento',
+}
+
 type ProjetoEditavel = Pick<
   ProjetoBase,
   | 'responsavelId' | 'dataInicio' | 'previsaoInicio' | 'previsaoConclusao' | 'cepObra' | 'ruaObra' | 'numeroObra'
@@ -39,6 +53,7 @@ type ProjetoEditavel = Pick<
 /**
  * Formulário de "Editar projeto": responsável, previsões e endereço da obra, já preenchidos com o projeto.
  * `paraPayload` devolve só o que mudou (o backend recusa corpo vazio); `alterado` é falso até algo mudar.
+ * As previsões são opcionais: apagar o campo envia `null`, que limpa a data no servidor.
  */
 export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
   const inicial: CamposEdicaoProjeto = {
@@ -99,8 +114,10 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
   function paraPayload(): EditarProjetoPayload {
     const payload: EditarProjetoPayload = {}
     if (!igual('responsavelId')) payload.responsavelId = Number(campos.responsavelId)
-    if (!igual('previsaoInicio')) payload.previsaoInicio = dataBrParaIso(campos.previsaoInicio)
-    if (!igual('previsaoConclusao')) payload.previsaoConclusao = dataBrParaIso(campos.previsaoConclusao)
+    if (!igual('previsaoInicio')) payload.previsaoInicio = campos.previsaoInicio === '' ? null : dataBrParaIso(campos.previsaoInicio)
+    if (!igual('previsaoConclusao')) {
+      payload.previsaoConclusao = campos.previsaoConclusao === '' ? null : dataBrParaIso(campos.previsaoConclusao)
+    }
     if (!igual('cep')) payload.cepObra = digitos(campos.cep)
     if (!igual('cidade')) payload.cidadeObra = campos.cidade.trim()
     if (!igual('estado')) payload.estadoObra = campos.estado
@@ -127,11 +144,9 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
 
   function validarData(chave: 'previsaoInicio' | 'previsaoConclusao') {
     const texto = campos[chave]
-    if (texto === '') {
-      // Limitação do backend (X13): PATCH /projetos/:id ignora data vazia/null e não limpa a previsão.
-      // Só o backend pode resolver; até lá, se já havia uma data, ela precisa continuar preenchida.
-      erros[chave] = inicial[chave] === '' ? undefined : 'Informe a data.'
-    } else if (!dataBrValida(texto, ANO_MINIMO_DATA_PROJETO)) erros[chave] = 'Data inválida. Use DD/MM/AAAA.'
+    // Vazio é válido: a previsão é opcional e, se já existia, é limpa com null.
+    if (texto === '') erros[chave] = undefined
+    else if (!dataBrValida(texto, ANO_MINIMO_DATA_PROJETO)) erros[chave] = 'Data inválida. Use DD/MM/AAAA.'
     else erros[chave] = undefined
   }
 
@@ -173,14 +188,26 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
     return !Object.values(erros).some(Boolean)
   }
 
-  /** 409/404 (projeto mudou ou sumiu) pedem recarregar a lista; responsável inativo marca o próprio campo. */
+  /**
+   * Erros de validação vão para o campo certo; 409/404 (projeto mudou ou sumiu) pedem recarregar a lista;
+   * responsável inativo marca o próprio campo.
+   */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
+    const { mensagem, status, codigo } = extrairErro(erro)
     const texto = mensagemProjeto(mensagem)
-    if (status === 400 && /responsavel inexistente/i.test(semAcento(mensagem))) {
+    if (codigo === 'RESPONSAVEL_INATIVO') {
       erros.responsavelId = texto
       return
     }
+    let achouCampo = false
+    for (const [campo, mensagemCampo] of Object.entries(errosPorCampo(erro))) {
+      const chave = CAMPO_DA_API[campo]
+      if (chave) {
+        erros[chave] = mensagemCampo
+        achouCampo = true
+      }
+    }
+    if (achouCampo) return
     if (status === 409 || status === 404) desatualizado.value = true
     erroGeral.value = texto
   }

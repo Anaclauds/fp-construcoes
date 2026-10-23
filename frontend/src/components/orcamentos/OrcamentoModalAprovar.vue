@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef, useId, useTemplateRef, watch } from 'vue'
-import { useClienteCompleto } from '../../composables/useClienteCompleto'
+import { computed, onMounted, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioAprovacao } from '../../composables/useFormularioAprovacao'
 import { useResponsaveisOrcamento } from '../../composables/useResponsaveisOrcamento'
 import { aprovarOrcamento } from '../../services/orcamentos.service'
@@ -28,48 +27,31 @@ const idFormulario = useId()
 const raiz = useTemplateRef<HTMLElement>('raiz')
 const form = useFormularioAprovacao()
 const funcionarios = useResponsaveisOrcamento()
-const { cliente, carregando: carregandoCliente, semAcesso: semAcessoClientes } = useClienteCompleto(props.orcamento.clienteId)
 const salvando = shallowRef(false)
 const confirmandoSaida = shallowRef(false)
 
 onMounted(() => void funcionarios.carregar())
 
-// O endereço da obra nasce igual ao do cliente (e continua editável).
-watch(cliente, (valor) => {
-  if (valor) form.preencherComCliente(valor)
-})
+// O endereço da obra nasce igual ao do cliente (que já vem no orçamento) e continua editável.
+form.preencherComCliente(props.orcamento.cliente)
 
-// Sem acesso ao cadastro do cliente (ou se a consulta falhar), ao menos cidade/UF vêm do próprio orçamento.
-const enderecoIndisponivel = computed(() => !carregandoCliente.value && cliente.value === null)
-watch(
-  enderecoIndisponivel,
-  (indisponivel) => {
-    if (indisponivel) form.preencherComCliente(props.orcamento.cliente)
-  },
-  { immediate: true },
-)
-
-const notaEnderecoIndisponivel = computed(() =>
-  semAcessoClientes.value
-    ? 'Endereço completo do cliente indisponível (sem acesso a Clientes) — preencha manualmente.'
-    : 'Endereço completo do cliente indisponível — preencha manualmente.',
-)
+// Cliente inativo não recebe novo negócio: o backend recusa a aprovação até ele ser reativado.
+const clienteInativo = computed(() => props.orcamento.cliente.status === 'INATIVO')
 
 const opcoesResponsavel = computed(() =>
   funcionarios.funcionarios.value
-    .filter((f) => f.status === 'ATIVO')
     .map((f) => ({ valor: String(f.id), rotulo: f.funcao ? `${f.nomeCompleto} — ${rotuloLegivel(f.funcao)}` : f.nomeCompleto })),
 )
 
 const placeholderResponsavel = computed(() => {
-  if (funcionarios.semPermissao.value) return 'Sem permissão para listar funcionários'
+  if (funcionarios.semPermissao.value) return 'Sem permissão para listar responsáveis'
   if (funcionarios.carregando.value) return 'Carregando funcionários...'
   return 'Selecione o funcionário responsável pela negociação'
 })
 
 const avisoResponsavel = computed(() => {
   if (funcionarios.semPermissao.value) {
-    return 'Seu perfil não pode listar funcionários. Peça acesso aos módulos Funcionários ou Frequência para escolher o responsável.'
+    return 'Seu perfil não pode listar os responsáveis. Peça acesso ao módulo Orçamentos.'
   }
   if (funcionarios.erro.value) return funcionarios.erro.value
   if (!funcionarios.carregando.value && opcoesResponsavel.value.length === 0) return 'Nenhum funcionário ativo encontrado.'
@@ -98,7 +80,7 @@ async function focarPrimeiroErro() {
 }
 
 async function confirmar() {
-  if (funcionarios.semPermissao.value) return
+  if (funcionarios.semPermissao.value || clienteInativo.value) return
   if (!form.validar()) {
     await focarPrimeiroErro()
     return
@@ -163,6 +145,14 @@ async function confirmar() {
         obra. As cobranças só são geradas quando o projeto for iniciado.
       </p>
 
+      <p
+        v-if="clienteInativo"
+        class="erro-geral"
+        role="alert"
+      >
+        O cliente deste orçamento está inativo. Reative o cliente antes de aprovar.
+      </p>
+
       <CampoFormulario
         v-model="form.campos.responsavelId"
         rotulo="Responsável:"
@@ -202,19 +192,7 @@ async function confirmar() {
           Endereço de entrega/serviço <span aria-hidden="true">*</span>
         </h4>
         <p
-          v-if="carregandoCliente"
-          class="endereco-nota"
-        >
-          Carregando o endereço do cliente...
-        </p>
-        <p
-          v-else-if="enderecoIndisponivel"
-          class="endereco-nota"
-        >
-          {{ notaEnderecoIndisponivel }}
-        </p>
-        <p
-          v-else-if="form.enderecoDoCliente.value"
+          v-if="form.enderecoDoCliente.value"
           class="endereco-nota"
         >
           Preenchido com o endereço do cliente. Altere se a obra for em outro local.
@@ -325,7 +303,7 @@ async function confirmar() {
         type="submit"
         :form="idFormulario"
         :carregando="salvando"
-        :desabilitado="funcionarios.semPermissao.value"
+        :desabilitado="funcionarios.semPermissao.value || clienteInativo"
       >
         Confirmar Aprovação
       </BotaoFp>

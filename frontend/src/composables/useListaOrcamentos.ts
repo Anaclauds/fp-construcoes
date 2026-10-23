@@ -1,4 +1,4 @@
-import { computed, shallowRef, watch } from 'vue'
+import { shallowRef, watch } from 'vue'
 import { extrairMensagemErro } from '../services/api'
 import { listarOrcamentos } from '../services/orcamentos.service'
 import type { FiltrosOrcamentos, IndicadoresOrcamentos, Orcamento, StatusOrcamento, TipoOrcamento } from '../types'
@@ -26,11 +26,8 @@ export function useListaOrcamentos() {
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
 
-  /** A API só informa em aberto, pendentes e em análise; reprovados é o que sobra do "em aberto". */
-  const reprovados = computed(() => {
-    const i = indicadores.value
-    return i ? Math.max(0, i.emAberto - i.pendentes - i.emAnalise) : null
-  })
+  /** Os indicadores da API só trazem em aberto (pendentes + em análise); reprovados vêm de uma consulta de 1 registro só para contar. */
+  const reprovados = shallowRef<number | null>(null)
 
   // Só a última requisição vale: respostas antigas (busca digitada rápido) são descartadas.
   let ultimaRequisicao = 0
@@ -48,8 +45,14 @@ export function useListaOrcamentos() {
     if (tipo.value !== 'TODOS') filtros.tipo = tipo.value
 
     try {
-      const resposta = await listarOrcamentos(filtros)
+      // Reprovados respeitam busca e tipo, como os demais cartões, mas não o filtro de status.
+      const { page: _pagina, limit: _limite, status: _status, ...semPaginacao } = filtros
+      const [resposta, contagemReprovados] = await Promise.all([
+        listarOrcamentos(filtros),
+        listarOrcamentos({ ...semPaginacao, status: 'REPROVADO', page: 1, limit: 1 }).catch(() => null),
+      ])
       if (requisicao !== ultimaRequisicao) return
+      reprovados.value = contagemReprovados?.meta.total ?? null
 
       orcamentos.value = resposta.data
       total.value = resposta.meta.total

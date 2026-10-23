@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
 import ProjetoMenuAcoes from '../../components/projetos/ProjetoMenuAcoes.vue'
+import ProjetoModalCancelarRegistro from '../../components/projetos/ProjetoModalCancelarRegistro.vue'
 import ProjetoModalEditar from '../../components/projetos/ProjetoModalEditar.vue'
 import ProjetoModalEditarRegistro from '../../components/projetos/ProjetoModalEditarRegistro.vue'
 import ProjetoModalEtapa from '../../components/projetos/ProjetoModalEtapa.vue'
@@ -24,19 +25,18 @@ import {
   type FiltroTipoProjeto,
 } from '../../composables/useListaProjetos'
 import { useToast } from '../../composables/useToast'
-import { suporte } from '../../services/compatibilidade'
 import type { ProjetoDetalhe, ProjetoResumo, RegistroEditavel, RespostaProjeto, StatusFinalProjeto } from '../../types/projeto'
 import { formatarMoeda } from '../../utils/formatadores'
 import { formatarNumeroOrcamento } from '../../utils/orcamentos'
 import { resumoCancelamento } from '../../utils/projetos'
 
-type TipoModal = 'visualizar' | 'iniciar' | 'etapa' | 'extra' | 'status' | 'editar' | 'editarRegistro'
+type TipoModal = 'visualizar' | 'iniciar' | 'etapa' | 'extra' | 'status' | 'editar' | 'editarRegistro' | 'cancelarRegistro'
 interface Modal {
   tipo: TipoModal
   projeto: ProjetoResumo
   /** A ação partiu do modal de detalhes: desistir dela volta para ele. */
   deVisualizar: boolean
-  /** Etapa ou extra em edição (`tipo: 'editarRegistro'`). */
+  /** Etapa ou extra em edição ou cancelamento (`tipo: 'editarRegistro'` ou `'cancelarRegistro'`). */
   registro?: RegistroEditavel
 }
 
@@ -45,8 +45,11 @@ const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('PROJETOS', 'gerenciar'))
 
-const { busca, status, tipo, pagina, porPagina, projetos, total, indicadores, planejados, carregando, erro, carregarTudo } =
-  useListaProjetos()
+const { busca, status, tipo, pagina, porPagina, projetos, total, indicadores, carregando, erro, carregar } = useListaProjetos()
+
+// Os cartões acompanham a busca e o tipo (não o status): com algum deles ativo, o texto deixa claro que não é o total geral.
+const recortado = computed(() => busca.value.trim() !== '' || tipo.value !== 'TODOS')
+const descricaoTotal = computed(() => (recortado.value ? 'na busca atual' : 'cadastrados'))
 
 // Figma (GERENCIAR PROJETO 2): Todos | Em Execução | Planejado | Concluído | Cancelado.
 const opcoesStatus: OpcaoFiltro<FiltroStatusProjeto>[] = [
@@ -90,21 +93,21 @@ function cancelarAcao() {
   else fecharModal()
 }
 
-/** `avisos` e o resultado do cancelamento só vêm no backend atualizado; sem eles só aparece a mensagem de sucesso. */
+/** Fecha a ação, mostra a mensagem (com os avisos do servidor, se houver) e recarrega a lista. */
 async function aoConcluirAcao(mensagem: string, avisos: string[] = []) {
   fecharModal()
   // Um único aviso, com os detalhes dentro, em vez de dois empilhados sobre a tabela.
   mostrarToast(mensagem, avisos.length > 0 ? 'info' : 'sucesso', avisos.length > 0 ? 12000 : undefined, avisos)
-  await carregarTudo()
+  await carregar()
 }
 
 function aoAlterarStatus(destino: StatusFinalProjeto, resposta: RespostaProjeto) {
-  const avisos = [resumoCancelamento(resposta.cancelamento), ...(resposta.avisos ?? [])].filter(Boolean)
+  const avisos = [resumoCancelamento(resposta.cancelamento), ...resposta.avisos].filter(Boolean)
   void aoConcluirAcao(destino === 'CONCLUIDO' ? 'Projeto concluído com sucesso!' : 'Projeto cancelado.', avisos)
 }
 
 /**
- * Editar projeto, etapa ou extra salvo: atualiza a lista e, se partiu dos detalhes, volta a eles já com os dados novos
+ * Editar projeto, etapa ou extra salvo (ou etapa/extra cancelado): atualiza a lista e, se partiu dos detalhes, volta a eles já com os dados novos
  * (o resumo da linha é refeito com a resposta, para o cabeçalho do detalhe não ficar velho).
  */
 async function aoEditar(mensagem: string, resposta: ProjetoDetalhe) {
@@ -114,20 +117,18 @@ async function aoEditar(mensagem: string, resposta: ProjetoDetalhe) {
     abrir('visualizar', { ...atual.projeto, ...resposta, _count: { etapas: etapas.length, extras: extras.length } })
   } else fecharModal()
   mostrarToast(mensagem)
-  await carregarTudo()
+  await carregar()
 }
 
 const rotuloProjeto = (projeto: ProjetoResumo) => `projeto ${formatarNumeroOrcamento(projeto.orcamento.numero)}`
 
 /**
- * Ações da linha (menu "⋯"). Projeto planejado só pode ser cancelado; em execução, etapa (só Construção Civil),
- * extra e status. Cancelar planejado exige o backend atualizado (o antigo recusa com 409 e a mensagem aparece no modal).
+ * Ações da linha (menu "⋯"). Projeto planejado pode ser editado ou cancelado; em execução, também etapa
+ * (só Construção Civil), extra e status.
  */
 function itensMenu(projeto: ProjetoResumo): ItemMenuAcao[] {
-  const editar: ItemMenuAcao[] = suporte.edicaoProjeto ? [{ valor: 'editar', rotulo: 'Editar projeto' }] : []
-  if (projeto.status === 'PLANEJADO') {
-    return suporte.cancelarPlanejado ? [...editar, { valor: 'status', rotulo: 'Cancelar projeto', perigo: true }] : editar
-  }
+  const editar: ItemMenuAcao[] = [{ valor: 'editar', rotulo: 'Editar projeto' }]
+  if (projeto.status === 'PLANEJADO') return [...editar, { valor: 'status', rotulo: 'Cancelar projeto', perigo: true }]
   const itens: ItemMenuAcao[] = [...editar]
   if (projeto.orcamento.tipo === 'CONSTRUCAO_CIVIL') itens.push({ valor: 'etapa', rotulo: 'Registrar etapa' })
   itens.push({ valor: 'extra', rotulo: 'Registrar extra' }, { valor: 'status', rotulo: 'Atualizar status' })
@@ -138,7 +139,7 @@ function aoEscolherNoMenu(projeto: ProjetoResumo, valor: string) {
   abrir(valor as 'editar' | 'etapa' | 'extra' | 'status', projeto)
 }
 
-onMounted(carregarTudo)
+onMounted(carregar)
 </script>
 
 <template>
@@ -155,11 +156,11 @@ onMounted(carregarTudo)
       <CardIndicador
         titulo="Total de Projetos"
         :valor="indicadores?.totalProjetos ?? '—'"
-        descricao="cadastrados"
+        :descricao="descricaoTotal"
       />
       <CardIndicador
         titulo="Planejado"
-        :valor="planejados ?? '—'"
+        :valor="indicadores?.planejados ?? '—'"
         descricao="ainda não iniciados"
         classe-cor="fp-status--falta-justificada"
       />
@@ -206,7 +207,7 @@ onMounted(carregarTudo)
       :carregando="carregando"
       :erro="erro"
       texto-vazio="Nenhum projeto encontrado."
-      @tentar-novamente="carregarTudo"
+      @tentar-novamente="carregar"
     >
       <template #celula-numero="{ linha }">
         <span class="celula-principal celula-numero">{{ formatarNumeroOrcamento(linha.orcamento.numero) }}</span>
@@ -263,6 +264,7 @@ onMounted(carregarTudo)
       @status="abrir('status', modal.projeto, true)"
       @editar="abrir('editar', modal.projeto, true)"
       @editar-registro="abrir('editarRegistro', modal.projeto, true, $event)"
+      @cancelar-registro="abrir('cancelarRegistro', modal.projeto, true, $event)"
     />
     <ProjetoModalEditar
       v-else-if="modal?.tipo === 'editar'"
@@ -270,7 +272,7 @@ onMounted(carregarTudo)
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
       @salvo="aoEditar('Salvo com sucesso!', $event)"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
     />
     <ProjetoModalEditarRegistro
       v-else-if="modal?.tipo === 'editarRegistro' && modal.registro"
@@ -279,7 +281,16 @@ onMounted(carregarTudo)
       :registro="modal.registro"
       @fechar="cancelarAcao"
       @salvo="aoEditar('Salvo com sucesso!', $event)"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
+    />
+    <ProjetoModalCancelarRegistro
+      v-else-if="modal?.tipo === 'cancelarRegistro' && modal.registro"
+      :key="`cancelar-${modal.registro.tipo}-${modal.registro.id}`"
+      :projeto-id="modal.projeto.id"
+      :registro="modal.registro"
+      @fechar="cancelarAcao"
+      @cancelado="aoEditar(modal.registro.tipo === 'etapa' ? 'Etapa cancelada.' : 'Extra cancelado.', $event)"
+      @desatualizado="carregar"
     />
     <ProjetoModalIniciar
       v-else-if="modal?.tipo === 'iniciar'"
@@ -287,7 +298,7 @@ onMounted(carregarTudo)
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
       @iniciado="aoConcluirAcao"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
     />
     <ProjetoModalEtapa
       v-else-if="modal?.tipo === 'etapa'"
@@ -295,7 +306,7 @@ onMounted(carregarTudo)
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
       @registrado="aoConcluirAcao('Cobrança Realizada!')"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
     />
     <ProjetoModalExtra
       v-else-if="modal?.tipo === 'extra'"
@@ -303,7 +314,7 @@ onMounted(carregarTudo)
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
       @registrado="aoConcluirAcao('Salvo com sucesso!')"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
     />
     <ProjetoModalStatus
       v-else-if="modal?.tipo === 'status'"
@@ -311,7 +322,7 @@ onMounted(carregarTudo)
       :projeto="modal.projeto"
       @fechar="cancelarAcao"
       @atualizado="aoAlterarStatus"
-      @desatualizado="carregarTudo"
+      @desatualizado="carregar"
     />
   </section>
 </template>

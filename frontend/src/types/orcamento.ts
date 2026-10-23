@@ -6,11 +6,16 @@ export type StatusOrcamento = 'PENDENTE' | 'EM_ANALISE' | 'APROVADO' | 'REPROVAD
 
 export type ModalidadePagamento = 'A_VISTA' | 'PARCELADO_MANUAL' | 'PARCELADO_AUTOMATICO'
 
-/** Cliente resumido que a API devolve dentro do orçamento. */
+/** Cliente que a API devolve dentro do orçamento (com endereço, mesmo que o cliente esteja inativo). */
 export interface ClienteDoOrcamento {
   id: number
   nome: string
   telefone: string
+  cep: string | null
+  rua: string | null
+  numero: string | null
+  bairro: string | null
+  complemento: string | null
   cidade: string
   estado: string
   status: 'ATIVO' | 'INATIVO'
@@ -67,7 +72,7 @@ export interface Orcamento {
 }
 
 export interface IndicadoresOrcamentos {
-  /** PENDENTE + EM_ANALISE + REPROVADO (globais, ignoram os filtros). */
+  /** PENDENTE + EM_ANALISE, respeitando busca e tipo (o filtro de status não vale para os cartões). */
   emAberto: number
   pendentes: number
   emAnalise: number
@@ -92,8 +97,10 @@ export interface OpcaoMaterial {
   categoria: string
   unidadeMedida: string
   precoReferencia: string
-  /** Estoque livre (atual menos reservado). Só vem no backend atualizado; ausente = não exibir. */
+  /** Estoque livre (atual menos reservado); só vem em `/projetos/opcoes/materiais`. */
   saldoDisponivel?: number
+  /** Item histórico do orçamento que já não está na lista de ativos: aparece só para manter o vínculo. */
+  inativo?: boolean
 }
 
 export interface OpcaoServico {
@@ -103,6 +110,8 @@ export interface OpcaoServico {
   categoria: string
   unidadeMedida: string
   valorReferencia: string
+  /** Item histórico do orçamento que já não está na lista de ativos: aparece só para manter o vínculo. */
+  inativo?: boolean
 }
 
 export interface MaterialPayload {
@@ -129,6 +138,22 @@ export interface OrcamentoPayload {
 }
 
 export type OrcamentoAtualizacao = Partial<OrcamentoPayload>
+
+/** Corpo de `POST /orcamentos/simular` (mesmos itens do cadastro; nada é gravado). */
+export interface SimularOrcamentoPayload {
+  tipo: TipoOrcamento
+  materiais?: MaterialPayload[]
+  servicos?: ServicoPayload[]
+  desconto?: number
+}
+
+/** Resposta da simulação: decimais do Prisma chegam como string ("0.06"). */
+export interface SimulacaoOrcamento {
+  totalMateriais: string
+  totalServicos: string
+  desconto: string
+  valorTotal: string
+}
 
 /** Status que o usuário pode definir pela tela (APROVADO só pela aprovação). */
 export type StatusDefinivel = Exclude<StatusOrcamento, 'APROVADO'>
@@ -157,8 +182,8 @@ export interface OpcaoClienteOrcamento {
   estado: string
   bairro: string | null
   complemento: string | null
-  /** Telefone e endereço de rua só vêm em `/opcoes/clientes/:id` (um cliente), não na lista. */
   telefone?: string
+  /** CEP, rua e número só vêm em `/opcoes/clientes/:id` (um cliente), não na lista. */
   cep?: string | null
   rua?: string | null
   numero?: string | null
@@ -173,8 +198,6 @@ export interface OpcaoResponsavel {
 
 export interface RespostaAprovacao {
   mensagem: string
-  /** Falta de estoque etc.; só vem no backend atualizado. */
-  avisos?: string[]
   projeto: {
     id: number
     orcamentoId: number

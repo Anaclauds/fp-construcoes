@@ -134,7 +134,8 @@ function editarCusto(linha: LinhaExtraServico, valor: string) {
         rotulo="Descrição do Serviço"
         placeholder="Descrição opcional"
         autocomplete="off"
-        :maxlength="200"
+        :maxlength="1000"
+        :erro="erros[linha.uid]?.descricao"
       />
     </article>
 

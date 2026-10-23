@@ -1,7 +1,7 @@
 import { computed, shallowRef, watch } from 'vue'
 import { useRoute, useRouter, type LocationQuery, type LocationQueryValue } from 'vue-router'
 import { extrairMensagemErro } from '../services/api'
-import { contarProjetosPlanejados, listarProjetos } from '../services/projetos.service'
+import { listarProjetos } from '../services/projetos.service'
 import type { TipoOrcamento } from '../types/orcamento'
 import type { FiltrosProjetos, IndicadoresProjetos, ProjetoResumo, StatusProjeto } from '../types/projeto'
 import { termoDeBusca } from '../utils/formatadores'
@@ -60,9 +60,9 @@ function querysIguais(a: LocationQuery, b: Record<string, string>): boolean {
  * Busca, status, tipo e página ficam na query string (`?busca=&status=&tipo=&pagina=`): recarregar a página
  * ou voltar de outra tela reabre a lista como estava.
  *
- * Os cartões usam os indicadores globais da API (total, em execução, concluídos; ignoram os filtros).
- * "Planejados" vem em `indicadores.planejados` no backend atualizado; no antigo não existe e é lido de
- * `GET /projetos?status=PLANEJADO&limit=1` (meta.total).
+ * Os cartões usam os indicadores filtrados da API (`indicadores`/`indicadoresFiltrados`): respeitam busca e tipo,
+ * mas não o filtro de status (para os cartões continuarem somando todos os status do recorte). Sem busca nem tipo
+ * eles coincidem com `indicadoresGlobais`, que a lista também guarda para quem precisar do total geral.
  */
 export function useListaProjetos() {
   const route = useRoute()
@@ -79,11 +79,9 @@ export function useListaProjetos() {
   const projetos = shallowRef<ProjetoResumo[]>([])
   const total = shallowRef(0)
   const indicadores = shallowRef<IndicadoresProjetos | null>(null)
-  const planejados = shallowRef<number | null>(null)
+  const indicadoresGlobais = shallowRef<IndicadoresProjetos | null>(null)
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
-  /** O backend devolve `indicadores.planejados`? Desconhecido (null) até a primeira resposta da lista. */
-  let planejadosNoIndicador: boolean | null = null
 
   const filtros = computed<FiltrosProjetos>(() => {
     const atuais: FiltrosProjetos = {}
@@ -109,9 +107,8 @@ export function useListaProjetos() {
 
       projetos.value = resposta.data
       total.value = resposta.meta.total
-      indicadores.value = resposta.indicadores
-      planejadosNoIndicador = typeof resposta.indicadores.planejados === 'number'
-      if (planejadosNoIndicador) planejados.value = resposta.indicadores.planejados ?? null
+      indicadores.value = resposta.indicadoresFiltrados
+      indicadoresGlobais.value = resposta.indicadoresGlobais
       // A página deixou de existir (ex.: filtrou e sobrou menos): volta para a última.
       if (resposta.data.length === 0 && pagina.value > 1) {
         pagina.value = Math.max(1, resposta.meta.totalPages)
@@ -121,35 +118,12 @@ export function useListaProjetos() {
         projetos.value = []
         total.value = 0
         indicadores.value = null
+        indicadoresGlobais.value = null
         erro.value = extrairMensagemErro(e)
       }
     } finally {
       if (requisicao === ultimaRequisicao) carregando.value = false
     }
-  }
-
-  let ultimaContagem = 0
-
-  /** Cartão "Planejado": falha aqui deixa "—" no cartão sem derrubar a lista. */
-  async function carregarPlanejados() {
-    const requisicao = ++ultimaContagem
-    try {
-      const quantidade = await contarProjetosPlanejados()
-      if (requisicao === ultimaContagem) planejados.value = quantidade
-    } catch {
-      if (requisicao === ultimaContagem) planejados.value = null
-    }
-  }
-
-  /** Lista, indicadores e contagem de planejados (abertura da tela, "Tentar novamente" e depois de cada ação). */
-  async function carregarTudo() {
-    // Na primeira vez ainda não se sabe se a lista traz os planejados: espera a resposta antes de contar à parte.
-    if (planejadosNoIndicador === null) {
-      await carregar()
-      if (planejadosNoIndicador !== true) await carregarPlanejados()
-      return
-    }
-    await Promise.all([carregar(), planejadosNoIndicador ? Promise.resolve() : carregarPlanejados()])
   }
 
   function estadoAtual(): EstadoLista {
@@ -206,10 +180,9 @@ export function useListaProjetos() {
     projetos,
     total,
     indicadores,
-    planejados,
+    indicadoresGlobais,
     carregando,
     erro,
     carregar,
-    carregarTudo,
   }
 }

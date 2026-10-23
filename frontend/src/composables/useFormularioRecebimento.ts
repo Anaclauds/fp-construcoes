@@ -3,7 +3,7 @@ import { extrairErro } from '../services/api'
 import type { Cobranca, FormaPagamento, Parcela, RecebimentoPayload } from '../types'
 import { mensagemCobranca, parcelaAbertaParaReceber, restanteDaParcela } from '../utils/cobrancas'
 import { hojeIso } from '../utils/datas'
-import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero, semAcento } from '../utils/formatadores'
+import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero } from '../utils/formatadores'
 import { dataBrValida } from '../utils/validacao'
 
 export interface CamposRecebimento {
@@ -18,6 +18,9 @@ export type ErrosRecebimento = Partial<Record<keyof CamposRecebimento, string>>
 
 const CHAVES: (keyof CamposRecebimento)[] = ['parcelaId', 'valor', 'data', 'formaPagamento', 'observacoes']
 const LIMITE_OBSERVACOES = 1000
+
+const CODIGOS_DE_DATA = ['CAIXA_FECHADO', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_01', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_03', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_04']
+const CODIGOS_DESATUALIZADO = ['COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_01', 'COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_02', 'PARCELA_PAGA_OU_CANCELADA']
 
 /**
  * Formulário "Registrar Recebimento": nasce com a primeira parcela em aberto escolhida, o valor igual ao restante
@@ -111,20 +114,26 @@ export function useFormularioRecebimento(cobranca: Cobranca) {
     }
   }
 
-  /** Caixa fechado, valor acima do restante, cobrança já paga... viram mensagem no próprio modal. */
+  /** Caixa fechado ou fechado/sem abrir, valor acima do restante, cobrança já paga... viram mensagem no próprio modal. */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
-    const texto = mensagemCobranca(mensagem)
-    if (/superior ao restante/i.test(semAcento(mensagem))) {
-      erros.valor = texto
+    const { mensagem, status, codigo, detalhes } = extrairErro(erro)
+    if (codigo === 'RECEBIMENTO_ACIMA_DO_RESTANTE') {
+      const restante = typeof detalhes.restante === 'number' ? detalhes.restante : null
+      erros.valor =
+        restante === null
+          ? mensagemCobranca(mensagem)
+          : `O valor não pode passar do restante da parcela (${formatarMoeda(restante)}).`
       return
     }
-    // Caixa do mês fechado: o problema é a data escolhida, então o erro aparece (e recebe o foco) no campo Data.
-    if (/caixa da competencia .* fechado/i.test(semAcento(mensagem))) {
+    const texto = mensagemCobranca(mensagem)
+    // Caixa do mês fechado ou ainda não aberto, ou data fora do limite: o problema é a data escolhida,
+    // então o erro aparece (e recebe o foco) no campo Data.
+    if (CODIGOS_DE_DATA.includes(codigo)) {
       erros.data = texto
       return
     }
-    if (/paga ou cancelada|nao pertence|nao encontrada/i.test(semAcento(mensagem)) || status === 404) desatualizado.value = true
+    // Cobrança/parcela já paga ou cancelada, parcela de outra cobrança ou cobrança removida: a tela está desatualizada.
+    if (CODIGOS_DESATUALIZADO.includes(codigo) || status === 404) desatualizado.value = true
     erroGeral.value = texto
   }
 

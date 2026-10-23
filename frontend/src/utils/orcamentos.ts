@@ -26,6 +26,11 @@ export function orcamentoEditavel(status: StatusOrcamento): boolean {
   return status !== 'APROVADO' && status !== 'CANCELADO'
 }
 
+/** Só pendente ou em análise vira projeto; reprovado precisa ser reaberto antes (regra do backend). */
+export function orcamentoAprovavel(status: StatusOrcamento): boolean {
+  return status === 'PENDENTE' || status === 'EM_ANALISE'
+}
+
 /** Para onde o usuário pode mover o orçamento pela tela (APROVADO só pela aprovação). */
 export function statusDestinos(status: StatusOrcamento): StatusDefinivel[] {
   if (!orcamentoEditavel(status)) return []
@@ -77,12 +82,14 @@ export function nomeArquivoOrcamento(orcamento: Pick<Orcamento, 'numero' | 'clie
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Números e cálculo. O backend calcula com Decimal: quantidade arredondada a 2 casas (meio para cima)
-   x valor unitário (2 casas); o total do orçamento é a soma desses produtos SEM arredondar item a item,
-   menos o desconto, arredondada a 2 casas. Aqui tudo é feito em inteiros para repetir a conta exata.
+   Números e cálculo. O backend calcula com Decimal: cada linha (quantidade a 3 casas x valor unitário a
+   2 casas) é arredondada a centavos (meio para cima) ANTES de somar; o total é a soma das linhas já
+   arredondadas menos o desconto. Aqui tudo é feito em inteiros (BigInt no produto) para repetir a conta
+   exata, sem ponto flutuante. A prévia local só cobre a digitação: o valor definitivo vem de
+   POST /orcamentos/simular (ver `useFormularioOrcamento`).
 ------------------------------------------------------------------------------------------------ */
 
-/** Maior valor de uma coluna DECIMAL(12,2), em centavos: acima disso a API devolve erro 500. */
+/** Maior valor de uma coluna DECIMAL(12,2), em centavos: acima disso a API recusa o valor. */
 export const LIMITE_VALOR_CENTAVOS = 999_999_999_999
 
 export { filtrarDecimal, mascararDecimal, normalizarDecimal, textoParaEscala } from './decimal'
@@ -96,38 +103,41 @@ export function decimalApiParaTexto(valor: string | number, minimoCasas = 0): st
   return aparada === '' ? inteiro : `${inteiro},${aparada}`
 }
 
+/** Decimal monetário da API ("0.06", "1234.5", 12) -> centavos; null se não for um valor com até 2 casas. */
+export function decimalApiParaCentavos(valor: string | number): number | null {
+  const partes = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(valor).trim())
+  if (!partes) return null
+  const centavos = Number(partes[1] + (partes[2] ?? '').padEnd(2, '0'))
+  return Number.isSafeInteger(centavos) ? centavos : null
+}
+
 /** Inteiro em escala -> número JS para o payload (2500 em escala 3 vira 2.5). */
 export function escalaParaNumero(escala: number, casas: number): number {
   return escala / 10 ** casas
 }
 
-/** Quantidade em milésimos -> centésimos, meio para cima, como o `toDecimalPlaces(2)` do backend. */
-function quantidadeEmCentesimos(milesimos: number): number {
-  return Math.floor((milesimos + 5) / 10)
-}
+/** Teto para linhas absurdas: bem acima do limite do banco e ainda seguro para somar como número. */
+const TETO_LINHA_CENTAVOS = 10n ** 14n
 
-/** Produto exato em 1/10.000 de real: quantidade a 2 casas x valor unitário em centavos. */
-export function produtoItem(milesimos: number, centavos: number): number {
-  return quantidadeEmCentesimos(milesimos) * centavos
+/**
+ * Total de uma linha em centavos: quantidade em milésimos x valor em centavos dá 1/100.000 de real,
+ * arredondado a centavos meio para cima, como o `toDecimalPlaces(2)` do backend.
+ */
+export function totalDaLinhaEmCentavos(milesimos: number, centavos: number): number {
+  const arredondado = (BigInt(milesimos) * BigInt(centavos) + 500n) / 1000n
+  return Number(arredondado > TETO_LINHA_CENTAVOS ? TETO_LINHA_CENTAVOS : arredondado)
 }
-
-const paraCentavos = (decimilesimos: number) => Math.floor((decimilesimos + 50) / 100)
 
 export interface LinhaParaCalculo {
   quantidade: string
   valorUnitario: string
 }
 
-function produtoDaLinha(linha: LinhaParaCalculo): number | null {
+/** Total de um item em centavos; null enquanto faltar quantidade ou valor. */
+export function totalDoItem(linha: LinhaParaCalculo): number | null {
   const quantidade = textoParaEscala(linha.quantidade, 3)
   const valor = textoParaEscala(linha.valorUnitario, 2)
-  return quantidade === null || valor === null ? null : produtoItem(quantidade, valor)
-}
-
-/** Total de um item em centavos (arredondado para exibir na linha); null enquanto faltar quantidade ou valor. */
-export function totalDoItem(linha: LinhaParaCalculo): number | null {
-  const produto = produtoDaLinha(linha)
-  return produto === null ? null : paraCentavos(produto)
+  return quantidade === null || valor === null ? null : totalDaLinhaEmCentavos(quantidade, valor)
 }
 
 export interface ResumoCalculado {
@@ -139,15 +149,19 @@ export interface ResumoCalculado {
 }
 
 /** Resumo em centavos: linhas incompletas contam como zero (o resumo acompanha a digitação). */
-export function calcularResumo(materiais: LinhaParaCalculo[], servicos: LinhaParaCalculo[]): ResumoCalculado {
-  const soma = (linhas: LinhaParaCalculo[]) => linhas.reduce((acc, linha) => acc + (produtoDaLinha(linha) ?? 0), 0)
+export function calcularResumo(
+  materiais: LinhaParaCalculo[],
+  servicos: LinhaParaCalculo[],
+  descontoCentavos = 0,
+): ResumoCalculado {
+  const soma = (linhas: LinhaParaCalculo[]) => linhas.reduce((acc, linha) => acc + (totalDoItem(linha) ?? 0), 0)
   const dosMateriais = soma(materiais)
   const dosServicos = soma(servicos)
   const itemAcima = [...materiais, ...servicos].some((linha) => (totalDoItem(linha) ?? 0) > LIMITE_VALOR_CENTAVOS)
-  const total = paraCentavos(dosMateriais + dosServicos)
+  const total = Math.max(0, dosMateriais + dosServicos - descontoCentavos)
   return {
-    materiais: paraCentavos(dosMateriais),
-    servicos: paraCentavos(dosServicos),
+    materiais: dosMateriais,
+    servicos: dosServicos,
     total,
     acimaDoLimite: itemAcima || total > LIMITE_VALOR_CENTAVOS,
   }
@@ -173,6 +187,8 @@ const TRADUCOES: [RegExp, string][] = [
   [/orcamento nao encontrado/i, 'Orçamento não encontrado. Atualize a lista.'],
   [/ja foi convertido em projeto/i, 'Este orçamento já foi convertido em projeto.'],
   [/orcamento cancelado nao pode ser aprovado/i, 'Orçamento cancelado não pode ser aprovado.'],
+  [/reprovado precisa ser reaberto/i, 'Orçamento reprovado precisa ser reaberto (Pendente ou Em Análise) antes de ser aprovado.'],
+  [/cliente do orcamento esta inativo/i, 'O cliente deste orçamento está inativo. Reative o cliente antes de aprovar.'],
   [/funcionario responsavel ativo nao encontrado/i, 'Funcionário responsável ativo não encontrado. Escolha outro.'],
   [/previsao de conclusao nao pode ser anterior/i, 'O término não pode ser anterior ao início.'],
 ]

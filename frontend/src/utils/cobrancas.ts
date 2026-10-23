@@ -88,7 +88,9 @@ export function nomeDeQuemRegistrou(
 
 /** Mensagens conhecidas da API (com ou sem acento; a comparação ignora acentos) ganham texto correto. */
 const TRADUCOES: [RegExp, string][] = [
-  [/caixa da competencia .* fechado/i, 'O caixa do mês desta data está fechado. Escolha uma data de outro mês.'],
+  [/caixa da competencia .* fechado/i, 'O caixa do mês desta data está fechado. Escolha uma data de outro mês ou reabra o caixa.'],
+  [/nao ha caixa aberto|abra o caixa da competencia/i, 'Não há caixa aberto para o mês desta data. Abra o caixa do mês (em Caixa) antes de registrar o recebimento.'],
+  [/data do lancamento deve ser entre 2000 e hoje/i, 'A data do recebimento deve ser entre o ano 2000 e hoje.'],
   [/cobranca paga ou cancelada/i, 'Esta cobrança já foi paga ou cancelada.'],
   [/parcela paga ou cancelada/i, 'Esta parcela já foi paga ou cancelada.'],
   [/nao pertence a esta cobranca/i, 'A parcela escolhida não pertence a esta cobrança.'],

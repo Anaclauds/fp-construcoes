@@ -56,13 +56,16 @@ export interface IndicadoresProjetos {
   totalProjetos: number
   emExecucao: number
   concluidos: number
-  /** Só vêm no backend atualizado; sem eles o front conta os planejados com uma consulta extra. */
-  planejados?: number
-  cancelados?: number
+  planejados: number
+  cancelados: number
 }
 
 export interface ListaProjetos extends Paginado<ProjetoResumo> {
+  /** Respeita busca e tipo (não o filtro de status); mesmo conteúdo de `indicadoresFiltrados`. */
   indicadores: IndicadoresProjetos
+  indicadoresFiltrados: IndicadoresProjetos
+  /** Totais de todos os projetos, sem nenhum filtro. */
+  indicadoresGlobais: IndicadoresProjetos
 }
 
 export interface FiltrosProjetos {
@@ -73,7 +76,16 @@ export interface FiltrosProjetos {
   limit?: number
 }
 
-/** Parcela como o detalhe do projeto devolve (sem recebimentos). */
+/** Recebimento como o detalhe do projeto devolve (sem observações nem quem registrou). */
+export interface RecebimentoProjeto {
+  id: number
+  /** Decimal do Prisma: string. */
+  valor: string
+  dataRecebimento: string
+  formaPagamento: FormaPagamento
+}
+
+/** Parcela como o detalhe do projeto devolve, já com os recebimentos (não exige a permissão de Cobranças). */
 export interface ParcelaProjeto {
   id: number
   cobrancaId: number
@@ -81,7 +93,8 @@ export interface ParcelaProjeto {
   vencimento: string
   valor: string
   status: StatusParcela
-  /** Só vem no backend atualizado. */
+  recebimentos: RecebimentoProjeto[]
+  /** O detalhe do projeto não calcula; só `/cobrancas` informa. */
   vencida?: boolean
 }
 
@@ -123,8 +136,8 @@ export interface EtapaServicoRegistrada {
   valorUnitario: string
   custoInternoEstimado: string
   servico: ServicoResumido
-  /** Descrição própria do serviço na etapa; só vem no backend atualizado. */
-  descricao?: string | null
+  /** Descrição própria do serviço na etapa. */
+  descricao: string | null
 }
 
 export interface EtapaMaterialClienteRegistrado {
@@ -138,6 +151,8 @@ export interface EtapaRegistrada {
   id: number
   descricao: string
   dataRegistro: string
+  /** Data do cancelamento; etapa cancelada fica no histórico, sem ações. */
+  canceladoEm: string | null
   custoInternoEstimado: string
   valorCobrado: string
   servicos: EtapaServicoRegistrada[]
@@ -159,8 +174,7 @@ export interface ExtraServicoRegistrado {
   quantidade: string
   custoUnitarioEstimado: string
   servico: ServicoResumido
-  /** Só vem no backend atualizado. */
-  descricao?: string | null
+  descricao: string | null
 }
 
 export interface ExtraGastoAvulso {
@@ -173,13 +187,14 @@ export interface ExtraRegistrado {
   id: number
   descricaoJustificativa: string
   dataRegistro: string
+  /** Data do cancelamento; extra cancelado fica no histórico, sem ações. */
+  canceladoEm: string | null
   custoInternoEstimado: string
   despesaId: number | null
   materiais: ExtraMaterialRegistrado[]
   servicos: ExtraServicoRegistrado[]
   despesa: { id: number; valorTotal: string } | null
-  /** Só vem no backend atualizado. */
-  gastosAvulsos?: ExtraGastoAvulso[]
+  gastosAvulsos: ExtraGastoAvulso[]
 }
 
 export interface OrcamentoDoProjetoDetalhe extends OrcamentoDoProjetoResumo {
@@ -201,7 +216,7 @@ export interface MedicoesProjeto {
   saldoAMedir: number
 }
 
-/** `GET /projetos/:id`. Os campos opcionais só vêm no backend atualizado. */
+/** `GET /projetos/:id`. */
 export interface ProjetoDetalhe extends ProjetoBase {
   responsavel: ResponsavelProjeto & { status: string }
   orcamento: OrcamentoDoProjetoDetalhe
@@ -209,9 +224,10 @@ export interface ProjetoDetalhe extends ProjetoBase {
   extras: ExtraRegistrado[]
   cobrancas: CobrancaProjeto[]
   /** `false` quando falta saldo para reservar o estoque dos materiais (só em projeto planejado). */
-  estoqueSuficiente?: boolean
-  materiaisSemSaldo?: MaterialSemSaldoProjeto[]
-  medicoes?: MedicoesProjeto | null
+  estoqueSuficiente: boolean
+  materiaisSemSaldo: MaterialSemSaldoProjeto[]
+  /** Só Construção Civil; null nos demais tipos. */
+  medicoes: MedicoesProjeto | null
 }
 
 /** Cobrança que o cancelamento do projeto cancelou ou manteve (resposta de `PATCH /status`). */
@@ -221,10 +237,10 @@ export interface CancelamentoProjeto {
   reservasLiberadas: number
 }
 
-/** Resposta de iniciar e de alterar status: o projeto mais, no backend atualizado, avisos e o resultado do cancelamento. */
+/** Resposta de `PATCH /status`: o projeto mais os avisos e, ao cancelar, o resultado do cancelamento (null ao concluir). */
 export type RespostaProjeto = ProjetoDetalhe & {
-  avisos?: string[]
-  cancelamento?: CancelamentoProjeto | null
+  avisos: string[]
+  cancelamento: CancelamentoProjeto | null
 }
 
 /* ---------------------------------- Payloads ---------------------------------- */
@@ -251,7 +267,7 @@ export interface EtapaServicoPayload {
   valorUnitario: number
   /** Total da linha (não unitário). */
   custoInternoEstimado: number
-  /** Detalhe do serviço nesta etapa; só o backend atualizado aceita (o antigo recusa o campo, 400). */
+  /** Detalhe do serviço nesta etapa (até 1000 caracteres). */
   descricao?: string
 }
 
@@ -282,7 +298,7 @@ export interface ExtraServicoPayload {
   quantidade: number
   /** Custo unitário. */
   custoUnitarioEstimado: number
-  /** Só o backend atualizado aceita. */
+  /** Detalhe do serviço neste extra (até 1000 caracteres). */
   descricao?: string
 }
 
@@ -297,15 +313,14 @@ export interface ExtraPayload {
   descricaoJustificativa: string
   materiais?: ExtraMaterialPayload[]
   servicos?: ExtraServicoPayload[]
-  /** Só o backend atualizado aceita; o antigo recusa o campo (400). */
   gastosAvulsos?: ExtraGastoAvulsoPayload[]
 }
 
-/** `PATCH /projetos/:id`: só o que mudou. Datas em YYYY-MM-DD; `complementoObra: ''` limpa o complemento. */
+/** `PATCH /projetos/:id`: só o que mudou. Datas em YYYY-MM-DD, `null` limpa a previsão; `complementoObra: ''` limpa o complemento. */
 export interface EditarProjetoPayload {
   responsavelId?: number
-  previsaoInicio?: string
-  previsaoConclusao?: string
+  previsaoInicio?: string | null
+  previsaoConclusao?: string | null
   cepObra?: string
   cidadeObra?: string
   estadoObra?: string
@@ -340,3 +355,23 @@ export interface RegistroEditavel {
 }
 
 export type StatusFinalProjeto = Extract<StatusProjeto, 'CONCLUIDO' | 'CANCELADO'>
+
+/** Modalidade de `GET /projetos/opcoes/formas-pagamento` e as formas aceitas nela. */
+export interface FormasPagamentoDaModalidade {
+  modalidade: 'A_VISTA' | 'PARCELADO'
+  formas: { valor: FormaPagamento; rotulo: string; aceitaAcrescimo: boolean }[]
+}
+
+/** Corpo de `POST /projetos/:id/cobranca/simular`; sem `valorCobrado` simula o saldo do início. */
+export interface SimularCobrancaPayload extends Partial<CondicaoCobrancaPayload> {
+  valorCobrado?: number
+}
+
+/** Resposta da simulação (nada é gravado). Valores em reais; a data da parcela chega em ISO. */
+export interface SimulacaoCobranca {
+  subtotal: string | number
+  desconto: string | number
+  acrescimo: string | number
+  valorFinal: number
+  parcelas: { numero: number; vencimento: string; valor: number }[]
+}
