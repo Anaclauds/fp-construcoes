@@ -1,5 +1,6 @@
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { computed, onScopeDispose, reactive, ref, shallowRef, watch } from 'vue'
+import { errosPorCampo, extrairErro } from '../services/api'
+import { simularOrcamento } from '../services/orcamentos.service'
 import type {
   ClienteDoOrcamento,
   MaterialPayload,
@@ -8,12 +9,13 @@ import type {
   OrcamentoAtualizacao,
   OrcamentoPayload,
   ServicoPayload,
+  SimularOrcamentoPayload,
   TipoOrcamento,
 } from '../types'
-import { semAcento } from '../utils/formatadores'
 import {
   LIMITE_VALOR_CENTAVOS,
   calcularResumo,
+  decimalApiParaCentavos,
   decimalApiParaTexto,
   escalaParaNumero,
   mensagemOrcamento,
@@ -22,7 +24,9 @@ import {
 } from '../utils/orcamentos'
 import { useOpcoesOrcamento } from './useOpcoesOrcamento'
 
-export type ClienteSelecionado = Pick<ClienteDoOrcamento, 'id' | 'nome' | 'cidade' | 'estado' | 'telefone'>
+/** `status` só existe quando o cliente vem de um orçamento já salvo (para sinalizar cliente inativo). */
+export type ClienteSelecionado = Pick<ClienteDoOrcamento, 'id' | 'nome' | 'cidade' | 'estado' | 'telefone'> &
+  Partial<Pick<ClienteDoOrcamento, 'status'>>
 
 export interface LinhaMaterial {
   chave: number
@@ -66,6 +70,7 @@ const LIMITE_OBSERVACOES = 3000
 const LIMITE_DESCRICAO = 1000
 const QUANTIDADE_MINIMA = 1 // 0,001 em milésimos
 const VALOR_MINIMO = 1 // 0,01 em centavos
+const ATRASO_SIMULACAO_MS = 700
 
 let proximaChave = 1
 
@@ -94,7 +99,8 @@ const servicoPreenchido = (l: LinhaServico) =>
 /**
  * Estado, validação e conversão do formulário de orçamento (página de cadastro e modal de edição).
  * - `inicial`: orçamento já cadastrado (edição); sem ele é um cadastro novo.
- * Os totais seguem a conta do backend (ver `calcularResumo`), então o resumo ao vivo bate com o salvo.
+ * O resumo ao vivo começa pela conta local (`calcularResumo`, mesma regra do backend: arredonda cada linha a centavos
+ * antes de somar) e é substituído pelo valor definitivo de `POST /orcamentos/simular` assim que a resposta chega.
  */
 export function useFormularioOrcamento(inicial?: Orcamento | null) {
   const opcoes = useOpcoesOrcamento()
@@ -136,7 +142,8 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
   const errosServicos = reactive<Record<number, ErrosLinha>>({})
   const erroGeral = shallowRef<string | null>(null)
 
-  // Itens do orçamento que já não estão na lista de ativos continuam selecionáveis (o dado não se perde).
+  // Itens do orçamento que já não estão na lista de ativos continuam na linha, marcados como inativos
+  // (o dado não se perde); as outras linhas não os recebem como opção.
   const materiaisExtras = (inicial?.materiais ?? []).map((m): OpcaoMaterial => ({
     id: m.material.id,
     codigo: m.material.codigo,
@@ -144,6 +151,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     categoria: '',
     unidadeMedida: m.material.unidadeMedida,
     precoReferencia: m.valorUnitario,
+    inativo: true,
   }))
 
   const listaMateriais = computed(() => {
@@ -159,6 +167,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     categoria: inicial!.tipo as string,
     unidadeMedida: s.servico.unidadeMedida,
     valorReferencia: s.valorUnitario,
+    inativo: true,
   }))
 
   const servicosDoTipo = computed(() => {
@@ -167,7 +176,96 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     return [...lista, ...servicosExtras.filter((extra) => !lista.some((s) => s.id === extra.id))]
   })
 
-  const resumo = computed(() => calcularResumo(materiais.value, servicos.value))
+  /* ------------------------------ resumo e simulação ------------------------------ */
+
+  // Só linhas com item escolhido entram na conta (as mesmas que vão para a API).
+  const descontoCentavos = inicial ? (decimalApiParaCentavos(inicial.desconto) ?? 0) : 0
+  const resumoLocal = computed(() =>
+    calcularResumo(
+      materiais.value.filter((l) => l.materialId !== ''),
+      servicos.value.filter((l) => l.servicoId !== ''),
+      descontoCentavos,
+    ),
+  )
+
+  /** Totais devolvidos pela API para o estado atual do formulário (null enquanto não chegam). */
+  const previaServidor = shallowRef<{ materiais: number; servicos: number; total: number } | null>(null)
+  const simulando = shallowRef(false)
+
+  /** Corpo da simulação: só linhas completas e válidas; null quando a API só devolveria erro de validação. */
+  const payloadSimulacao = computed<SimularOrcamentoPayload | null>(() => {
+    if (campos.tipo === '') return null
+    const linhaValida = (l: { quantidade: string; valorUnitario: string }) => {
+      const q = textoParaEscala(l.quantidade, 3)
+      const v = textoParaEscala(l.valorUnitario, 2)
+      return q !== null && q >= QUANTIDADE_MINIMA && v !== null && v >= VALOR_MINIMO
+    }
+    const dosMateriais = materiais.value.filter((l) => l.materialId !== '' && linhaValida(l))
+    const dosServicos = servicos.value.filter((l) => l.servicoId !== '' && linhaValida(l))
+    if (dosMateriais.length + dosServicos.length === 0) return null
+    // Item repetido a API recusa (400); quem corrige é a validação do formulário.
+    if (new Set(dosMateriais.map((l) => l.materialId)).size !== dosMateriais.length) return null
+    if (new Set(dosServicos.map((l) => l.servicoId)).size !== dosServicos.length) return null
+    return {
+      tipo: campos.tipo,
+      materiais: dosMateriais.map((l) => ({
+        materialId: Number(l.materialId),
+        quantidade: escalaParaNumero(textoParaEscala(l.quantidade, 3) ?? 0, 3),
+        valorUnitario: escalaParaNumero(textoParaEscala(l.valorUnitario, 2) ?? 0, 2),
+      })),
+      servicos: dosServicos.map((l) => ({
+        servicoId: Number(l.servicoId),
+        quantidade: escalaParaNumero(textoParaEscala(l.quantidade, 3) ?? 0, 3),
+        valorUnitario: escalaParaNumero(textoParaEscala(l.valorUnitario, 2) ?? 0, 2),
+      })),
+      ...(descontoCentavos > 0 ? { desconto: escalaParaNumero(descontoCentavos, 2) } : {}),
+    }
+  })
+
+  // Debounce + descarte de resposta antiga: só a última simulação pode preencher a prévia.
+  let temporizadorSimulacao: number | undefined
+  let ultimaSimulacao = 0
+
+  watch(
+    () => JSON.stringify(payloadSimulacao.value),
+    (chave) => {
+      window.clearTimeout(temporizadorSimulacao)
+      const requisicao = ++ultimaSimulacao
+      previaServidor.value = null
+      if (chave === 'null') {
+        simulando.value = false
+        return
+      }
+      simulando.value = true
+      temporizadorSimulacao = window.setTimeout(async () => {
+        try {
+          const r = await simularOrcamento(JSON.parse(chave) as SimularOrcamentoPayload)
+          if (requisicao !== ultimaSimulacao) return
+          const dosMateriais = decimalApiParaCentavos(r.totalMateriais)
+          const dosServicos = decimalApiParaCentavos(r.totalServicos)
+          const total = decimalApiParaCentavos(r.valorTotal)
+          if (dosMateriais !== null && dosServicos !== null && total !== null) {
+            previaServidor.value = { materiais: dosMateriais, servicos: dosServicos, total }
+          }
+        } catch {
+          // Item inativo mantido pelo histórico, rede ou 4xx: a prévia local segue valendo; o salvamento valida de verdade.
+        } finally {
+          if (requisicao === ultimaSimulacao) simulando.value = false
+        }
+      }, ATRASO_SIMULACAO_MS)
+    },
+    { immediate: true },
+  )
+
+  onScopeDispose(() => window.clearTimeout(temporizadorSimulacao))
+
+  /** Valores em centavos para o resumo: os da API quando já chegaram, senão a conta local. */
+  const resumo = computed(() => {
+    const local = resumoLocal.value
+    const servidor = previaServidor.value
+    if (!servidor) return local
+    return { ...servidor, acimaDoLimite: local.acimaDoLimite || servidor.total > LIMITE_VALOR_CENTAVOS }
+  })
 
   /** Cópia do estado "limpo", para saber se algo mudou. */
   function instantaneo(): string {
@@ -430,12 +528,53 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     }))
   }
 
-  /** Interpreta o erro da API: cliente vai para o campo; o resto vira mensagem geral (já em português). */
+  /**
+   * Interpreta o erro da API: `erros[]` (campo por campo, inclusive `materiais.0.quantidade`) vai para o campo certo;
+   * cliente inativo/inexistente vai para o campo do cliente; o resto vira mensagem geral (já em português).
+   */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
+    const { mensagem, codigo } = extrairErro(erro)
     const texto = mensagemOrcamento(mensagem)
-    if (status === 404 && /cliente/i.test(semAcento(mensagem))) erros.cliente = texto
-    else erroGeral.value = texto
+    if (codigo === 'ORCAMENTOS_ENSURECLIENTEATIVO_NOTFOUND_01') {
+      erros.cliente = texto
+      return
+    }
+
+    const camposTopo: Record<string, keyof CamposOrcamento | 'cliente'> = {
+      titulo: 'titulo',
+      tipo: 'tipo',
+      clienteId: 'cliente',
+      prazoEstimadoDias: 'prazo',
+      observacoes: 'observacoes',
+    }
+    const camposLinha: Record<string, keyof ErrosLinha> = {
+      materialId: 'item',
+      servicoId: 'item',
+      quantidade: 'quantidade',
+      valorUnitario: 'valorUnitario',
+      descricaoAdicional: 'descricao',
+    }
+    // Os índices do servidor contam as linhas enviadas (as preenchidas), na mesma ordem do payload.
+    const linhasMateriais = materiais.value.filter(materialPreenchido)
+    const linhasServicos = servicos.value.filter(servicoPreenchido)
+    let achouCampo = false
+    for (const [campo, mensagemCampo] of Object.entries(errosPorCampo(erro))) {
+      const linha = /^(materiais|servicos)\.(\d+)\.(\w+)$/.exec(campo)
+      if (linha) {
+        const ehMaterial = linha[1] === 'materiais'
+        const alvo = (ehMaterial ? linhasMateriais : linhasServicos)[Number(linha[2])]
+        const chaveErro = camposLinha[linha[3]!]
+        if (alvo && chaveErro) {
+          const mapa = ehMaterial ? errosMateriais : errosServicos
+          mapa[alvo.chave] = { ...mapa[alvo.chave], [chaveErro]: mensagemCampo }
+          achouCampo = true
+        }
+      } else if (camposTopo[campo]) {
+        erros[camposTopo[campo]] = mensagemCampo
+        achouCampo = true
+      }
+    }
+    if (!achouCampo) erroGeral.value = texto
   }
 
   return {
@@ -448,6 +587,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     errosServicos,
     erroGeral,
     resumo,
+    simulando,
     alterado,
     opcoes,
     listaMateriais,

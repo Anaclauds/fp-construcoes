@@ -1,4 +1,5 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
+import type { OpcaoSelecao } from '../types/categoria'
 import { mascararMoeda, normalizarTexto } from './formatadores'
 
 /** Limites do cadastro (colunas da API). A descrição é TEXT no banco: o limite do front evita textos absurdos. */
@@ -9,21 +10,7 @@ export const LIMITE_DESCRICAO_MATERIAL = 1000
 /** DECIMAL(12,2): maior preço aceito pela API. */
 export const VALOR_MAXIMO_MATERIAL = 9_999_999_999.99
 
-/**
- * Categorias oferecidas na tela. A API guarda texto livre e não tem lista de opções, então o front fixa uma
- * lista única para cadastro, edição e filtros (Consultar Material e Gerenciar Estoque).
- */
-export const CATEGORIAS_MATERIAL = [
-  'Aço e Metais',
-  'Alumínio',
-  'Fixação e Ferragem',
-  'Vedação',
-  'Pintura',
-  'Ferramenta',
-  'Outros',
-]
-
-/** Unidades oferecidas (a API aceita texto livre; o valor salvo é o próprio rótulo). */
+/** Unidades de reserva: só entram na lista se `/materiais/opcoes/unidades` não responder (a API aceita texto livre; o valor salvo é o próprio rótulo). */
 export const UNIDADES_MATERIAL = [
   'Unidade',
   'Metro Linear',
@@ -97,16 +84,15 @@ function paraOpcao(valor: string, lista: string[], equivalentes: Record<string, 
 }
 
 export const unidadeParaOpcao = (valor: string) => paraOpcao(valor, UNIDADES_MATERIAL, EQUIVALENTES)
-export const categoriaParaOpcao = (valor: string) => paraOpcao(valor, CATEGORIAS_MATERIAL, {})
+/** A categoria é o próprio texto cadastrado no catálogo: só tira espaços das pontas. */
+export const categoriaParaOpcao = (valor: string) => valor.trim()
 
-/** Lista de opções do select + o valor legado (texto livre antigo), para o cadastro antigo não se perder. */
-function opcoesCom(lista: string[], atual?: string): OpcaoCampo[] {
-  const base = atual && !lista.includes(atual) ? [...lista, atual] : lista
-  return base.map((valor) => ({ valor, rotulo: valor }))
+/** Opções do select a partir do catálogo (`valor`/`rotulo`) + o valor atual do cadastro, caso não esteja no catálogo (legado). */
+export function opcoesDeCatalogo(catalogo: OpcaoSelecao[], atual?: string): OpcaoCampo[] {
+  const lista: OpcaoCampo[] = catalogo.map(({ valor, rotulo }) => ({ valor, rotulo }))
+  if (atual && !lista.some((o) => o.valor === atual)) lista.push({ valor: atual, rotulo: atual })
+  return lista
 }
-
-export const opcoesCategoria = (atual?: string) => opcoesCom(CATEGORIAS_MATERIAL, atual)
-export const opcoesUnidade = (atual?: string) => opcoesCom(UNIDADES_MATERIAL, atual)
 
 /** Unidade como aparece nas telas: "Metro linear" -> "Metro Linear", "UN" -> "Unidade"; desconhecida fica como está. */
 export function rotuloUnidade(unidade: string): string {

@@ -37,7 +37,6 @@ onMounted(() => void funcionarios.carregar())
 
 const opcoesResponsavel = computed(() => {
   const opcoes = funcionarios.funcionarios.value
-    .filter((f) => f.status === 'ATIVO')
     .map((f) => ({ valor: String(f.id), rotulo: f.funcao ? `${f.nomeCompleto} — ${rotuloLegivel(f.funcao)}` : f.nomeCompleto }))
   // O responsável atual continua na lista mesmo que a consulta falhe (ou que ele tenha sido desativado).
   const atual = props.projeto.responsavel
@@ -49,7 +48,7 @@ const opcoesResponsavel = computed(() => {
 
 const avisoResponsavel = computed(() => {
   if (funcionarios.semPermissao.value) {
-    return 'Seu perfil não pode listar funcionários: só é possível manter o responsável atual.'
+    return 'Seu perfil não pode listar os responsáveis (a lista usa a permissão de Orçamentos): só é possível manter o responsável atual.'
   }
   return funcionarios.erro.value ?? undefined
 })

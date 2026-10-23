@@ -1,5 +1,4 @@
-import { shallowRef } from 'vue'
-import { api, endpointInexistente } from './api'
+import { api } from './api'
 import type {
   Cobranca,
   FiltrosCobrancas,
@@ -60,19 +59,8 @@ export async function exportarRelatorioCobrancas(
   return { blob: resposta.data, nome: nomeServidor ? decodeURIComponent(nomeServidor) : `relatorio-cobrancas.${extensao}` }
 }
 
-/**
- * `false` depois que o backend respondeu que não tem o cancelamento de cobrança (404 de rota): a tela esconde o botão.
- * Fica em memória da sessão; recarregar a página tenta de novo.
- */
-export const cancelamentoDeCobrancaDisponivel = shallowRef(true)
-
 /** Cancela a cobrança (e suas parcelas) quando nada foi recebido. Devolve a cobrança atualizada. */
 export async function cancelarCobranca(id: number): Promise<Cobranca> {
-  try {
-    const { data } = await api.patch<Cobranca>(`/cobrancas/${id}/cancelar`)
-    return data
-  } catch (e) {
-    if (endpointInexistente(e)) cancelamentoDeCobrancaDisponivel.value = false
-    throw e
-  }
+  const { data } = await api.patch<Cobranca>(`/cobrancas/${id}/cancelar`)
+  return data
 }

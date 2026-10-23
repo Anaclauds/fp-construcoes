@@ -1,6 +1,5 @@
 import { onScopeDispose, shallowRef } from 'vue'
 import { extrairErro } from '../services/api'
-import { listarClientes } from '../services/clientes.service'
 import { listarClientesParaOrcamento } from '../services/orcamentos.service'
 import type { Cliente } from '../types'
 import { termoDeBusca } from '../utils/formatadores'
@@ -8,13 +7,12 @@ import { termoDeBusca } from '../utils/formatadores'
 const ATRASO_MS = 300
 const LIMITE = 10
 
-/** O que o autocomplete precisa de um cliente; `cpfCnpj` só vem da rota de Clientes e o telefone não vem na lista de Orçamentos. */
+/** O que o autocomplete precisa de um cliente; a lista de Orçamentos não traz telefone nem CPF/CNPJ (só o cadastro rápido os devolve). */
 export type ClienteBusca = Pick<Cliente, 'id' | 'nome' | 'cidade' | 'estado'> & Partial<Pick<Cliente, 'telefone' | 'cpfCnpj'>>
 
 /**
  * Autocomplete de clientes ATIVOS (só eles podem receber orçamento), com busca no servidor.
- * Usa `/orcamentos/opcoes/clientes` (basta o módulo Orçamentos); em backend sem essa rota cai em `/clientes`,
- * e sem permissão de Clientes (403) a lista não existe: `semPermissao` avisa a tela.
+ * Usa `/orcamentos/opcoes/clientes` (basta o módulo Orçamentos). Se o servidor responder 403, `semPermissao` avisa a tela.
  */
 export function useBuscaClienteAtivo() {
   const clientes = shallowRef<ClienteBusca[]>([])
@@ -33,8 +31,7 @@ export function useBuscaClienteAtivo() {
     try {
       const termo = termoDeBusca(texto.trim())
       const parametros = termo ? { busca: termo } : {}
-      const opcoes = await listarClientesParaOrcamento({ limit: LIMITE, ...parametros })
-      const lista = opcoes ?? (await listarClientes({ status: 'ATIVO', limit: LIMITE, ...parametros })).data
+      const lista = await listarClientesParaOrcamento({ limit: LIMITE, ...parametros })
       if (requisicao !== ultima) return
       clientes.value = lista
       semPermissao.value = false

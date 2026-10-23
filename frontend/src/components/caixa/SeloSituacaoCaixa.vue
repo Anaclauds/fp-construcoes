@@ -49,13 +49,14 @@ defineProps<{ situacao: SituacaoCaixa }>()
   --sc-texto: #008236;
 }
 
-.selo-caixa--pendente {
+.selo-caixa--pendente_fechamento {
   --sc-fundo: #fef3c7;
   --sc-borda: #fcd34d;
   --sc-texto: #b45309;
 }
 
-.selo-caixa--fechado {
+.selo-caixa--fechado,
+.selo-caixa--nao_aberto {
   --sc-fundo: #f3f4f6;
   --sc-borda: #d1d5db;
   --sc-texto: #6b7280;

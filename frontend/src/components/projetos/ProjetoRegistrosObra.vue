@@ -1,21 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EtapaRegistrada, ExtraRegistrado, RegistroEditavel } from '../../types/projeto'
-import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
+import { formatarMoeda, instanteParaDataBrNegocio, isoParaDataBr } from '../../utils/formatadores'
 import { decimalApiParaTexto, rotuloUnidade } from '../../utils/orcamentos'
 
 const props = defineProps<{
   etapas: EtapaRegistrada[]
   extras: ExtraRegistrado[]
-  /** Mostra "Editar" em cada registro (gerenciar projetos, projeto em execução e servidor com a edição). */
+  /** Mostra "Editar" e "Cancelar" nos registros ativos (gerenciar projetos e projeto em execução). */
   editavel?: boolean
 }>()
 
-const emit = defineEmits<{ editar: [registro: RegistroEditavel] }>()
+const emit = defineEmits<{
+  editar: [registro: RegistroEditavel]
+  cancelar: [registro: RegistroEditavel]
+}>()
 
 interface Registro {
   chave: string
   editavel: RegistroEditavel
+  /** Data do cancelamento: registro cancelado fica no histórico, sem ações. */
+  canceladoEm: string | null
   tipo: 'Etapa' | 'Extra'
   data: string
   descricao: string
@@ -27,7 +32,7 @@ interface Registro {
 
 const quantidade = (valor: string, unidade: string) => `${decimalApiParaTexto(valor)} ${rotuloUnidade(unidade)}`.trim()
 
-/** "Nome (2 m²) - detalhe": o detalhe do serviço só vem no backend atualizado. */
+/** "Nome (2 m²) - detalhe". */
 const itemServico = (s: { servico: { nome: string; unidadeMedida: string }; quantidade: string; descricao?: string | null }) =>
   `${s.servico.nome} (${quantidade(s.quantidade, s.servico.unidadeMedida)})${s.descricao ? ` - ${s.descricao}` : ''}`
 
@@ -49,6 +54,7 @@ const registros = computed<Registro[]>(() => {
     return {
       chave: `etapa-${etapa.id}`,
       editavel: { tipo: 'etapa', id: etapa.id, texto: etapa.descricao, data: etapa.dataRegistro.slice(0, 10), dataTravada: false },
+      canceladoEm: etapa.canceladoEm,
       tipo: 'Etapa',
       data: etapa.dataRegistro,
       descricao: etapa.descricao,
@@ -90,6 +96,7 @@ const registros = computed<Registro[]>(() => {
         data: extra.dataRegistro.slice(0, 10),
         dataTravada: extra.despesaId !== null,
       },
+      canceladoEm: extra.canceladoEm,
       tipo: 'Extra',
       data: extra.dataRegistro,
       descricao: extra.descricaoJustificativa,
@@ -115,6 +122,7 @@ const registros = computed<Registro[]>(() => {
         v-for="registro in registros"
         :key="registro.chave"
         class="registro"
+        :class="{ 'registro--cancelado': registro.canceladoEm }"
       >
         <div class="registro-topo">
           <span
@@ -123,15 +131,28 @@ const registros = computed<Registro[]>(() => {
           >{{ registro.tipo }}</span>
           <span class="registro-direita">
             <span class="registro-data">{{ isoParaDataBr(registro.data) }}</span>
-            <button
-              v-if="editavel"
-              type="button"
-              class="registro-editar"
-              :aria-label="`Editar ${registro.tipo.toLowerCase()} de ${isoParaDataBr(registro.data)}`"
-              @click="emit('editar', registro.editavel)"
-            >
-              Editar
-            </button>
+            <span
+              v-if="registro.canceladoEm"
+              class="registro-cancelado"
+            >Cancelado em {{ instanteParaDataBrNegocio(registro.canceladoEm) }}</span>
+            <template v-else-if="editavel">
+              <button
+                type="button"
+                class="registro-editar"
+                :aria-label="`Editar ${registro.tipo.toLowerCase()} de ${isoParaDataBr(registro.data)}`"
+                @click="emit('editar', registro.editavel)"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                class="registro-editar registro-editar--perigo"
+                :aria-label="`Cancelar ${registro.tipo.toLowerCase()} de ${isoParaDataBr(registro.data)}`"
+                @click="emit('cancelar', registro.editavel)"
+              >
+                Cancelar
+              </button>
+            </template>
           </span>
         </div>
         <p class="registro-descricao">
@@ -237,6 +258,32 @@ const registros = computed<Registro[]>(() => {
   outline: none;
   box-shadow: var(--fp-foco);
   border-radius: 4px;
+}
+
+.registro-editar--perigo {
+  color: var(--fp-vermelho);
+}
+
+.registro-cancelado {
+  padding: 1px 10px;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background-color: #fef2f2;
+  color: var(--fp-vermelho-escuro);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Registro cancelado continua legível no histórico, mas apagado (sem ações). */
+.registro--cancelado .registro-descricao,
+.registro--cancelado .registro-detalhe,
+.registro--cancelado .registro-valores {
+  opacity: 0.65;
+}
+
+.registro--cancelado .registro-descricao,
+.registro--cancelado .registro-valores strong {
+  text-decoration: line-through;
 }
 
 .registro-data {

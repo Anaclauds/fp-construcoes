@@ -1,4 +1,4 @@
-import { api, endpointInexistente } from './api'
+import { api } from './api'
 import type {
   AprovarOrcamentoPayload,
   FiltrosOrcamentos,
@@ -11,7 +11,10 @@ import type {
   OrcamentoAtualizacao,
   OrcamentoPayload,
   RespostaAprovacao,
+  SimulacaoOrcamento,
+  SimularOrcamentoPayload,
   StatusDefinivel,
+  TipoOrcamento,
 } from '../types'
 
 export async function listarOrcamentos(filtros: FiltrosOrcamentos = {}): Promise<ListaOrcamentos> {
@@ -46,52 +49,40 @@ export async function aprovarOrcamento(id: number, payload: AprovarOrcamentoPayl
   return data
 }
 
+/** Seletores do orçamento: basta a permissão ORCAMENTOS (visualizar), sem Materiais, Serviços, Clientes ou Funcionários. */
 export async function listarOpcoesMateriais(): Promise<OpcaoMaterial[]> {
   const { data } = await api.get<OpcaoMaterial[]>('/orcamentos/opcoes/materiais')
   return data
 }
 
-export async function listarOpcoesServicos(): Promise<OpcaoServico[]> {
-  const { data } = await api.get<OpcaoServico[]>('/orcamentos/opcoes/servicos')
+/** Serviços ativos; `tipo` filtra pela categoria (igual ao tipo do orçamento). */
+export async function listarOpcoesServicos(tipo?: TipoOrcamento): Promise<OpcaoServico[]> {
+  const { data } = await api.get<OpcaoServico[]>('/orcamentos/opcoes/servicos', { params: tipo ? { tipo } : undefined })
   return data
 }
 
-/**
- * Opções para quem tem só o módulo Orçamentos (clientes e responsáveis sem acesso a Clientes/Funcionários).
- * Backend sem essas rotas responde 404 de rota: `null` avisa o chamador para usar o caminho antigo
- * (`/clientes`, `/funcionarios`), e a ausência fica lembrada para não repetir a chamada.
- */
-const rotaIndisponivel = { clientes: false, responsaveis: false }
-
-async function tentarOpcao<T>(chave: keyof typeof rotaIndisponivel, chamada: () => Promise<T>): Promise<T | null> {
-  if (rotaIndisponivel[chave]) return null
-  try {
-    return await chamada()
-  } catch (e) {
-    if (!endpointInexistente(e)) throw e
-    rotaIndisponivel[chave] = true
-    return null
-  }
+/** Clientes ativos (`busca` por nome, razão social, fantasia, cidade ou telefone; `limit` até 200). */
+export async function listarClientesParaOrcamento(params: { busca?: string; limit?: number }): Promise<OpcaoClienteOrcamento[]> {
+  const { data } = await api.get<OpcaoClienteOrcamento[]>('/orcamentos/opcoes/clientes', { params })
+  return data
 }
 
-export function listarClientesParaOrcamento(params: { busca?: string; limit?: number }) {
-  return tentarOpcao('clientes', async () => {
-    const { data } = await api.get<OpcaoClienteOrcamento[]>('/orcamentos/opcoes/clientes', { params })
-    return data
-  })
+/** Um cliente ativo com endereço. Cliente inativo ou inexistente responde 404. */
+export async function buscarClienteParaOrcamento(id: number): Promise<OpcaoClienteOrcamento> {
+  const { data } = await api.get<OpcaoClienteOrcamento>(`/orcamentos/opcoes/clientes/${id}`)
+  return data
 }
 
-/** Um 404 de registro (cliente inativo/inexistente) é erro de verdade; só o 404 de rota vira `null`. */
-export function buscarClienteParaOrcamento(id: number) {
-  return tentarOpcao('clientes', async () => {
-    const { data } = await api.get<OpcaoClienteOrcamento>(`/orcamentos/opcoes/clientes/${id}`)
-    return data
+/** Funcionários ativos que podem ser responsáveis pelo projeto aprovado. */
+export async function listarResponsaveisParaOrcamento(busca?: string): Promise<OpcaoResponsavel[]> {
+  const { data } = await api.get<OpcaoResponsavel[]>('/orcamentos/opcoes/responsaveis', {
+    params: busca ? { busca } : undefined,
   })
+  return data
 }
 
-export function listarResponsaveisParaOrcamento() {
-  return tentarOpcao('responsaveis', async () => {
-    const { data } = await api.get<OpcaoResponsavel[]>('/orcamentos/opcoes/responsaveis')
-    return data
-  })
+/** Totais calculados pelo backend sem gravar nada (resposta 2xx é só uma prévia, não um orçamento criado). */
+export async function simularOrcamento(payload: SimularOrcamentoPayload): Promise<SimulacaoOrcamento> {
+  const { data } = await api.post<SimulacaoOrcamento>('/orcamentos/simular', payload)
+  return data
 }

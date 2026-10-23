@@ -2,7 +2,7 @@ import { computed, reactive, shallowRef, watch } from 'vue'
 import { extrairErro, type MaterialSemSaldo } from '../services/api'
 import type { IniciarProjetoPayload, ProjetoResumo } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
-import { dataBrParaIso, isoParaDataBr, paraCentavos, semAcento } from '../utils/formatadores'
+import { dataBrParaIso, isoParaDataBr, paraCentavos } from '../utils/formatadores'
 import { duracaoEmDias, ehEstoqueInsuficiente, mensagemProjeto } from '../utils/projetos'
 import { dataBrValida } from '../utils/validacao'
 import { ANO_MINIMO_DATA_PROJETO } from '../utils/projetos'
@@ -34,7 +34,7 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   const erroEstoque = shallowRef(false)
   /**
    * Materiais sem saldo para reservar o estoque: conferidos ao abrir (`estoqueSuficiente === false` do detalhe) e
-   * também vindos do 400 de estoque. Vazio no backend antigo, que só avisa no erro.
+   * também vindos do 400 de estoque.
    */
   const materiaisSemSaldo = shallowRef<MaterialSemSaldo[]>([])
   /** Falta saldo conferida ANTES de enviar: o botão de confirmar fica desabilitado até regularizar o estoque. */
@@ -43,7 +43,7 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   const desatualizado = shallowRef(false)
 
   const valorBase = computed(() => paraCentavos(projeto.orcamento.valorTotal))
-  const cobranca = useCobrancaProjeto(valorBase)
+  const cobranca = useCobrancaProjeto(valorBase, { projetoId: projeto.id })
 
   for (const chave of ['dataInicio', 'previsaoConclusao'] as const) {
     watch(
@@ -116,13 +116,14 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
 
   /** Falta de estoque, projeto já iniciado, data inválida... viram mensagem no próprio modal. */
   function tratarErroApi(erro: unknown): 'cronograma' | 'cobranca' {
-    const { mensagem, materiais } = extrairErro(erro)
+    const { mensagem, materiais, codigo, status } = extrairErro(erro)
     const texto = mensagemProjeto(mensagem)
     erroGeral.value = texto
-    erroEstoque.value = ehEstoqueInsuficiente(mensagem)
+    erroEstoque.value = ehEstoqueInsuficiente(codigo)
     materiaisSemSaldo.value = materiais
-    if (/somente projeto planejado|projeto nao encontrado/i.test(semAcento(mensagem))) desatualizado.value = true
-    if (/previsao de conclusao nao pode/i.test(semAcento(mensagem))) {
+    // Já iniciado (409) ou removido (404): a lista está desatualizada.
+    if (codigo === 'PROJETO_STATUS_INVALIDO' || status === 404) desatualizado.value = true
+    if (codigo === 'PROJETOS_INICIAR_BADREQUEST_01') {
       erros.previsaoConclusao = texto
       return 'cronograma'
     }

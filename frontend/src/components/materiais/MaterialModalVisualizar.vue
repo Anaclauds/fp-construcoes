@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { rotuloFornecedorVinculado } from '../../utils/fornecedores'
 import type { Material } from '../../types/material'
 import { formatarMoeda } from '../../utils/formatadores'
 import { rotuloUnidade } from '../../utils/materiais'
@@ -73,7 +74,7 @@ const emit = defineEmits<{
         />
         <CampoLeitura
           rotulo="Fornecedor"
-          :valor="material.fornecedorPreferencial?.nomeFantasia ?? ''"
+          :valor="rotuloFornecedorVinculado(material.fornecedorPreferencial)"
         />
       </dl>
     </section>

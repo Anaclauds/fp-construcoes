@@ -13,6 +13,7 @@ import CardBuscaFiltro, { type OpcaoFiltro } from '../../components/ui/CardBusca
 import TabelaDados, { type ColunaTabela } from '../../components/ui/TabelaDados.vue'
 import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
+import { useCatalogoMaterial } from '../../composables/useCatalogoMaterial'
 import { useListaEstoque } from '../../composables/useListaEstoque'
 import { useToast } from '../../composables/useToast'
 import { extrairMensagemErro } from '../../services/api'
@@ -20,7 +21,7 @@ import { buscarMaterial } from '../../services/materiais.service'
 import type { ItemEstoque } from '../../types/estoque'
 import type { Material } from '../../types/material'
 import { quantidadeComUnidade } from '../../utils/estoque'
-import { CATEGORIAS_MATERIAL, rotuloUnidade } from '../../utils/materiais'
+import { rotuloUnidade } from '../../utils/materiais'
 
 type Modal =
   | { tipo: 'visualizar' | 'ajustar'; item: ItemEstoque }
@@ -37,10 +38,12 @@ const podeEditarMaterial = computed(() => temPermissao('MATERIAIS', 'gerenciar')
 
 const { busca, categoria, pagina, porPagina, itens, indicadores, total, carregando, erro, carregar } = useListaEstoque()
 
-const opcoesCategoria: OpcaoFiltro[] = [
+// Categorias do catálogo da API (inclui as cadastradas pelos usuários).
+const catalogo = useCatalogoMaterial(false)
+const opcoesCategoria = computed<OpcaoFiltro[]>(() => [
   { valor: 'TODAS', rotulo: 'Todas' },
-  ...CATEGORIAS_MATERIAL.map((nome) => ({ valor: nome, rotulo: nome })),
-]
+  ...catalogo.categorias.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
+])
 
 const colunas: ColunaTabela[] = [
   { chave: 'material', rotulo: 'Material', largura: '21%' },
@@ -91,7 +94,8 @@ async function aoAjustar() {
 async function aoCriarMaterial() {
   fecharModal()
   mostrarToast('Salvo com sucesso!')
-  await carregar()
+  // Atualiza também os chips de categoria: o modal pode ter criado uma categoria nova.
+  await Promise.all([carregar(), catalogo.recarregar()])
 }
 
 /** "2 projeto(s)" na célula Reservado; sem reserva não mostra nada (como no Figma). */

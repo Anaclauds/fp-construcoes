@@ -1,4 +1,3 @@
-import type { Cliente } from './cliente'
 import type { Paginado } from './paginado'
 import type { ModalidadePagamento, TipoOrcamento } from './orcamento'
 
@@ -34,7 +33,7 @@ export interface ProjetoCobrancas {
   /** "0001" (sem o #). */
   numero: string
   titulo: string
-  cliente: Cliente
+  cliente: { id: number; nome: string }
   tipo: TipoOrcamento
   quantidadeCobrancas: number
   valorTotal: number
@@ -83,7 +82,7 @@ export interface Parcela {
   /** Só vêm em `GET /cobrancas/:id`; no detalhe do projeto são calculados a partir dos recebimentos. */
   valorRecebido?: number
   valorRestante?: number
-  /** Em aberto/parcial com vencimento anterior a hoje. Só vem no backend atualizado; ausente = não mostrar. */
+  /** Em aberto/parcial com vencimento anterior a hoje (calculado pelo servidor em /cobrancas); ausente = não mostrar. */
   vencida?: boolean
 }
 

@@ -15,17 +15,18 @@ import { useAuth } from '../../composables/useAuth'
 import { useCaixaDoMes } from '../../composables/useCaixaDoMes'
 import { useToast } from '../../composables/useToast'
 import type { Caixa } from '../../types/caixa'
-import { nomeDoMes, rotuloCompetencia } from '../../utils/caixa'
+import { caixaNaoAberto, herdaSaldoAnterior, nomeDoMes, rotuloCompetencia } from '../../utils/caixa'
 import { formatarDataHoraIso } from '../../utils/formatadores'
 
 type Modal = 'fechar' | 'valor-inicial' | 'reabrir' | 'recebimentos' | null
+
 
 const { temPermissao } = useAuth()
 const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('CAIXA', 'gerenciar'))
-// O relatório de recebimentos pertence às Cobranças: exige o acesso desse módulo.
-const podeVerRecebimentos = computed(() => temPermissao('COBRANCAS', 'visualizar'))
+// O relatório de recebimentos aceita visualizar Cobranças ou Caixa (a API libera os dois).
+const podeVerRecebimentos = computed(() => temPermissao('COBRANCAS', 'visualizar') || temPermissao('CAIXA', 'visualizar'))
 
 const mes = useCaixaDoMes('caixa')
 const acoes = useAcoesCaixa()
@@ -33,13 +34,34 @@ const acoes = useAcoesCaixa()
 const modal = shallowRef<Modal>(null)
 const imprimindo = shallowRef(false)
 
-const aberto = computed(() => mes.caixa.value?.status === 'ABERTO')
+// Competência ainda não aberta (`id: 0`): só aceita "Abrir caixa"; nunca fechar nem reabrir.
+const naoAberto = computed(() => (mes.caixa.value ? caixaNaoAberto(mes.caixa.value) : false))
+// Antes do primeiro caixa existente o servidor criaria um caixa fora da ordem: não oferece abertura.
+const antesDoPrimeiro = computed(() => {
+  const minima = mes.caixa.value?.competenciaMinima
+  return naoAberto.value && !!minima && mes.competencia.value < minima
+})
+const aberto = computed(() => mes.caixa.value?.status === 'ABERTO' && !naoAberto.value)
 const fechado = computed(() => mes.caixa.value?.status === 'FECHADO')
-const pendente = computed(() => mes.situacao.value === 'PENDENTE')
+const pendente = computed(() => mes.situacao.value === 'PENDENTE_FECHAMENTO')
 const emAndamento = computed(() => mes.situacao.value === 'EM_ANDAMENTO')
+const podeFechar = computed(() => mes.caixa.value?.podeFechar === true)
 
-// Só caixa fechado volta a abrir, e só no backend que oferece a reabertura (descoberto na primeira tentativa).
-const podeReabrir = computed(() => podeGerenciar.value && fechado.value && !acoes.reaberturaIndisponivel.value)
+const podeReabrir = computed(() => podeGerenciar.value && fechado.value)
+
+// O valor inicial só se redefine no primeiro caixa e antes dos lançamentos (o servidor recusa depois, e herda o saldo anterior).
+const podeAlterarInicial = computed(() => {
+  const caixa = mes.caixa.value
+  if (!caixa || !podeGerenciar.value || !aberto.value || herdaSaldoAnterior(caixa)) return false
+  return caixa.entradas.length === 0 && caixa.saidas.length === 0
+})
+
+/** Texto abaixo do botão de fechar quando ele está bloqueado. */
+const legendaFechar = computed(() => {
+  if (!podeGerenciar.value || !aberto.value || podeFechar.value) return ''
+  if (emAndamento.value) return 'Disponível após o encerramento do mês.'
+  return 'Feche os meses anteriores primeiro.'
+})
 
 const fechadoPor = computed(() => {
   const usuario = mes.caixa.value?.fechadoPorUsuario
@@ -65,9 +87,10 @@ function aoDesatualizar() {
 }
 
 function aoSalvarValorInicial(caixa: Caixa) {
+  const abriu = naoAberto.value
   fecharModal()
   mes.aplicar(caixa)
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast(abriu ? 'Caixa aberto!' : 'Salvo com sucesso!')
 }
 
 async function reabrir() {
@@ -80,17 +103,13 @@ async function reabrir() {
     mostrarToast('Caixa reaberto.')
   } else if (acoes.desatualizado.value) {
     aoDesatualizar()
-  } else if (acoes.reaberturaIndisponivel.value) {
-    // O servidor não tem a reabertura: avisa uma vez e o botão deixa de aparecer.
-    modal.value = null
-    mostrarToast('A reabertura de caixa não está disponível neste servidor.', 'info')
   }
 }
 
 /** Mesma limitação do Relatório de Frequência: o diálogo de impressão não informa se o PDF foi salvo. */
 function aoConcluirImpressao() {
   imprimindo.value = false
-  mostrarToast('PDF baixado!')
+  mostrarToast('Impressão concluída.', 'info')
 }
 
 onMounted(mes.carregar)
@@ -127,10 +146,17 @@ onMounted(mes.carregar)
           <BotaoFp
             variante="secundario"
             tamanho="pagina"
-            :desabilitado="!mes.caixa.value"
+            :desabilitado="!mes.caixa.value || naoAberto"
             @click="imprimindo = true"
           >
             Imprimir
+          </BotaoFp>
+          <BotaoFp
+            v-if="podeGerenciar && naoAberto && !antesDoPrimeiro"
+            tamanho="pagina"
+            @click="modal = 'valor-inicial'"
+          >
+            Abrir Caixa
           </BotaoFp>
           <BotaoFp
             v-if="podeReabrir"
@@ -143,26 +169,49 @@ onMounted(mes.carregar)
           <BotaoFp
             v-if="podeGerenciar && aberto"
             tamanho="pagina"
-            :desabilitado="emAndamento"
+            :desabilitado="!podeFechar"
             @click="modal = 'fechar'"
           >
             {{ pendente ? 'Revisar e Fechar Mês' : 'Fechar Mês' }}
           </BotaoFp>
         </div>
         <p
-          v-if="podeGerenciar && emAndamento"
+          v-if="legendaFechar"
           class="legenda"
         >
-          Disponível após o encerramento do mês.
+          {{ legendaFechar }}
         </p>
       </div>
     </div>
 
-    <template v-if="mes.caixa.value">
+    <section
+      v-if="mes.caixa.value && naoAberto"
+      class="nao-aberto"
+      role="status"
+    >
+      <h2>O caixa de {{ rotuloCompetencia(mes.competencia.value) }} ainda não foi aberto</h2>
+      <p v-if="antesDoPrimeiro">
+        Este mês é anterior ao primeiro caixa registrado e não pode ser aberto.
+      </p>
+      <p v-else-if="podeGerenciar">
+        Abra o caixa para registrar despesas e recebimentos neste mês.
+        <template v-if="herdaSaldoAnterior(mes.caixa.value)">
+          O valor inicial será o saldo final do mês anterior, que precisa estar fechado.
+        </template>
+        <template v-else>
+          Como é o primeiro caixa, você informa o valor inicial.
+        </template>
+      </p>
+      <p v-else>
+        Peça a quem gerencia o caixa para abri-lo.
+      </p>
+    </section>
+
+    <template v-else-if="mes.caixa.value">
       <CaixaResumo
         :resumo="mes.caixa.value.resumo"
         :fechado="fechado"
-        :pode-alterar-inicial="podeGerenciar && aberto"
+        :pode-alterar-inicial="podeAlterarInicial"
         @alterar-inicial="modal = 'valor-inicial'"
       />
 
@@ -339,6 +388,27 @@ onMounted(mes.carregar)
 
 .tabelas > :last-child {
   border-left: 1px solid var(--fp-cinza-borda);
+}
+
+.nao-aberto {
+  padding: 36px 24px;
+  border: 1.5px dashed var(--fp-cinza-borda);
+  border-radius: var(--fp-raio);
+  background-color: var(--fp-cinza-fundo);
+  text-align: center;
+}
+
+.nao-aberto h2 {
+  margin: 0 0 6px;
+  color: var(--fp-verde);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.nao-aberto p {
+  margin: 0;
+  color: #4a5565;
+  font-size: 14px;
 }
 
 .mensagem {

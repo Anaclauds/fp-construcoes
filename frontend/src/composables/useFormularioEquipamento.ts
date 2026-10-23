@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import type { Equipamento, EquipamentoAtualizacao, EquipamentoPayload, TipoEquipamento } from '../types/equipamento'
 import { dataBrParaIso, formatarMoeda, isoParaDataBr, moedaParaNumero, limparEspacos } from '../utils/formatadores'
 import {
@@ -51,7 +51,8 @@ function normalizar(c: CamposEquipamento) {
     marca: limparEspacos(c.marca),
     modelo: limparEspacos(c.modelo),
     observacoes: c.observacoes.trim(),
-    dataAquisicao: dataBrValida(c.data) ? dataBrParaIso(c.data) : c.data,
+    // Vazio vira null: no PATCH limpa o campo, no POST é omitido.
+    dataAquisicao: c.data === '' ? null : dataBrValida(c.data) ? dataBrParaIso(c.data) : c.data,
     valorAquisicao: moedaParaNumero(c.valor),
     fornecedorId: c.fornecedor === '' ? null : Number(c.fornecedor),
   }
@@ -82,17 +83,12 @@ function validarCampos(c: CamposEquipamento, base: Normalizado | null): ErrosEqu
   if (c.data !== '') {
     if (!dataBrValida(c.data, ANO_MINIMO_AQUISICAO)) erros.data = 'Data inválida. Use DD/MM/AAAA.'
     else if (dataBrNoFuturo(c.data)) erros.data = 'A data de aquisição não pode ser futura.'
-  } else if (base && base.dataAquisicao !== '') {
-    // A API não consegue apagar a data depois de informada (null é ignorado): melhor avisar do que fingir que salvou.
-    erros.data = 'A data de aquisição não pode ser removida depois de informada. Altere para outra data.'
   }
 
   if (c.valor !== '') {
     const valor = moedaParaNumero(c.valor)
     if (valor === null || valor < 0.01) erros.valor = 'O valor deve ser de pelo menos R$ 0,01.'
     else if (valor > VALOR_MAXIMO_EQUIPAMENTO) erros.valor = 'Valor acima do limite permitido.'
-  } else if (base && base.valorAquisicao !== null) {
-    erros.valor = 'O valor de aquisição não pode ser removido depois de informado. Altere para outro valor.'
   }
 
   return erros
@@ -146,32 +142,47 @@ export function useFormularioEquipamento(inicial?: Equipamento) {
   }
 
   /**
-   * Corpo do PATCH: só o que mudou. Modelo e observações esvaziados vão como '' (a API grava null) e o fornecedor
-   * removido como null. Data e valor não são enviados vazios (a API não os apaga; a validação já avisou).
+   * Corpo do PATCH: só o que mudou. Os opcionais esvaziados vão como null (a API limpa o campo); nome, tipo e marca
+   * são obrigatórios e a validação já impede que vão vazios.
    */
   function paraAtualizacao(): EquipamentoAtualizacao {
     const atual = normalizar(campos)
     const alterados: Record<string, unknown> = {}
     for (const chave of Object.keys(atual) as (keyof Normalizado)[]) {
       if (base && atual[chave] === base[chave]) continue
-      if ((chave === 'dataAquisicao' && atual[chave] === '') || (chave === 'valorAquisicao' && atual[chave] === null)) continue
-      alterados[chave] = atual[chave]
+      const vazio = chave === 'modelo' || chave === 'observacoes' ? atual[chave] === '' : false
+      alterados[chave] = vazio ? null : atual[chave]
     }
     return alterados as EquipamentoAtualizacao
   }
 
-  const alterado = computed(() => {
-    if (!base) return CHAVES.some((chave) => campos[chave].trim() !== '')
-    // Apagar data/valor também conta como alteração: a validação do salvar explica por que não dá.
-    const n = normalizar(campos)
-    return (
-      Object.keys(paraAtualizacao()).length > 0 ||
-      n.dataAquisicao !== base.dataAquisicao ||
-      n.valorAquisicao !== base.valorAquisicao
-    )
-  })
+  const alterado = computed(() =>
+    base ? Object.keys(paraAtualizacao()).length > 0 : CHAVES.some((chave) => campos[chave].trim() !== ''),
+  )
 
+  /** Campo do DTO -> campo do formulário. */
+  const CAMPO_DO_SERVIDOR: Record<string, keyof CamposEquipamento> = {
+    nome: 'nome',
+    tipo: 'tipo',
+    marca: 'marca',
+    modelo: 'modelo',
+    observacoes: 'observacoes',
+    dataAquisicao: 'data',
+    valorAquisicao: 'valor',
+    fornecedorId: 'fornecedor',
+  }
+
+  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
+    erroGeral.value = null
+    let mapeado = false
+    for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
+      const chave = CAMPO_DO_SERVIDOR[campoServidor]
+      if (!chave) continue
+      erros[chave] = mensagemEquipamento(mensagem)
+      mapeado = true
+    }
+    if (mapeado) return
     const mensagem = mensagemEquipamento(extrairErro(erro).mensagem)
     if (/data de aquisi/i.test(mensagem)) erros.data = mensagem
     else erroGeral.value = mensagem

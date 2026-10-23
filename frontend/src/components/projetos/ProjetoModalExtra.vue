@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioExtraProjeto } from '../../composables/useFormularioExtraProjeto'
 import { useOpcoesProjeto } from '../../composables/useOpcoesProjeto'
-import { suporte } from '../../services/compatibilidade'
 import { registrarExtra } from '../../services/projetos.service'
 import type { ProjetoResumo } from '../../types/projeto'
 import { focarPrimeiroErro } from '../../utils/foco'
@@ -46,9 +45,7 @@ const linhasResumo = computed(() => [
 const resumoCustos = computed(() => [
   { rotulo: 'Materiais adicionais (reserva de estoque)', valor: centavosParaMoeda(form.custoMateriais.value) },
   { rotulo: 'Serviços adicionais (despesa e saída no caixa)', valor: centavosParaMoeda(form.custoServicos.value) },
-  ...(suporte.gastosAvulsos
-    ? [{ rotulo: 'Gastos avulsos (despesa e saída no caixa)', valor: centavosParaMoeda(form.custoGastos.value) }]
-    : []),
+  { rotulo: 'Gastos avulsos (despesa e saída no caixa)', valor: centavosParaMoeda(form.custoGastos.value) },
 ])
 
 const custoTotal = computed(() => form.custoMateriais.value + form.custoServicos.value + form.custoGastos.value)
@@ -72,7 +69,7 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarExtra(props.projeto.id, form.paraPayload(), form.paraPayload(true))
+    await registrarExtra(props.projeto.id, form.paraPayload())
     emit('registrado')
   } catch (erro) {
     form.tratarErroApi(erro)
@@ -151,7 +148,6 @@ async function confirmar() {
       />
 
       <ProjetoExtraGastos
-        v-if="suporte.gastosAvulsos"
         :linhas="form.gastos"
         :erros="form.errosGastos"
         @adicionar="form.adicionarGasto"

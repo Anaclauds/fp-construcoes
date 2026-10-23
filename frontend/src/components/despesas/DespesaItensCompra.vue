@@ -28,24 +28,31 @@ interface MaterialEscolhivel {
   unidadeMedida: string
 }
 
-const materiais = computed<MaterialEscolhivel[]>(() => {
-  const lista: MaterialEscolhivel[] = [...props.opcoes.materiais.value]
+/** Materiais que o seletor conhece pelo id: os já devolvidos pela busca e os itens da compra em edição (mesmo se inativos). */
+const conhecidos = computed(() => {
+  const mapa = new Map<number, MaterialEscolhivel>(props.opcoes.conhecidos.value)
   for (const item of props.itensAtuais) {
-    if (!lista.some((m) => m.id === item.materialId)) lista.push({ ...item.material, id: item.materialId })
+    if (!mapa.has(item.materialId)) mapa.set(item.materialId, { ...item.material, id: item.materialId })
   }
-  return lista
+  return mapa
 })
 
 function detalhe(material: MaterialEscolhivel): string {
   return `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}`
 }
 
-/** Materiais já usados em outras linhas aparecem desabilitados (a API não aceita o mesmo material duas vezes). */
+/**
+ * Opções de uma linha: o resultado da busca no servidor e, se a busca não o trouxe, o material já escolhido nela.
+ * Materiais usados em outras linhas aparecem desabilitados (a API não aceita o mesmo material duas vezes).
+ */
 function opcoesDaLinha(linha: LinhaCompra): OpcaoAutocomplete[] {
   const usados = new Set(
     props.form.itens.value.filter((l) => l.chave !== linha.chave && l.materialId !== '').map((l) => l.materialId),
   )
-  return materiais.value.map((material) => ({
+  const lista: MaterialEscolhivel[] = [...props.opcoes.materiais.value]
+  const escolhido = linha.materialId === '' ? undefined : conhecidos.value.get(Number(linha.materialId))
+  if (escolhido && !lista.some((m) => m.id === escolhido.id)) lista.unshift(escolhido)
+  return lista.map((material) => ({
     valor: String(material.id),
     rotulo: material.nome,
     detalhe: detalhe(material),
@@ -55,13 +62,13 @@ function opcoesDaLinha(linha: LinhaCompra): OpcaoAutocomplete[] {
 }
 
 function apoio(linha: LinhaCompra): string | undefined {
-  const material = materiais.value.find((m) => String(m.id) === linha.materialId)
+  const material = linha.materialId === '' ? undefined : conhecidos.value.get(Number(linha.materialId))
   return material ? detalhe(material) : undefined
 }
 
 function aoEscolher(linha: LinhaCompra, materialId: string) {
-  const material = materiais.value.find((m) => String(m.id) === materialId)
-  // A unidade do estoque é a do cadastro do material; a API não converte unidades, então ela não é editável.
+  const material = materialId === '' ? undefined : conhecidos.value.get(Number(materialId))
+  // A unidade da compra é a do cadastro do material; a API não converte unidades, então ela não é editável.
   props.form.escolherMaterial(linha, materialId, material?.unidadeMedida ?? '')
 }
 
@@ -113,11 +120,11 @@ function total(linha: LinhaCompra): string {
     </p>
 
     <p
-      v-if="opcoes.textoTruncado.value"
+      v-if="opcoes.textoParcial.value"
       class="aviso-info"
       role="status"
     >
-      {{ opcoes.textoTruncado.value }}
+      {{ opcoes.textoParcial.value }}
     </p>
 
     <ul class="lista">
@@ -132,13 +139,17 @@ function total(linha: LinhaCompra): string {
           :model-value="linha.materialId"
           rotulo="Material:"
           obrigatorio
-          placeholder="Busque pelo nome ou código do material"
+          placeholder="Busque pelo nome do material"
           icone="lupa"
+          filtro="servidor"
           :opcoes="opcoesDaLinha(linha)"
-          :carregando="opcoes.carregando.value"
+          :rotulo-selecionado="conhecidos.get(Number(linha.materialId))?.nome"
+          :carregando="opcoes.carregandoMateriais.value"
           :erro="form.errosItens[linha.chave]?.item"
           :apoio="apoio(linha)"
           texto-vazio="Nenhum material ativo encontrado."
+          @abrir="opcoes.reiniciarBusca()"
+          @buscar="opcoes.buscarMateriais($event)"
           @update:model-value="aoEscolher(linha, $event)"
         />
         <CampoFormulario

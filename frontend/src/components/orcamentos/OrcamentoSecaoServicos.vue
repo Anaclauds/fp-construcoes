@@ -21,8 +21,8 @@ function opcoesDaLinha(linha: LinhaServico): OpcaoCampo[] {
     props.form.servicos.value.filter((l) => l.chave !== linha.chave && l.servicoId !== '').map((l) => l.servicoId),
   )
   return props.form.servicosDoTipo.value
-    .filter((servico) => !usados.has(String(servico.id)))
-    .map((servico) => ({ valor: String(servico.id), rotulo: servico.nome }))
+    .filter((servico) => !usados.has(String(servico.id)) && (!servico.inativo || String(servico.id) === linha.servicoId))
+    .map((servico) => ({ valor: String(servico.id), rotulo: servico.inativo ? `${servico.nome} (inativo)` : servico.nome }))
 }
 
 function unidade(linha: LinhaServico): string | undefined {

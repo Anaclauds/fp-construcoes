@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useClienteCompleto } from '../../composables/useClienteCompleto'
 import type { Orcamento, StatusDefinivel } from '../../types'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import {
   decimalApiParaTexto,
   enderecoEmUmaLinha,
   formatarNumeroOrcamento,
+  orcamentoAprovavel,
   orcamentoEditavel,
   rotuloUnidade,
   statusDestinos,
@@ -33,19 +33,13 @@ const emit = defineEmits<{
   status: [destino: StatusDefinivel]
 }>()
 
-const { cliente, carregando: carregandoCliente } = useClienteCompleto(props.orcamento.clienteId)
-
 const editavel = computed(() => orcamentoEditavel(props.orcamento.status))
+const aprovavel = computed(() => orcamentoAprovavel(props.orcamento.status))
 
-// O endereço completo vem do cadastro do cliente; sem acesso ao módulo Clientes mostra só cidade/UF.
+// O orçamento já traz o endereço do cliente (inclusive de cliente inativo, para o histórico).
 const endereco = computed(() => {
-  if (cliente.value) {
-    const texto = enderecoEmUmaLinha(cliente.value)
-    if (texto) return texto
-  }
-  if (carregandoCliente.value) return 'Carregando...'
-  const { cidade, estado } = props.orcamento.cliente
-  return `${cidade}/${estado}`
+  const { cliente } = props.orcamento
+  return enderecoEmUmaLinha(cliente) || `${cliente.cidade}/${cliente.estado}`
 })
 
 const materiais = computed(() =>
@@ -245,7 +239,7 @@ const itensMenu = computed<ItemMenuAcao[]>(() =>
         Baixar PDF
       </BotaoFp>
       <BotaoFp
-        v-if="podeGerenciar && editavel"
+        v-if="podeGerenciar && aprovavel"
         @click="emit('aprovar')"
       >
         Aprovar

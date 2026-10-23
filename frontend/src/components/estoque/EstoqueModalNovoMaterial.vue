@@ -4,7 +4,8 @@ import { useFormularioNovoMaterialEstoque } from '../../composables/useFormulari
 import { criarMaterialNoEstoque } from '../../services/estoque.service'
 import { mascararQuantidade, normalizarQuantidade } from '../../utils/estoque'
 import { focarPrimeiroErro } from '../../utils/foco'
-import { LIMITE_NOME_MATERIAL } from '../../utils/materiais'
+import { LIMITE_NOME_MATERIAL, mascararValorMaterial } from '../../utils/materiais'
+import CampoCategoriaMaterial from '../materiais/CampoCategoriaMaterial.vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
@@ -76,13 +77,10 @@ async function salvar() {
         :erro="form.erros.nome"
       />
       <div class="linha">
-        <CampoFormulario
+        <CampoCategoriaMaterial
           v-model="form.campos.categoria"
-          rotulo="Categoria:"
-          tipo="select"
-          obrigatorio
-          placeholder="Selecione"
-          :opcoes="form.opcoes.categoria"
+          :opcoes="form.opcoes.value.categoria"
+          :catalogo="form.catalogo"
           :erro="form.erros.categoria"
         />
         <CampoFormulario
@@ -91,7 +89,7 @@ async function salvar() {
           tipo="select"
           obrigatorio
           placeholder="Selecione"
-          :opcoes="form.opcoes.unidade"
+          :opcoes="form.opcoes.value.unidade"
           :erro="form.erros.unidade"
         />
       </div>
@@ -107,8 +105,18 @@ async function salvar() {
         aviso="Quantidade disponível ao cadastrar. Pode ser ajustada depois."
         :erro="form.erros.quantidade"
       />
+      <CampoFormulario
+        v-model="form.campos.preco"
+        rotulo="Preço de Referência (R$):"
+        obrigatorio
+        placeholder="0,00"
+        inputmode="numeric"
+        autocomplete="off"
+        :mascara="mascararValorMaterial"
+        :erro="form.erros.preco"
+      />
       <p class="nota">
-        * O preço de referência e o fornecedor podem ser informados depois, em Material.
+        * O fornecedor pode ser informado depois, em Material.
       </p>
 
       <p
@@ -157,6 +165,7 @@ async function salvar() {
 
 .linha {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }

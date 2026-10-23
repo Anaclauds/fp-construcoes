@@ -1,57 +1,44 @@
-import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
 import type { CategoriaDespesa, Despesa, TipoDespesa } from '../types/despesa'
+import { CATEGORIA_COMPRA_MATERIAL, CATEGORIA_EXTRA_PROJETO, CATEGORIA_SEM_CATEGORIA } from '../types/despesa'
 import { formatarQuantidade } from './estoque'
 import { semAcento } from './formatadores'
 import { rotuloUnidade } from './materiais'
-
-/** Rótulos do Figma (pílulas do filtro); Mão de Obra e Aluguel existem só na API. */
-export const ROTULO_CATEGORIA_DESPESA: Record<CategoriaDespesa, string> = {
-  COMPRA_MATERIAL: 'Compra de Material',
-  COMBUSTIVEL: 'Combustível',
-  FERRAMENTA: 'Ferramenta',
-  MANUTENCAO: 'Manutenção',
-  ALIMENTACAO: 'Alimentação',
-  MAO_DE_OBRA: 'Mão de Obra',
-  ALUGUEL: 'Aluguel',
-  OUTROS: 'Outros',
-}
 
 export const ROTULO_TIPO_DESPESA: Record<TipoDespesa, string> = {
   COMPRA_MATERIAL: 'Compra de Material',
   DIVERSA: 'Despesa Diversa',
 }
 
-/** Categorias de uma despesa diversa: a compra de material tem categoria própria e fixa. */
-export const CATEGORIAS_DIVERSA: CategoriaDespesa[] = [
-  'COMBUSTIVEL',
-  'FERRAMENTA',
-  'MANUTENCAO',
-  'ALIMENTACAO',
-  'MAO_DE_OBRA',
-  'ALUGUEL',
-  'OUTROS',
-]
-
-export const OPCOES_CATEGORIA_DIVERSA: OpcaoCampo[] = CATEGORIAS_DIVERSA.map((valor) => ({
-  valor,
-  rotulo: ROTULO_CATEGORIA_DESPESA[valor],
-}))
-
-/** Despesa sem categoria (ex.: gerada por extra de projeto). */
+/** Despesa sem categoria (legado). */
 export const ROTULO_SEM_CATEGORIA = 'Sem categoria'
 
-export function rotuloCategoriaDespesa(categoria: CategoriaDespesa | null): string {
-  return categoria ? ROTULO_CATEGORIA_DESPESA[categoria] : ROTULO_SEM_CATEGORIA
+/** Rótulo das categorias reservadas do sistema, usado enquanto o catálogo não chegou ou se ele não as trouxer. */
+const ROTULO_RESERVADAS: Record<string, string> = {
+  [CATEGORIA_COMPRA_MATERIAL]: 'Compra de material',
+  [CATEGORIA_EXTRA_PROJETO]: 'Extra de projeto',
+  [CATEGORIA_SEM_CATEGORIA]: ROTULO_SEM_CATEGORIA,
 }
 
-/** Limites do cadastro. A descrição não tem limite na API (coluna TEXT): o do front evita textos absurdos. */
-export const LIMITE_DESCRICAO_DESPESA = 500
+/**
+ * Texto da categoria: o rótulo do catálogo; sem ele, o das reservadas; por fim o nome legível
+ * ("NOVA_CATEGORIA" -> "Nova categoria").
+ */
+export function rotuloCategoriaPorCodigo(categoria: CategoriaDespesa | null, rotulos: ReadonlyMap<string, string>): string {
+  if (!categoria) return ROTULO_SEM_CATEGORIA
+  const conhecido = rotulos.get(categoria) ?? ROTULO_RESERVADAS[categoria]
+  if (conhecido) return conhecido
+  const texto = categoria.toLowerCase().replace(/_/g, ' ').trim()
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+/** Limites do cadastro (iguais aos do DTO da API: descrição até 1000 caracteres). */
+export const LIMITE_DESCRICAO_DESPESA = 1000
 /** DECIMAL(12,2). */
 export const VALOR_MAXIMO_DESPESA = 9_999_999_999.99
 /** DECIMAL(12,3). */
 export const QUANTIDADE_MAXIMA_COMPRA = 999_999_999.999
 export const LIMITE_UNIDADE_COMPRA = 50
-/** Ano mínimo aceito na data da despesa (cada data cria o caixa do mês, então datas absurdas são barradas). */
+/** Ano mínimo aceito na data da despesa (a API aceita de 2000 até hoje, e só em mês com caixa aberto). */
 export const ANO_MINIMO_DESPESA = 2000
 
 /** Primeira linha de um texto (extras de projeto trazem a lista de serviços nas linhas seguintes). */
@@ -59,18 +46,36 @@ export function primeiraLinha(texto: string): string {
   return texto.split(/\r?\n/, 1)[0]?.trim() ?? ''
 }
 
-const PADRAO_EXTRA_PROJETO = /^servicos extras contratados para o projeto (\d+)/i
+/** Projeto de origem quando a despesa foi gerada por um extra (a API informa `extraProjeto`; `null` nas demais). */
+export function projetoDoExtra(despesa: Pick<Despesa, 'extraProjeto'>): number | null {
+  return despesa.extraProjeto?.projetoId ?? null
+}
+
+/** A despesa foi estornada: continua no histórico, mas sem ações. */
+export function despesaEstornada(despesa: Pick<Despesa, 'canceladoEm'>): boolean {
+  return despesa.canceladoEm !== null
+}
+
+/** O caixa do mês da despesa já foi fechado (não aceita edição nem estorno). */
+export function caixaDaDespesaFechado(despesa: Pick<Despesa, 'movimentacaoCaixa'>): boolean {
+  return despesa.movimentacaoCaixa?.caixa?.status === 'FECHADO'
+}
 
 /**
- * Projeto de origem quando a despesa foi gerada por um extra. O backend atualizado sempre informa `extraProjeto`
- * (`null` quando a despesa não vem de extra: a descrição digitada pelo usuário não vale como pista). Só o backend
- * antigo, que não manda o campo, é reconhecido pelo texto padrão que ele grava na descrição.
+ * Pode abrir o formulário de edição. Despesa de extra tem `editavel` falso, mas a descrição continua editável
+ * (valor, data e demais campos ficam travados no formulário); estornada e de caixa fechado não editam nada.
  */
-export function projetoDoExtra(despesa: Pick<Despesa, 'descricao' | 'tipo' | 'extraProjeto'>): number | null {
-  if (despesa.extraProjeto !== undefined) return despesa.extraProjeto?.projetoId ?? null
-  if (despesa.tipo !== 'DIVERSA') return null
-  const achado = PADRAO_EXTRA_PROJETO.exec(semAcento(despesa.descricao.trim()))
-  return achado?.[1] ? Number(achado[1]) : null
+export function podeEditarDespesa(despesa: Despesa): boolean {
+  if (despesa.editavel) return true
+  return projetoDoExtra(despesa) !== null && !despesaEstornada(despesa) && !caixaDaDespesaFechado(despesa)
+}
+
+/**
+ * Pode ser estornada nesta tela. A despesa de extra é estornada ao cancelar o extra no projeto, e o estorno
+ * precisa do caixa original aberto.
+ */
+export function podeEstornarDespesa(despesa: Despesa): boolean {
+  return !despesaEstornada(despesa) && projetoDoExtra(despesa) === null && !caixaDaDespesaFechado(despesa)
 }
 
 /** Resumo de uma linha para a tabela: "Tubo 20x20 · 50 m" ou "3 materiais". */
@@ -105,33 +110,48 @@ const TRADUCOES: [RegExp, string][] = [
   [/despesa nao encontrada/i, 'Despesa não encontrada. Atualize a lista.'],
   [
     /fornecedor ativo nao encontrado/i,
-    'O fornecedor da compra está inativo ou não existe mais. Escolha outro ou reative-o em Fornecedores.',
+    'O fornecedor está inativo ou não existe mais. Escolha outro ou reative-o em Fornecedores.',
   ],
   [
     /materiais ativos nao foram encontrados/i,
     'Um ou mais materiais da compra estão inativos ou não existem mais. Troque-os ou reative-os em Materiais.',
   ],
   [/informe ao menos um material/i, 'Adicione ao menos um material à compra.'],
+  [/informe o fornecedor da compra/i, 'Selecione o fornecedor da compra.'],
   [/mesmo material nao pode aparecer/i, 'Não repita o mesmo material na compra.'],
+  [
+    /unidade de medida cadastrada para o material/i,
+    'A compra deve usar a unidade cadastrada do material. Escolha o material de novo para atualizá-la.',
+  ],
+  [/selecione uma categoria cadastrada/i, 'Selecione uma categoria da lista ou cadastre uma nova.'],
+  [/despesa diversa nao pode usar a categoria compra_material/i, 'Escolha outra categoria: esta é exclusiva das compras de material.'],
+  [/despesa estornada nao pode ser editada|despesa ja estornada/i, 'Esta despesa já foi estornada.'],
+  [
+    /valor e data desta despesa vem do extra/i,
+    'O valor e a data desta despesa vêm do extra do projeto e não podem ser alterados aqui.',
+  ],
+  [/cancele o extra no projeto/i, 'Esta despesa foi gerada por um extra de projeto: cancele o extra no projeto.'],
+  [
+    /material ja utilizado ou reservado/i,
+    'Há material desta compra já usado ou reservado em projeto: a compra não pode ser estornada.',
+  ],
+  [/nao ha estoque disponivel para estornar/i, 'Não há estoque disponível para estornar esta compra.'],
   [/despesa de caixa fechado nao pode ser editada/i, 'O caixa do mês desta despesa está fechado: ela não pode mais ser editada.'],
+  [
+    /nao ha caixa aberto para a competencia|abra o caixa da competencia/i,
+    'Não há caixa aberto no mês dessa data. Abra o caixa do mês em Caixa antes de registrar.',
+  ],
   [/caixa da competencia.*fechado|caixa .* fechado/i, 'O caixa do mês dessa data está fechado. Use uma data de um mês com caixa aberto.'],
+  [/data do lancamento deve ser entre 2000 e hoje/i, 'A data deve ser de 2000 até hoje.'],
   [
     /nao ha saldo disponivel para reduzir/i,
     'O estoque atual não comporta essa redução: parte do material já foi usada ou reservada em projetos.',
   ],
   [/tipo da despesa nao pode ser alterado/i, 'O tipo da despesa não pode ser alterado depois do cadastro.'],
   [/informe o valor da despesa diversa/i, 'Informe o valor da despesa.'],
-  // Texto previsto para o backend corrigido (docs G1/X10); o antigo responde 500 sem explicar.
-  [
-    /(saldo|estoque).*(passaria|ultrapassa|excede|acima).*limite|limite.*(saldo|estoque)/i,
-    'A quantidade levaria o estoque de um dos materiais além do limite permitido (999.999.999,999). Reduza a quantidade ou confira o saldo em Estoque.',
-  ],
+  [/saldo do material passaria do limite/i, 'A quantidade levaria o estoque de um dos materiais além do limite permitido (999.999.999,999).'],
+  [/ja existe um registro com esses dados/i, 'Já existe um registro com esses dados.'],
 ]
-
-/** Dica quando a API falha sem explicar e o saldo dos materiais não pôde ser conferido (sem permissão de Estoque). */
-export function mensagemSaldoLimite(): string {
-  return 'Se a quantidade levar o estoque de algum material além de 999.999.999,999, a compra é recusada: confira o saldo em Estoque.'
-}
 
 export function mensagemDespesa(mensagem: string): string {
   const normalizada = semAcento(mensagem)
@@ -139,6 +159,14 @@ export function mensagemDespesa(mensagem: string): string {
 }
 
 /** A API recusou editar porque o caixa do mês da despesa já foi fechado (não se resolve no formulário). */
-export function mensagemDeCaixaFechado(mensagem: string): boolean {
-  return /despesa de caixa fechado/i.test(semAcento(mensagem))
+export function mensagemDeCaixaFechado(mensagem: string, codigo = ''): boolean {
+  return codigo === 'DESPESA_CAIXA_FECHADO' || /despesa de caixa fechado/i.test(semAcento(mensagem))
+}
+
+/** Mensagem do estorno: o caixa fechado aqui é o do mês da despesa, não o de uma data digitada. */
+export function mensagemEstorno(mensagem: string): string {
+  if (/caixa .* fechado|caixa fechado/i.test(semAcento(mensagem))) {
+    return 'O caixa do mês desta despesa está fechado. Reabra o caixa para estornar.'
+  }
+  return mensagemDespesa(mensagem)
 }

@@ -6,6 +6,7 @@ import type { Caixa } from '../../types/caixa'
 import {
   ROTULO_SITUACAO_CAIXA,
   competenciaDoCaixa,
+  contextoMovimentacao,
   rotuloCategoriaCaixa,
   rotuloCompetencia,
   situacaoDoCaixa,
@@ -119,8 +120,14 @@ onMounted(async () => {
                 :key="item.id"
               >
                 <td>{{ isoParaDataBr(item.data) }}</td>
-                <td>{{ item.descricao }}</td>
-                <td>{{ rotuloCategoriaCaixa(item.categoria) }}</td>
+                <td>
+                  {{ item.descricao }}
+                  <span
+                    v-if="contextoMovimentacao(item)"
+                    class="contexto"
+                  >{{ contextoMovimentacao(item) }}</span>
+                </td>
+                <td>{{ rotuloCategoriaCaixa(item) }}</td>
                 <td class="col-valor">
                   {{ formatarMoeda(item.valor) }}
                 </td>
@@ -253,6 +260,12 @@ th {
 tfoot td {
   background-color: var(--fp-cinza-fundo);
   font-weight: 700;
+}
+
+.contexto {
+  display: block;
+  color: #6b7280;
+  font-size: 9.5px;
 }
 
 .col-data {

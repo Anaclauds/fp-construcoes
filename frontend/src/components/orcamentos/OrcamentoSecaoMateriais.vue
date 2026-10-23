@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FormularioOrcamento, LinhaMaterial } from '../../composables/useFormularioOrcamento'
+import type { OpcaoMaterial } from '../../types'
 import { centavosParaMoeda, filtrarDecimal, normalizarDecimal, rotuloUnidade, totalDoItem } from '../../utils/orcamentos'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
@@ -19,18 +20,21 @@ function opcoesDaLinha(linha: LinhaMaterial): OpcaoAutocomplete[] {
   const usados = new Set(
     props.form.materiais.value.filter((l) => l.chave !== linha.chave && l.materialId !== '').map((l) => l.materialId),
   )
-  return props.form.listaMateriais.value.map((material) => ({
-    valor: String(material.id),
-    rotulo: material.nome,
-    detalhe: `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}${textoSaldo(material.saldoDisponivel)}`,
-    desabilitado: usados.has(String(material.id)),
-    motivo: 'Já adicionado',
-  }))
+  return props.form.listaMateriais.value
+    .filter((material) => !material.inativo || String(material.id) === linha.materialId)
+    .map((material) => ({
+      valor: String(material.id),
+      rotulo: material.inativo ? `${material.nome} (inativo)` : material.nome,
+      detalhe: detalheDoMaterial(material),
+      desabilitado: usados.has(String(material.id)),
+      motivo: 'Já adicionado',
+    }))
 }
 
-/** "Disponível: 12,5": só aparece quando o backend informa o saldo (campo novo; o antigo não o devolve). */
-function textoSaldo(saldo: number | undefined): string {
-  return saldo === undefined ? '' : ` · Disponível: ${saldo.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}`
+/** Material histórico que já não está ativo segue no orçamento, mas não é oferecido para novos vínculos. */
+function detalheDoMaterial(material: OpcaoMaterial): string {
+  const base = `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}`
+  return material.inativo ? `${base} · Inativo (mantido pelo histórico)` : base
 }
 
 const apoios = computed(() => {
@@ -38,7 +42,7 @@ const apoios = computed(() => {
   for (const linha of props.form.materiais.value) {
     const material = props.form.listaMateriais.value.find((m) => String(m.id) === linha.materialId)
     if (material) {
-      mapa.set(linha.chave, `${material.codigo} · ${rotuloUnidade(material.unidadeMedida)}${textoSaldo(material.saldoDisponivel)}`)
+      mapa.set(linha.chave, detalheDoMaterial(material))
     }
   }
   return mapa

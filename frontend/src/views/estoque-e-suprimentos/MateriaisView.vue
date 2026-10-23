@@ -13,11 +13,12 @@ import SeloStatus from '../../components/ui/SeloStatus.vue'
 import TabelaDados, { type ColunaTabela } from '../../components/ui/TabelaDados.vue'
 import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
+import { useCatalogoMaterial } from '../../composables/useCatalogoMaterial'
 import { useListaMateriais } from '../../composables/useListaMateriais'
 import { useToast } from '../../composables/useToast'
 import type { Material } from '../../types/material'
 import { formatarMoeda } from '../../utils/formatadores'
-import { CATEGORIAS_MATERIAL, rotuloUnidade } from '../../utils/materiais'
+import { rotuloUnidade } from '../../utils/materiais'
 
 type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; material: Material } | null
 
@@ -29,10 +30,12 @@ const podeGerenciar = computed(() => temPermissao('MATERIAIS', 'gerenciar'))
 
 const { busca, categoria, status, pagina, porPagina, materiais, total, carregando, erro, carregar } = useListaMateriais()
 
-const opcoesCategoria: OpcaoFiltro[] = [
+// Categorias do catálogo da API (inclui as cadastradas pelos usuários).
+const catalogo = useCatalogoMaterial(false)
+const opcoesCategoria = computed<OpcaoFiltro[]>(() => [
   { valor: 'TODAS', rotulo: 'Todos' },
-  ...CATEGORIAS_MATERIAL.map((nome) => ({ valor: nome, rotulo: nome })),
-]
+  ...catalogo.categorias.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
+])
 
 const colunas: ColunaTabela[] = [
   { chave: 'codigo', rotulo: 'Código', largura: '11%' },

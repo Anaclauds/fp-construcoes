@@ -1,9 +1,12 @@
-import { computed, reactive, watch, type Ref } from 'vue'
+import { computed, onScopeDispose, reactive, shallowRef, watch, type Ref } from 'vue'
+import { simularCobrancaDoProjeto } from '../services/projetos.service'
 import type { FormaPagamento } from '../types/cobranca'
-import type { CondicaoCobrancaPayload, ModalidadeCobrancaProjeto } from '../types/projeto'
+import type { CondicaoCobrancaPayload, ModalidadeCobrancaProjeto, SimularCobrancaPayload } from '../types/projeto'
 import { dataBrParaIso } from '../utils/formatadores'
+import { decimalApiParaCentavos } from '../utils/orcamentos'
 import {
   calcularCobranca,
+  type CobrancaCalculada,
   formaAceitaAcrescimo,
   formaValidaNaModalidade,
   ANO_MINIMO_DATA_PROJETO,
@@ -28,6 +31,14 @@ export type ErrosCobrancaProjeto = Partial<Record<keyof CamposCobrancaProjeto | 
 const CHAVES: (keyof CamposCobrancaProjeto)[] = ['modalidade', 'parcelas', 'primeiroVencimento', 'acrescimo', 'desconto', 'forma']
 
 const PARCELAS_PADRAO = '2'
+const ATRASO_SIMULACAO_MS = 700
+
+/** Para onde a prévia do servidor aponta: `valorCobrado` ausente simula o saldo do início (descontando entradas prévias). */
+export interface SimulacaoServidor {
+  projetoId: number
+  /** Valor bruto da medição, em centavos (etapa). */
+  valorCobradoCentavos?: Ref<number>
+}
 
 function camposIniciais(): CamposCobrancaProjeto {
   return { modalidade: 'A_VISTA', parcelas: PARCELAS_PADRAO, primeiroVencimento: '', acrescimo: '', desconto: '', forma: '' }
@@ -37,8 +48,10 @@ function camposIniciais(): CamposCobrancaProjeto {
  * Condição de cobrança de um projeto (iniciar Serralheria/Calhas e registrar etapa de Construção Civil):
  * À Vista ou Parcelado, parcelas, 1º vencimento, acréscimo, desconto e forma de pagamento, com o resumo
  * calculado igual ao backend (ver `calcularCobranca`). `baseCentavos` é o valor sobre o qual a cobrança incide.
+ * Com `servidor`, o resumo passa a mostrar a prévia de `POST /projetos/:id/cobranca/simular` (debounce, resposta antiga
+ * descartada) assim que ela chega: ela já considera, por exemplo, as entradas prévias do projeto que a conta local ignora.
  */
-export function useCobrancaProjeto(baseCentavos: Ref<number>) {
+export function useCobrancaProjeto(baseCentavos: Ref<number>, servidor?: SimulacaoServidor) {
   const campos = reactive<CamposCobrancaProjeto>(camposIniciais())
   const erros = reactive<ErrosCobrancaProjeto>({})
 
@@ -83,7 +96,7 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>) {
   )
 
   /** Resumo calculado; campos ainda inválidos entram como zero para o resumo acompanhar a digitação. */
-  const resultado = computed(() =>
+  const resultadoLocal = computed(() =>
     calcularCobranca({
       baseCentavos: baseCentavos.value,
       descontoPercentual: descontoNumero.value ?? 0,
@@ -93,6 +106,76 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>) {
       primeiroVencimento: vencimentoIso.value,
     }),
   )
+
+  /* ------------------------------ prévia do servidor ------------------------------ */
+
+  const previaServidor = shallowRef<CobrancaCalculada | null>(null)
+
+  /** Condição completa e válida o bastante para o servidor simular; null enquanto faltar algo. */
+  const payloadSimulacao = computed<SimularCobrancaPayload | null>(() => {
+    if (!servidor || baseCentavos.value <= 0 || campos.forma === '' || !formaValidaNaModalidade(campos.forma, campos.modalidade)) return null
+    if (vencimentoIso.value === '' || descontoNumero.value === null || acrescimoNumero.value === null) return null
+    if (parcelado.value && (parcelasNumero.value === null || parcelasNumero.value < MINIMO_PARCELAS || parcelasNumero.value > MAXIMO_PARCELAS)) {
+      return null
+    }
+    if (acrescimoNumero.value > 0 && !acrescimoHabilitado.value) return null
+    return {
+      modalidadeCobranca: campos.modalidade,
+      formaPagamento: campos.forma as FormaPagamento,
+      descontoPercentual: descontoNumero.value,
+      acrescimoPercentual: acrescimoHabilitado.value ? acrescimoNumero.value : 0,
+      ...(parcelado.value ? { numeroParcelas: parcelasNumero.value ?? undefined } : {}),
+      primeiroVencimento: vencimentoIso.value,
+      ...(servidor.valorCobradoCentavos ? { valorCobrado: servidor.valorCobradoCentavos.value / 100 } : {}),
+    }
+  })
+
+  let temporizadorSimulacao: number | undefined
+  let ultimaSimulacao = 0
+
+  watch(
+    () => JSON.stringify(payloadSimulacao.value),
+    (chave) => {
+      window.clearTimeout(temporizadorSimulacao)
+      const requisicao = ++ultimaSimulacao
+      previaServidor.value = null
+      if (!servidor || chave === 'null') return
+      temporizadorSimulacao = window.setTimeout(async () => {
+        try {
+          const r = await simularCobrancaDoProjeto(servidor.projetoId, JSON.parse(chave) as SimularCobrancaPayload)
+          // Só a última simulação vale: respostas antigas (digitação rápida) são descartadas.
+          if (requisicao !== ultimaSimulacao) return
+          const subtotal = decimalApiParaCentavos(String(r.subtotal))
+          const desconto = decimalApiParaCentavos(String(r.desconto))
+          const acrescimo = decimalApiParaCentavos(String(r.acrescimo))
+          if (subtotal === null || desconto === null || acrescimo === null || r.parcelas.length === 0) return
+          const parcelas = r.parcelas.map((p) => ({
+            numero: p.numero,
+            vencimento: p.vencimento.slice(0, 10),
+            centavos: Math.round(p.valor * 100),
+          }))
+          previaServidor.value = {
+            subtotal,
+            desconto,
+            acrescimo,
+            final: Math.round(r.valorFinal * 100),
+            quantidade: parcelas.length,
+            parcelas,
+            valorParcela: parcelas[0]!.centavos,
+            valorUltimaParcela: parcelas[parcelas.length - 1]!.centavos,
+          }
+        } catch {
+          // Recusa ou falha de rede: a conta local segue valendo; o envio de verdade valida tudo.
+        }
+      }, ATRASO_SIMULACAO_MS)
+    },
+    { immediate: true },
+  )
+
+  onScopeDispose(() => window.clearTimeout(temporizadorSimulacao))
+
+  /** Resumo exibido: o do servidor quando já chegou, senão a conta local. */
+  const resultado = computed(() => previaServidor.value ?? resultadoLocal.value)
 
   /** Quantidade de parcelas usada no resumo ("2x R$ ..."): só mostra enquanto o campo estiver válido. */
   const parcelasValidas = computed(
@@ -136,7 +219,7 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>) {
       erros.forma = 'Esta forma de pagamento não está disponível para a modalidade escolhida.'
     }
 
-    if (!erros.desconto && !erros.acrescimo && !erros.valor && resultado.value.final <= 0) {
+    if (!erros.desconto && !erros.acrescimo && !erros.valor && resultadoLocal.value.final <= 0) {
       erros.desconto = 'O desconto não pode zerar o valor da cobrança.'
     }
 
@@ -148,7 +231,7 @@ export function useCobrancaProjeto(baseCentavos: Ref<number>) {
       !erros.acrescimo &&
       !erros.valor &&
       parcelasNumero.value !== null &&
-      Math.floor(resultado.value.final / parcelasNumero.value) < 1
+      Math.floor(resultadoLocal.value.final / parcelasNumero.value) < 1
     ) {
       erros.parcelas = 'O valor final não comporta essa quantidade de parcelas (cada parcela precisa de pelo menos R$ 0,01).'
     }

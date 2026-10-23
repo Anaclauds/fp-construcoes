@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useDetalheEstoque } from '../../composables/useDetalheEstoque'
 import type { ItemEstoque, MovimentacaoEstoque } from '../../types/estoque'
 import { agruparProjetos, quantidadeComUnidade } from '../../utils/estoque'
-import { formatarMoeda, instanteParaDataBr, instanteParaDataBrNegocio, isoParaDataBr } from '../../utils/formatadores'
+import { formatarMoeda, instanteParaDataBrNegocio, isoParaDataBr } from '../../utils/formatadores'
 import BotaoFp from '../ui/BotaoFp.vue'
 import ModalBase from '../ui/ModalBase.vue'
 import EstoqueResumoSaldo from './EstoqueResumoSaldo.vue'
@@ -16,17 +16,22 @@ const { detalhe, carregando, erro, carregar } = useDetalheEstoque(props.item.id)
 
 const projetos = computed(() => agruparProjetos(detalhe.value?.projetosUtilizando ?? []))
 
-/** Valor da compra: só aparece se a API detalhar a despesa (a versão atual não devolve). */
+/** Valor total da compra (`despesaMaterial`); vazio quando a movimentação não tem despesa vinculada. */
 function valorCompra(compra: MovimentacaoEstoque): string {
   const total = compra.despesaMaterial?.valorTotal
   return total ? formatarMoeda(total) : ''
 }
 
-/** Data da compra quando a API a detalha (dia da despesa); senão, o instante em que o estoque foi movimentado. */
+/** Data da compra (dia da despesa); sem despesa vinculada, usa o instante em que o estoque foi movimentado. */
 function dataCompra(compra: MovimentacaoEstoque): { texto: string; registro: boolean } {
   const dia = compra.despesaMaterial?.despesa?.data
   if (dia) return { texto: isoParaDataBr(dia), registro: false }
   return { texto: instanteParaDataBrNegocio(compra.dataHora), registro: true }
+}
+
+/** Projeto da baixa e justificativa (quando houver), em uma linha de apoio. */
+function detalheBaixa(baixa: MovimentacaoEstoque): string {
+  return [baixa.projeto, baixa.justificativa].filter(Boolean).join(' · ')
 }
 
 function quem(movimentacao: MovimentacaoEstoque): string {
@@ -138,7 +143,7 @@ function quem(movimentacao: MovimentacaoEstoque): string {
           Últimas Baixas Realizadas
         </h3>
         <ul
-          v-if="detalhe.ultimasBaixas && detalhe.ultimasBaixas.length > 0"
+          v-if="detalhe.ultimasBaixas.length > 0"
           class="lista"
         >
           <li
@@ -146,8 +151,8 @@ function quem(movimentacao: MovimentacaoEstoque): string {
             :key="baixa.id"
           >
             <span class="principal">
-              {{ instanteParaDataBr(baixa.dataHora) }}
-              <small v-if="baixa.justificativa || baixa.projeto">{{ baixa.justificativa ?? baixa.projeto }}</small>
+              {{ instanteParaDataBrNegocio(baixa.dataHora) }}
+              <small v-if="detalheBaixa(baixa)">{{ detalheBaixa(baixa) }}</small>
             </span>
             <span class="lateral">{{ quantidadeComUnidade(baixa.quantidade, detalhe.unidadeMedida) }} baixados</span>
           </li>
@@ -156,7 +161,7 @@ function quem(movimentacao: MovimentacaoEstoque): string {
           v-else
           class="vazio"
         >
-          {{ detalhe.ultimasBaixas ? 'Nenhuma baixa registrada.' : 'Sem informação de baixas.' }}
+          Nenhuma baixa registrada.
         </p>
       </section>
     </template>

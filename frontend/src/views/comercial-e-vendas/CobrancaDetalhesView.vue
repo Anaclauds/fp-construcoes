@@ -13,7 +13,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useProjetoCobrancas } from '../../composables/useProjetoCobrancas'
 import { useToast } from '../../composables/useToast'
 import { extrairErro } from '../../services/api'
-import { cancelamentoDeCobrancaDisponivel, cancelarCobranca } from '../../services/cobrancas.service'
+import { cancelarCobranca } from '../../services/cobrancas.service'
 import { descricaoCobranca, mensagemCobranca } from '../../utils/cobrancas'
 
 type Modal = { tipo: 'detalhes' | 'recebimento'; cobrancaId: number } | null
@@ -76,12 +76,8 @@ async function confirmarCancelar() {
     await carregar()
   } catch (e) {
     const { mensagem, status } = extrairErro(e)
-    // Rota ausente: o botão já some (flag do serviço); mensagem clara em vez do 404 técnico.
-    erroCancelar.value =
-      status === 404 && !cancelamentoDeCobrancaDisponivel.value
-        ? 'O cancelamento de cobranças ainda não está disponível neste servidor.'
-        : mensagemCobranca(mensagem)
-    // Já cancelada, com recebimento ou removida: a tela está desatualizada.
+    erroCancelar.value = mensagemCobranca(mensagem)
+    // Já cancelada, com recebimento ou removida: a tela está desatualizada (nunca reenvia sozinha).
     if (status === 409 || status === 400 || status === 404) await carregar()
   } finally {
     cancelandoEnviando.value = false

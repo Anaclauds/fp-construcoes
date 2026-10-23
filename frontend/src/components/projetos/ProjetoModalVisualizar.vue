@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useProjetoDetalhe } from '../../composables/useProjetoDetalhe'
-import { suporte } from '../../services/compatibilidade'
 import type { ProjetoResumo, RegistroEditavel } from '../../types/projeto'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { decimalApiParaTexto, formatarNumeroOrcamento, rotuloUnidade } from '../../utils/orcamentos'
@@ -29,6 +28,7 @@ const emit = defineEmits<{
   status: []
   editar: []
   editarRegistro: [registro: RegistroEditavel]
+  cancelarRegistro: [registro: RegistroEditavel]
 }>()
 
 const detalhe = useProjetoDetalhe(props.projeto.id)
@@ -80,15 +80,15 @@ const servicos = computed(() =>
   })),
 )
 
-/** Saldo do orçamento a medir (Construção Civil); só o backend atualizado informa. */
+/** Saldo do orçamento a medir (Construção Civil); null nos demais tipos. */
 const medicoes = computed(() => detalhe.projeto.value?.medicoes ?? null)
 
 const emExecucao = computed(() => atual.value.status === 'EM_EXECUCAO')
 const planejado = computed(() => atual.value.status === 'PLANEJADO')
 
-// Editar projeto/etapa/extra depende de rotas que o backend antigo não tem: some depois do primeiro 404 de rota.
-const podeEditarProjeto = computed(() => props.podeGerenciar && suporte.edicaoProjeto && (planejado.value || emExecucao.value))
-const podeEditarRegistros = computed(() => props.podeGerenciar && suporte.edicaoProjeto && emExecucao.value)
+const podeEditarProjeto = computed(() => props.podeGerenciar && (planejado.value || emExecucao.value))
+// Etapas e extras só são editados e cancelados com o projeto em execução (regra do backend).
+const podeEditarRegistros = computed(() => props.podeGerenciar && emExecucao.value)
 </script>
 
 <template>
@@ -223,8 +223,6 @@ const podeEditarRegistros = computed(() => props.podeGerenciar && suporte.edicao
         :cobrancas="detalhe.projeto.value.cobrancas"
         :status-projeto="atual.status"
         :construcao-civil="construcaoCivil"
-        :recebimentos-disponiveis="detalhe.recebimentosDisponiveis.value"
-        :recebimentos-da-parcela="detalhe.recebimentosDaParcela"
       />
 
       <section
@@ -256,6 +254,7 @@ const podeEditarRegistros = computed(() => props.podeGerenciar && suporte.edicao
         :extras="detalhe.projeto.value.extras"
         :editavel="podeEditarRegistros"
         @editar="emit('editarRegistro', $event)"
+        @cancelar="emit('cancelarRegistro', $event)"
       />
     </template>
 
@@ -288,7 +287,7 @@ const podeEditarRegistros = computed(() => props.podeGerenciar && suporte.edicao
           Iniciar projeto
         </BotaoFp>
         <BotaoFp
-          v-if="planejado && suporte.cancelarPlanejado"
+          v-if="planejado"
           variante="link"
           @click="emit('status')"
         >

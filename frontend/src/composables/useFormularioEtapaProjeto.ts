@@ -3,7 +3,7 @@ import { extrairErro } from '../services/api'
 import type { OpcaoServico } from '../types/orcamento'
 import type { EtapaPayload, ProjetoResumo } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
-import { formatarMoeda, paraCentavos, semAcento } from '../utils/formatadores'
+import { formatarMoeda, paraCentavos } from '../utils/formatadores'
 import { centavosParaMoeda, escalaParaNumero, LIMITE_VALOR_CENTAVOS, textoParaEscala } from '../utils/orcamentos'
 import {
   centavosDoCampoMoeda,
@@ -14,7 +14,8 @@ import {
 } from '../utils/projetos'
 import { useCobrancaProjeto } from './useCobrancaProjeto'
 
-const LIMITE_DESCRICAO = 3000
+/** Limite do backend para a descrição da etapa (e para a de cada serviço). */
+const LIMITE_DESCRICAO = 1000
 const LIMITE_NOME_MATERIAL = 180
 const LIMITE_UNIDADE = 50
 
@@ -44,6 +45,7 @@ export interface LinhaMaterialCliente {
 
 export interface ErrosLinhaServico {
   servicoId?: string
+  descricao?: string
   quantidade?: string
   valorUnitario?: string
   custo?: string
@@ -109,7 +111,7 @@ export function useFormularioEtapaProjeto(
 
   /** Subtotal da medição (= valorCobrado), em centavos. */
   const subtotal = computed(() => subtotalDasLinhas(linhas))
-  const cobranca = useCobrancaProjeto(subtotal)
+  const cobranca = useCobrancaProjeto(subtotal, { projetoId: projeto.id, valorCobradoCentavos: subtotal })
 
   /** Total medido depois desta etapa. */
   const medidoComEstaEtapa = computed(() => medidoCentavos.value + subtotal.value)
@@ -193,26 +195,14 @@ export function useFormularioEtapaProjeto(
       cobranca.alterado.value,
   )
 
-  /**
-   * Descrição no formato antigo: texto da etapa + a descrição opcional de cada serviço anexada. O backend atualizado
-   * tem campo próprio (`servicos[].descricao`); este formato é o do antigo e serve também para medir o limite do texto.
-   */
-  function descricaoFinal(): string {
-    const detalhes = linhas
-      .filter((l) => l.descricao.trim() !== '')
-      .map((l) => `- ${servicoPorId.value.get(l.servicoId)?.nome ?? 'Serviço'}: ${l.descricao.trim()}`)
-    const base = descricao.value.trim()
-    return detalhes.length > 0 ? `${base}\n\nDetalhes dos serviços:\n${detalhes.join('\n')}` : base
-  }
-
   function validar(): boolean {
     erroGeral.value = null
     erroEstoque.value = false
     erroSubtotal.value = undefined
 
     if (descricao.value.trim() === '') erroDescricao.value = 'Descreva a etapa.'
-    else if (descricaoFinal().length > LIMITE_DESCRICAO) {
-      erroDescricao.value = `A descrição (com os detalhes dos serviços) passa de ${LIMITE_DESCRICAO} caracteres.`
+    else if (descricao.value.trim().length > LIMITE_DESCRICAO) {
+      erroDescricao.value = `Use no máximo ${LIMITE_DESCRICAO} caracteres.`
     } else erroDescricao.value = undefined
 
     let valido = erroDescricao.value === undefined
@@ -235,6 +225,8 @@ export function useFormularioEtapaProjeto(
       const custo = centavosDoCampoMoeda(linha.custo)
       if (custo === null) erros.custo = 'Informe o custo estimado (pode ser R$ 0,00).'
       else if (custo > LIMITE_VALOR_CENTAVOS) erros.custo = MENSAGEM_LIMITE_VALOR
+
+      if (linha.descricao.trim().length > LIMITE_DESCRICAO) erros.descricao = `Use no máximo ${LIMITE_DESCRICAO} caracteres.`
 
       errosLinhas[linha.uid] = erros
       if (Object.keys(erros).length > 0) valido = false
@@ -268,11 +260,8 @@ export function useFormularioEtapaProjeto(
     return valido && cobrancaValida
   }
 
-  /**
-   * Corpo do POST /etapas (assume formulário válido). Por padrão a descrição de cada serviço vai em
-   * `servicos[].descricao`; com `legado` ela é anexada à descrição da etapa (backend antigo, que recusa o campo).
-   */
-  function paraPayload(legado = false): EtapaPayload {
+  /** Corpo do POST /etapas (assume formulário válido); a descrição de cada serviço vai em `servicos[].descricao`. */
+  function paraPayload(): EtapaPayload {
     const materiaisCliente = materiais
       .filter((m) => !linhaMaterialVazia(m))
       .map((m) => ({
@@ -281,7 +270,7 @@ export function useFormularioEtapaProjeto(
         unidadeMedida: m.unidade.trim(),
       }))
     return {
-      descricao: legado ? descricaoFinal() : descricao.value.trim(),
+      descricao: descricao.value.trim(),
       dataRegistro: hojeIso(),
       valorCobrado: subtotal.value / 100,
       servicos: linhas.map((l) => ({
@@ -289,7 +278,7 @@ export function useFormularioEtapaProjeto(
         quantidade: escalaParaNumero(textoParaEscala(l.quantidade, 3) ?? 0, 3),
         valorUnitario: (centavosDoCampoMoeda(l.valorUnitario) ?? 0) / 100,
         custoInternoEstimado: (centavosDoCampoMoeda(l.custo) ?? 0) / 100,
-        ...(!legado && l.descricao.trim() !== '' ? { descricao: l.descricao.trim() } : {}),
+        ...(l.descricao.trim() !== '' ? { descricao: l.descricao.trim() } : {}),
       })),
       ...(materiaisCliente.length > 0 ? { materiaisCliente } : {}),
       ...cobranca.paraPayload(),
@@ -297,10 +286,11 @@ export function useFormularioEtapaProjeto(
   }
 
   function tratarErroApi(erro: unknown) {
-    const { mensagem } = extrairErro(erro)
+    const { mensagem, codigo, status } = extrairErro(erro)
     erroGeral.value = mensagemProjeto(mensagem)
-    erroEstoque.value = ehEstoqueInsuficiente(mensagem)
-    if (/registros de execucao|projeto nao encontrado|etapas de medicao/i.test(semAcento(mensagem))) desatualizado.value = true
+    erroEstoque.value = ehEstoqueInsuficiente(codigo)
+    // Projeto que já não está em execução ou foi removido: a lista está desatualizada.
+    if (codigo === 'PROJETO_STATUS_INVALIDO' || status === 404) desatualizado.value = true
   }
 
   return {

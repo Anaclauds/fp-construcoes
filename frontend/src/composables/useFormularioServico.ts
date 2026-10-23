@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import type { TipoOrcamento } from '../types'
 import type { Servico, ServicoAtualizacao, ServicoPayload } from '../types/servico'
 import { formatarMoeda, moedaParaNumero, limparEspacos } from '../utils/formatadores'
@@ -137,9 +137,26 @@ export function useFormularioServico(inicial?: Servico) {
     base ? Object.keys(paraAtualizacao()).length > 0 : CHAVES.some((chave) => campos[chave].trim() !== ''),
   )
 
-  /** O serviço não tem campo único: qualquer erro da API vira mensagem geral. */
+  /** Campo do DTO -> campo do formulário. */
+  const CAMPO_DO_SERVIDOR: Record<string, keyof CamposServico> = {
+    nome: 'nome',
+    categoria: 'categoria',
+    descricao: 'descricao',
+    valorReferencia: 'valor',
+    unidadeMedida: 'unidade',
+  }
+
+  /** Erros do servidor vão para o campo citado; o que não tem campo (ex.: nome repetido) vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
-    erroGeral.value = mensagemServico(extrairErro(erro).mensagem)
+    erroGeral.value = null
+    let mapeado = false
+    for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
+      const chave = CAMPO_DO_SERVIDOR[campoServidor]
+      if (!chave) continue
+      erros[chave] = mensagemServico(mensagem)
+      mapeado = true
+    }
+    if (!mapeado) erroGeral.value = mensagemServico(extrairErro(erro).mensagem)
   }
 
   return { campos, erros, erroGeral, opcoes, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }

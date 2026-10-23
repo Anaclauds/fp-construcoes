@@ -36,8 +36,18 @@ export interface EquipamentoPayload {
   fornecedorId?: number
 }
 
-/** Corpo do PATCH: só o que mudou; fornecedorId null limpa o vínculo. */
-export type EquipamentoAtualizacao = Partial<Omit<EquipamentoPayload, 'fornecedorId'>> & {
+/**
+ * Corpo do PATCH: só o que mudou. Nome, tipo e marca nunca vão nulos; os opcionais aceitam `null` para limpar
+ * (modelo, observações, data e valor de aquisição, fornecedor).
+ */
+export interface EquipamentoAtualizacao {
+  nome?: string
+  tipo?: TipoEquipamento
+  marca?: string
+  modelo?: string | null
+  observacoes?: string | null
+  dataAquisicao?: string | null
+  valorAquisicao?: number | null
   fornecedorId?: number | null
 }
 

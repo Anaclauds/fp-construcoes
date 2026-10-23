@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Recebimento } from '../../types/cobranca'
-import type { CobrancaProjeto, StatusProjeto } from '../../types/projeto'
+import type { CobrancaProjeto, ParcelaProjeto, StatusProjeto } from '../../types/projeto'
 import { ROTULO_FORMA_PAGAMENTO, ROTULO_TIPO_COBRANCA } from '../../utils/cobrancas'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import SeloStatusCobranca from '../cobrancas/SeloStatusCobranca.vue'
@@ -10,17 +9,16 @@ const props = defineProps<{
   cobrancas: CobrancaProjeto[]
   statusProjeto: StatusProjeto
   construcaoCivil: boolean
-  /** Os recebimentos (data do pagamento) foram carregados; sem a permissão de Cobranças mostra só o status das parcelas. */
-  recebimentosDisponiveis: boolean
-  recebimentosDaParcela: (parcelaId: number) => Recebimento[]
 }>()
 
-const totalParcelas = computed(() => props.cobrancas.reduce((total, cobranca) => total + cobranca.parcelas.length, 0))
+// Parcelas canceladas (etapa ou projeto cancelado) continuam na lista, mas não entram na contagem do título.
+const parcelasVigentes = computed(() =>
+  props.cobrancas.flatMap((cobranca) => cobranca.parcelas).filter((parcela) => parcela.status !== 'CANCELADA'),
+)
+const totalParcelas = computed(() => parcelasVigentes.value.length)
 
 const todasPagas = computed(
-  () =>
-    totalParcelas.value > 0 &&
-    props.cobrancas.every((cobranca) => cobranca.parcelas.every((parcela) => parcela.status === 'PAGA')),
+  () => totalParcelas.value > 0 && parcelasVigentes.value.every((parcela) => parcela.status === 'PAGA'),
 )
 
 // Figma (projeto concluído): "Pagamentos Realizados (n)" com "Pago no dia"; só quando tudo foi de fato pago.
@@ -47,9 +45,9 @@ function descricaoCobranca(cobranca: CobrancaProjeto): string {
   return [tipo, modalidade, forma].filter(Boolean).join(' · ')
 }
 
-/** Data do último recebimento da parcela paga ("Pago no dia"); vazio sem permissão de Cobranças. */
-function dataDoPagamento(parcelaId: number): string {
-  const datas = props.recebimentosDaParcela(parcelaId).map((r) => r.dataRecebimento.slice(0, 10))
+/** Data do último recebimento da parcela paga ("Pago no dia"). */
+function dataDoPagamento(parcela: ParcelaProjeto): string {
+  const datas = parcela.recebimentos.map((r) => r.dataRecebimento.slice(0, 10))
   const ultima = datas.sort().at(-1)
   return ultima ? isoParaDataBr(ultima) : ''
 }
@@ -88,8 +86,8 @@ function dataDoPagamento(parcelaId: number): string {
               {{ cobranca.parcelas.length > 1 ? `Parcela ${parcela.numero} de ${cobranca.parcelas.length}` : 'Pagamento único' }}
             </span>
             <span class="parcela-data">
-              <template v-if="parcela.status === 'PAGA' && dataDoPagamento(parcela.id)">
-                Pago no dia: {{ dataDoPagamento(parcela.id) }}
+              <template v-if="parcela.status === 'PAGA' && dataDoPagamento(parcela)">
+                Pago no dia: {{ dataDoPagamento(parcela) }}
               </template>
               <template v-else>
                 Vencimento: {{ isoParaDataBr(parcela.vencimento) }}
@@ -105,12 +103,6 @@ function dataDoPagamento(parcelaId: number): string {
       </ul>
     </div>
 
-    <p
-      v-if="cobrancas.length > 0 && !recebimentosDisponiveis"
-      class="pagamentos-nota"
-    >
-      Sem acesso a Cobranças: o dia do pagamento não é exibido, apenas o status de cada parcela.
-    </p>
   </section>
 </template>
 
@@ -122,20 +114,13 @@ function dataDoPagamento(parcelaId: number): string {
   font-weight: 500;
 }
 
-.pagamentos-vazio,
-.pagamentos-nota {
+.pagamentos-vazio {
   margin: 0;
   padding: 12px 16px;
   border: 1px dashed var(--fp-cinza-borda);
   border-radius: var(--fp-raio);
   color: #6a7282;
   font-size: 13.5px;
-}
-
-.pagamentos-nota {
-  margin-top: 8px;
-  border-style: solid;
-  font-size: 12.5px;
 }
 
 .grupo + .grupo {

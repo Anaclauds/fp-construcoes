@@ -31,7 +31,7 @@ const emit = defineEmits<{
 const idFormulario = useId()
 const raiz = useTemplateRef<HTMLElement>('raiz')
 
-const detalhe = useProjetoDetalhe(props.projeto.id, { comRecebimentos: false })
+const detalhe = useProjetoDetalhe(props.projeto.id)
 const opcoes = useOpcoesProjeto(props.projeto.orcamento.tipo)
 
 // As etapas já registradas vêm do detalhe do projeto: delas sai o total já medido (o teto é o valor do orçamento).
@@ -53,7 +53,8 @@ async function carregar() {
 
 onMounted(carregar)
 
-const quantidadeEtapas = computed(() => detalhe.projeto.value?.etapas.length ?? 0)
+// Etapa cancelada não conta na medição (o backend também a ignora).
+const quantidadeEtapas = computed(() => (detalhe.projeto.value?.etapas ?? []).filter((etapa) => !etapa.canceladoEm).length)
 
 const linhasResumo = computed(() => [
   { rotulo: 'Cliente:', valor: props.projeto.orcamento.cliente.nome },
@@ -84,7 +85,7 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarEtapa(props.projeto.id, form.paraPayload(), form.paraPayload(true))
+    await registrarEtapa(props.projeto.id, form.paraPayload())
     emit('registrado')
   } catch (erro) {
     form.tratarErroApi(erro)
@@ -153,7 +154,7 @@ async function confirmar() {
         obrigatorio
         placeholder="Ex: Processo de instalação de revestimentos (cerâmicas, porcelanatos, pedras, etc.) sobre o contrapiso..."
         :linhas="3"
-        :maxlength="3000"
+        :maxlength="1000"
         :erro="form.erroDescricao.value"
       />
 

@@ -33,7 +33,7 @@ const opcoes = computed<OpcaoAutocomplete[]>(() =>
 )
 
 const textoVazio = computed(() => {
-  if (busca.semPermissao.value) return 'Sem permissão para listar clientes (é preciso acesso ao módulo Clientes).'
+  if (busca.semPermissao.value) return 'Seu perfil não pode listar clientes para o orçamento.'
   return busca.erro.value ?? 'Nenhum cliente ativo encontrado.'
 })
 
@@ -43,6 +43,13 @@ const idSelecionado = computed({
     const cliente = busca.clientes.value.find((c) => String(c.id) === id)
     props.form.cliente.value = cliente ? resumo(cliente) : null
   },
+})
+
+/** Cliente inativo de um orçamento antigo continua no campo, identificado como inativo (não aparece na busca). */
+const rotuloSelecionado = computed(() => {
+  const cliente = props.form.cliente.value
+  if (!cliente) return undefined
+  return cliente.status === 'INATIVO' ? `${cliente.nome} (inativo)` : cliente.nome
 })
 
 const apoio = computed(() => {
@@ -80,7 +87,7 @@ function aoCriarCliente(cliente: ClienteBusca) {
         limpavel
         placeholder="Buscar cliente existente..."
         :opcoes="opcoes"
-        :rotulo-selecionado="form.cliente.value?.nome"
+        :rotulo-selecionado="rotuloSelecionado"
         filtro="servidor"
         :carregando="busca.carregando.value"
         :texto-vazio="textoVazio"

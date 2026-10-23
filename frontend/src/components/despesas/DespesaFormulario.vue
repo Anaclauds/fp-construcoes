@@ -2,19 +2,16 @@
 import { computed, nextTick, onMounted, useTemplateRef, watch } from 'vue'
 import type { FormularioDespesa } from '../../composables/useFormularioDespesa'
 import type { OpcoesCompraDespesa } from '../../composables/useOpcoesCompraDespesa'
+import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
 import type { Despesa } from '../../types/despesa'
-import {
-  ANO_MINIMO_DESPESA,
-  LIMITE_DESCRICAO_DESPESA,
-  OPCOES_CATEGORIA_DIVERSA,
-  nomeFornecedor,
-} from '../../utils/despesas'
+import { ANO_MINIMO_DESPESA, LIMITE_DESCRICAO_DESPESA, nomeFornecedor, projetoDoExtra } from '../../utils/despesas'
 import { mascararMoeda } from '../../utils/formatadores'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
 import CampoData from '../ui/CampoData.vue'
-import CampoFormulario from '../ui/CampoFormulario.vue'
+import CampoFormulario, { type OpcaoCampo } from '../ui/CampoFormulario.vue'
 import DespesaItensCompra from './DespesaItensCompra.vue'
+import DespesaNovaCategoria from './DespesaNovaCategoria.vue'
 import DespesaSeletorTipo from './DespesaSeletorTipo.vue'
 
 const props = defineProps<{
@@ -27,6 +24,23 @@ const props = defineProps<{
 const raiz = useTemplateRef<HTMLElement>('raiz')
 
 const edicao = computed(() => props.despesa !== undefined)
+const projetoExtra = computed(() => (props.despesa ? projetoDoExtra(props.despesa) : null))
+const somenteDescricao = computed(() => props.form.somenteDescricao)
+
+const catalogo = useCategoriasDespesa()
+// Categoria da despesa que não está no catálogo de escolha (ex.: reservada ou excluída) continua visível na edição.
+const opcoesCategoria = computed<OpcaoCampo[]>(() => {
+  const lista = catalogo.escolhiveis.value.map((c) => ({ valor: c.nome, rotulo: c.rotulo }))
+  const atual = props.form.campos.categoria
+  if (atual !== '' && !lista.some((o) => o.valor === atual)) lista.push({ valor: atual, rotulo: catalogo.rotuloDe(atual) })
+  return lista
+})
+const avisoCategoria = computed(() => (catalogo.erro.value ? `Não foi possível carregar as categorias. ${catalogo.erro.value}` : undefined))
+
+/** Categoria recém-cadastrada: já vem selecionada. */
+function aoCriarCategoria(nome: string) {
+  props.form.campos.categoria = nome
+}
 const mascaraValor = (valor: string) => mascararMoeda(valor, 12)
 
 // Compra de material precisa das listas de fornecedores e materiais: carrega ao escolher (ou abrir) esse tipo.
@@ -38,6 +52,9 @@ watch(
 )
 onMounted(() => {
   if (props.form.compra.value) void props.opcoes.carregar()
+  // Despesa diversa também escolhe fornecedor (opcional) e categoria do catálogo.
+  void props.opcoes.carregarFornecedores()
+  void catalogo.carregar()
 })
 
 const opcoesFornecedor = computed<OpcaoAutocomplete[]>(() => {
@@ -96,23 +113,46 @@ defineExpose({ focarPrimeiroErro })
     </p>
 
     <template v-else>
+      <p
+        v-if="somenteDescricao"
+        class="aviso-extra"
+      >
+        Despesa gerada pelo extra do projeto {{ projetoExtra }}: valor, data e categoria vêm do extra e ficam
+        bloqueados. Só a descrição pode ser alterada aqui.
+      </p>
+
       <div class="grade">
+        <CampoFormulario
+          v-if="somenteDescricao"
+          :model-value="form.campos.data"
+          rotulo="Data:"
+          somente-leitura
+        />
         <CampoData
+          v-else
           v-model="form.campos.data"
           rotulo="Data:"
           obrigatorio
           :ano-minimo="ANO_MINIMO_DESPESA"
           :erro="form.erros.data"
         />
+
         <CampoFormulario
-          v-if="!form.compra.value"
+          v-if="somenteDescricao"
+          :model-value="catalogo.rotuloDe(form.campos.categoria || null)"
+          rotulo="Categoria:"
+          somente-leitura
+        />
+        <CampoFormulario
+          v-else-if="!form.compra.value"
           v-model="form.campos.categoria"
           rotulo="Categoria:"
           tipo="select"
           obrigatorio
           placeholder="Selecione..."
-          :opcoes="OPCOES_CATEGORIA_DIVERSA"
+          :opcoes="opcoesCategoria"
           :erro="form.erros.categoria"
+          :aviso="avisoCategoria"
         />
         <CampoAutocomplete
           v-else
@@ -126,10 +166,21 @@ defineExpose({ focarPrimeiroErro })
           :erro="form.erros.fornecedorId"
           texto-vazio="Nenhum fornecedor ativo encontrado."
         />
+
+        <DespesaNovaCategoria
+          v-if="!form.compra.value && !somenteDescricao && catalogo.podeCadastrar.value"
+          @criada="aoCriarCategoria"
+        />
+
         <CampoFormulario
-          v-if="!form.compra.value"
+          v-if="somenteDescricao"
+          :model-value="form.campos.valor"
+          rotulo="Valor:"
+          somente-leitura
+        />
+        <CampoFormulario
+          v-else-if="!form.compra.value"
           v-model="form.campos.valor"
-         
           rotulo="Valor:"
           obrigatorio
           placeholder="0,00"
@@ -138,6 +189,20 @@ defineExpose({ focarPrimeiroErro })
           :mascara="mascaraValor"
           :erro="form.erros.valor"
         />
+
+        <CampoAutocomplete
+          v-if="!form.compra.value && !somenteDescricao"
+          v-model="form.campos.fornecedorId"
+          rotulo="Fornecedor (opcional):"
+          placeholder="Busque pelo nome do fornecedor"
+          icone="lupa"
+          limpavel
+          :opcoes="opcoesFornecedor"
+          :carregando="opcoes.carregando.value"
+          :erro="form.erros.fornecedorId"
+          texto-vazio="Nenhum fornecedor ativo encontrado."
+        />
+
         <CampoFormulario
           v-model="form.campos.descricao"
           class="grade-total"
@@ -197,6 +262,16 @@ defineExpose({ focarPrimeiroErro })
   border-radius: var(--fp-raio);
   background-color: var(--fp-verde-10);
   color: var(--fp-verde);
+  font-size: 13px;
+}
+
+.aviso-extra {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #fcd34d;
+  border-radius: var(--fp-raio);
+  background-color: #fffbeb;
+  color: #b45309;
   font-size: 13px;
 }
 

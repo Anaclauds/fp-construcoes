@@ -11,6 +11,7 @@ import {
   mascararValorEquipamento,
 } from '../../utils/equipamentos'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
+import { rotuloFornecedorVinculado } from '../../utils/fornecedores'
 import CampoAutocomplete from '../ui/CampoAutocomplete.vue'
 import CampoData from '../ui/CampoData.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
@@ -139,7 +140,7 @@ const apoioFornecedor = computed(() =>
           icone="lupa"
           limpavel
           :opcoes="fornecedores.opcoes.value"
-          :rotulo-selecionado="form.fornecedorAtual?.nomeFantasia"
+          :rotulo-selecionado="rotuloFornecedorVinculado(form.fornecedorAtual) || undefined"
           :carregando="fornecedores.carregando.value"
           :desabilitado="fornecedores.indisponivel.value"
           :apoio="apoioFornecedor"

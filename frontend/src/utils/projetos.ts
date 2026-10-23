@@ -138,8 +138,7 @@ export function percentualDeTexto(texto: string): number | null {
 
 /**
  * Soma meses a uma data ISO limitando ao último dia do mês, sempre a partir do dia original:
- * 31/01 -> 28/02 -> 31/03 -> 30/04. É o cálculo do backend atualizado; o backend antigo "estourava" para o mês
- * seguinte (31/01 + 1 mês = 03/03), então com ele a prévia só diverge nos vencimentos dos dias 29 a 31.
+ * 31/01 -> 28/02 -> 31/03 -> 30/04 (mesmo cálculo do backend).
  */
 export function adicionarMeses(iso: string, meses: number): string {
   const [ano, mes, dia] = iso.slice(0, 10).split('-').map(Number) as [number, number, number]
@@ -218,9 +217,9 @@ export function calcularCobranca(entrada: EntradaCobranca): CobrancaCalculada {
    Etapas (medições)
 ------------------------------------------------------------------------------------------------ */
 
-/** Total já medido (soma de `valorCobrado` das etapas), em centavos. */
-export function totalMedidoEmCentavos(etapas: Pick<EtapaRegistrada, 'valorCobrado'>[]): number {
-  return etapas.reduce((total, etapa) => total + paraCentavos(etapa.valorCobrado), 0)
+/** Total já medido (soma de `valorCobrado` das etapas não canceladas), em centavos. */
+export function totalMedidoEmCentavos(etapas: Pick<EtapaRegistrada, 'valorCobrado' | 'canceladoEm'>[]): number {
+  return etapas.reduce((total, etapa) => (etapa.canceladoEm ? total : total + paraCentavos(etapa.valorCobrado)), 0)
 }
 
 /** Campo de moeda mascarado ("R$ 1.234,56") -> centavos; vazio devolve null. */
@@ -266,27 +265,38 @@ const TRADUCOES: [RegExp, string][] = [
   [/cartao de debito esta disponivel somente/i, 'Cartão de débito só está disponível para cobrança à vista.'],
   [/acrescimo permitido somente/i, 'Acréscimo só vale para cartão de crédito, cartão de débito ou boleto.'],
   [/desconto nao pode zerar/i, 'O desconto não pode zerar o valor da cobrança.'],
+  [/cobranca a vista deve ter uma parcela/i, 'Cobrança à vista tem uma parcela só.'],
   [/ao menos duas parcelas|ao menos 2 parcelas/i, 'Informe ao menos duas parcelas para a cobrança parcelada.'],
-  [/somente projeto em execucao pode ser concluido ou cancelado/i, 'Só é possível concluir ou cancelar um projeto em execução. A lista foi atualizada.'],
-  [/registros de execucao exigem projeto em execucao/i, 'Só é possível registrar etapas e extras em projetos em execução. A lista foi atualizada.'],
+  [/somente projeto em execucao pode ser concluido ou cancelado/i, 'Só é possível concluir ou cancelar um projeto em execução (planejado só pode ser cancelado). A lista foi atualizada.'],
+  [/data de conclusao so pode ser informada ao concluir/i, 'A data de conclusão só vale ao concluir o projeto.'],
+  [/conclusao deve ser entre o inicio do projeto e hoje/i, 'A data de conclusão deve estar entre o início da obra e hoje.'],
+  [/registros de execucao exigem projeto em execucao/i, 'Só é possível registrar etapas e extras (ou cancelá-los) em projetos em execução. A lista foi atualizada.'],
   [/etapas de medicao sao exclusivas/i, 'Etapas de medição existem apenas em projetos de Construção Civil.'],
   [/servico inexistente, inativo ou de outra categoria/i, 'Existe um serviço inativo ou de outra categoria. Remova-o e tente de novo.'],
   [/material inexistente ou inativo/i, 'Existe um material inexistente ou inativo. Remova-o e tente de novo.'],
   [/soma das medicoes nao pode superar/i, 'A soma das medições não pode ser maior que o valor do orçamento.'],
   [/nao repita o mesmo servico/i, 'Não repita o mesmo serviço.'],
   [/nao repita o mesmo material/i, 'Não repita o mesmo material.'],
-  [/ao menos um material ou servico extra/i, 'Adicione ao menos um material ou serviço ao extra.'],
-  [/somente projeto planejado ou em execucao pode ser alterado/i, 'Só é possível editar projetos planejados ou em execução. A lista foi atualizada.'],
-  [/responsavel inexistente ou inativo/i, 'O responsável escolhido não existe ou está inativo. Escolha outro funcionário.'],
-  [/previsao de conclusao nao pode ser anterior ao inicio/i, 'A previsão de conclusão não pode ser anterior ao início da obra.'],
-  [/informe ao menos um campo para alterar/i, 'Nenhuma alteração para salvar.'],
-  [/etapa com recebimento registrado nao pode ser alterada/i, 'Esta etapa não pode ser editada: a cobrança dela já tem recebimento registrado.'],
-  [/data de um extra que ja gerou despesa/i, 'A data deste extra não pode ser alterada porque ele já gerou despesa no caixa. Só a justificativa pode mudar.'],
-  [/(etapa|extra) nao encontrad[oa] neste projeto/i, 'Registro não encontrado neste projeto. Os detalhes foram atualizados.'],
+  [/ao menos um material ou servico extra/i, 'Adicione ao menos um material, serviço ou gasto avulso ao extra.'],
+  [/projeto concluido ou cancelado nao pode ser editado/i, 'Só é possível editar projetos planejados ou em execução. A lista foi atualizada.'],
+  [/responsavel deve ser um funcionario ativo/i, 'O responsável escolhido está inativo. Escolha outro funcionário.'],
+  [/responsavel nao pode ser removido/i, 'O responsável não pode ser removido.'],
+  [/informe os campos a alterar/i, 'Nenhuma alteração para salvar.'],
+  [/informe uma (descricao|justificativa) ou data valida/i, 'Informe uma descrição ou uma data válida.'],
+  [/etapa com recebimento nao pode ser editada/i, 'Esta etapa não pode ser editada: a cobrança dela já tem recebimento registrado.'],
+  [/(etapa cancelada nao pode ser editada|extra cancelado nao pode ser editado)/i, 'Registro cancelado não pode ser editado.'],
+  [/data do extra com despesa nao pode ser alterada/i, 'A data deste extra não pode ser alterada porque ele já gerou despesa no caixa. Só a justificativa pode mudar.'],
+  [/etapa com recebimento nao pode ser cancelada/i, 'Esta etapa não pode ser cancelada: a cobrança dela já tem recebimento registrado.'],
+  [/projeto com recebimento nao permite cancelamento simples de extra/i, 'Este projeto já tem recebimento registrado, então o extra não pode ser cancelado por aqui.'],
+  [/material do extra ja consumido/i, 'O material deste extra já foi consumido, então o extra não pode ser cancelado.'],
+  [/(etapa ja cancelada|extra ja cancelado)/i, 'Este registro já foi cancelado. Os detalhes foram atualizados.'],
+  [/reserva foi alterada/i, 'A reserva de estoque mudou durante o cancelamento. Os detalhes foram atualizados: confira e tente de novo.'],
+  [/(etapa nao encontrada|extra nao encontrado)/i, 'Registro não encontrado neste projeto. Os detalhes foram atualizados.'],
+  [/nao ha caixa aberto|abra o caixa da competencia/i, 'Não há caixa aberto para o mês de hoje. Abra o caixa (em Caixa) antes de registrar um extra com custo.'],
   [/caixa da competencia.*fechado/i, 'O caixa do mês deste registro está fechado e o serviço adicional com custo precisa lançar a saída nele. Remova os serviços com custo ou registre o extra quando houver um caixa aberto.'],
 ]
 
-/** Falta de saldo: orienta o usuário a registrar a compra ou ajustar o estoque antes de repetir a operação. */
+/** Sobra do formato "Estoque insuficiente para X. Disponivel: 1.000" (saída de estoque). */
 const ESTOQUE_INSUFICIENTE = /estoque insuficiente para (.+?)\. disponivel: ([\d.,-]+)/i
 
 export function mensagemProjeto(mensagem: string): string {
@@ -296,18 +306,18 @@ export function mensagemProjeto(mensagem: string): string {
     const disponivel = decimalApiParaTexto(estoque[2]!.replace(',', '.')) || estoque[2]!
     return `Estoque insuficiente para "${estoque[1]}" (disponível: ${disponivel}). Registre a compra do material ou ajuste o estoque e tente novamente.`
   }
+  // "Estoque insuficiente de A, B. Registre a compra em Despesas...": já vem legível, só ganha acentos.
+  const varios = /^estoque insuficiente de (.+?)\. registre a compra/i.exec(mensagem)
+  if (varios) return `Estoque insuficiente de ${varios[1]}. Registre a compra em Despesas ou ajuste o estoque e tente novamente.`
   return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
-/** A mensagem é de falta de saldo no estoque (para exibir o aviso com destaque e o atalho para o Estoque). */
-export function ehEstoqueInsuficiente(mensagem: string): boolean {
-  return /estoque insuficiente/i.test(semAcento(mensagem))
+/** O erro é de falta de saldo no estoque (`codigo` do backend), para exibir o aviso com destaque e o atalho para o Estoque. */
+export function ehEstoqueInsuficiente(codigo: string): boolean {
+  return codigo === 'ESTOQUE_INSUFICIENTE'
 }
 
-/**
- * Resultado do cancelamento do projeto (backend atualizado) em uma frase para o aviso. Vazio quando o servidor não
- * informa nada (backend antigo) ou não havia cobrança nem reserva.
- */
+/** Resultado do cancelamento do projeto em uma frase para o aviso. Vazio quando não havia cobrança nem reserva. */
 export function resumoCancelamento(cancelamento: CancelamentoProjeto | null | undefined): string {
   if (!cancelamento) return ''
   const partes: string[] = []

@@ -1,13 +1,15 @@
 import { shallowRef } from 'vue'
 import { extrairMensagemErro } from '../services/api'
-import { listarFuncionarios } from '../services/funcionarios.service'
-import type { Funcionario } from '../types'
+import { listarFuncionariosElegiveis } from '../services/usuarios.service'
+import type { OpcaoFuncionarioUsuario } from '../types'
 
-const LIMITE_POR_PAGINA = 100
-
-/** Funcionários ATIVOS que ainda não têm usuário (candidatos ao cadastro de acesso). */
+/**
+ * Funcionários ativos que ainda não têm usuário (candidatos ao cadastro de acesso), via
+ * GET /usuarios/opcoes/funcionarios (GESTAO_USUARIOS gerenciar). Só para criar usuário: na edição
+ * o vínculo existente não muda, então este seletor não se aplica.
+ */
 export function useFuncionariosSemUsuario() {
-  const funcionarios = shallowRef<Funcionario[]>([])
+  const funcionarios = shallowRef<OpcaoFuncionarioUsuario[]>([])
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
 
@@ -15,17 +17,7 @@ export function useFuncionariosSemUsuario() {
     carregando.value = true
     erro.value = null
     try {
-      const todos: Funcionario[] = []
-      let pagina = 1
-      let totalPaginas = 1
-      // A API pagina em no máximo 100: percorre todas as páginas para não perder candidatos.
-      while (pagina <= totalPaginas) {
-        const resposta = await listarFuncionarios({ status: 'ATIVO', page: pagina, limit: LIMITE_POR_PAGINA })
-        todos.push(...resposta.data)
-        totalPaginas = resposta.meta.totalPages
-        pagina++
-      }
-      funcionarios.value = todos.filter((f) => f.usuario === null)
+      funcionarios.value = await listarFuncionariosElegiveis()
     } catch (e) {
       erro.value = extrairMensagemErro(e)
     } finally {

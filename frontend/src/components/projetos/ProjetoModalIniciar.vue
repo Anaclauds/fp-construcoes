@@ -20,8 +20,8 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  /** Projeto iniciado; leva a mensagem de sucesso e os avisos do servidor (se houver). */
-  iniciado: [mensagem: string, avisos: string[]]
+  /** Projeto iniciado; leva a mensagem de sucesso. */
+  iniciado: [mensagem: string]
   /** O backend indicou que o projeto mudou (já iniciado...): a lista precisa recarregar. */
   desatualizado: []
 }>()
@@ -96,15 +96,14 @@ async function irParaEtapa(destino: 1 | 2) {
 const verificandoEstoque = shallowRef(false)
 
 /**
- * Confere o saldo de estoque antes de pedir qualquer dado: o detalhe do projeto (backend atualizado) diz se os
- * materiais do orçamento têm saldo para reservar. No backend antigo o campo não existe e nada é bloqueado
- * (a falta de saldo só aparece como erro ao confirmar). Falha na consulta também não bloqueia.
+ * Confere o saldo de estoque antes de pedir qualquer dado: o detalhe do projeto diz se os materiais do orçamento
+ * têm saldo para reservar. Falha na consulta não bloqueia (a falta de saldo ainda aparece como erro ao confirmar).
  */
 async function verificarEstoque() {
   verificandoEstoque.value = true
   try {
     const detalhe = await buscarProjeto(props.projeto.id)
-    const faltando = detalhe.estoqueSuficiente === false ? (detalhe.materiaisSemSaldo ?? []) : []
+    const faltando = detalhe.estoqueSuficiente ? [] : detalhe.materiaisSemSaldo
     form.semEstoque.value = faltando.length > 0
     form.materiaisSemSaldo.value = faltando
     if (!form.semEstoque.value) form.erroGeral.value = null
@@ -123,12 +122,8 @@ const textoSemEstoque =
 async function enviar() {
   enviando.value = true
   try {
-    const resposta = await iniciarProjeto(props.projeto.id, form.paraPayload())
-    emit(
-      'iniciado',
-      form.geraCobranca ? 'Cobrança Realizada!' : 'Projeto iniciado com sucesso!',
-      resposta.avisos ?? [],
-    )
+    await iniciarProjeto(props.projeto.id, form.paraPayload())
+    emit('iniciado', form.geraCobranca ? 'Cobrança Realizada!' : 'Projeto iniciado com sucesso!')
   } catch (erro) {
     const onde = form.tratarErroApi(erro)
     if (form.desatualizado.value) emit('desatualizado')

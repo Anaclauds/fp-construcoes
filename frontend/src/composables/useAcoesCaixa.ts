@@ -1,63 +1,54 @@
 import { shallowRef } from 'vue'
-import { endpointInexistente, extrairErro } from '../services/api'
+import { extrairErro } from '../services/api'
 import { abrirCaixa, fecharCaixa, reabrirCaixa } from '../services/financeiro.service'
 import type { Caixa } from '../types/caixa'
 import { mensagemCaixa, mensagemDeCaixaDesatualizado } from '../utils/caixa'
 
-/**
- * A reabertura só existe no backend atualizado. No antigo a rota não existe (404 "Cannot PATCH"): a primeira
- * tentativa descobre isso e o botão some pelo resto da sessão. Escopo de módulo: vale para todas as telas.
- */
-const reaberturaIndisponivel = shallowRef(false)
+const MENSAGEM_NAO_ABERTO = 'Este mês ainda não foi aberto. Abra o caixa primeiro.'
 
-export class ReaberturaIndisponivelError extends Error {
-  constructor() {
-    super('A reabertura de caixa não está disponível neste servidor.')
-  }
-}
-
-/** Ações de escrita do caixa (fechar, redefinir o valor inicial e reabrir), com mensagens de erro tratadas. */
+/** Ações de escrita do caixa (abrir, fechar e reabrir), com mensagens de erro tratadas. */
 export function useAcoesCaixa() {
   const executando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
-  /** A última ação foi recusada porque o caixa já está no estado pedido (alterado em outra tela). */
+  /** A última ação foi recusada porque o caixa já mudou (fechado/aberto em outra tela, ou com lançamentos). */
   const desatualizado = shallowRef(false)
 
   async function executar<T>(acao: () => Promise<T>): Promise<T | null> {
+    // Sem clique duplo: uma ação em andamento bloqueia a seguinte.
+    if (executando.value) return null
     executando.value = true
     erro.value = null
     desatualizado.value = false
     try {
       return await acao()
     } catch (e) {
-      if (e instanceof ReaberturaIndisponivelError) erro.value = e.message
-      else {
-        const { mensagem, status } = extrairErro(e)
-        erro.value = mensagemCaixa(mensagem)
-        desatualizado.value = status === 409 && mensagemDeCaixaDesatualizado(mensagem)
-      }
+      const { mensagem, status } = extrairErro(e)
+      erro.value = mensagemCaixa(mensagem)
+      desatualizado.value = status === 409 && mensagemDeCaixaDesatualizado(mensagem)
       return null
     } finally {
       executando.value = false
     }
   }
 
-  const fechar = (id: number) => executar(() => fecharCaixa(id))
+  /** Fechar e reabrir só valem para caixa existente: competência não aberta tem `id: 0`. */
+  function comCaixaExistente(id: number, acao: () => Promise<Caixa>): Promise<Caixa | null> {
+    if (!(id > 0)) {
+      erro.value = MENSAGEM_NAO_ABERTO
+      return Promise.resolve(null)
+    }
+    return executar(acao)
+  }
 
-  const definirValorInicial = (competencia: string, valor: number) => executar(() => abrirCaixa(competencia, valor))
+  const fechar = (id: number) => comCaixaExistente(id, () => fecharCaixa(id))
 
-  const reabrir = (id: number): Promise<Caixa | null> =>
-    executar(async () => {
-      try {
-        return await reabrirCaixa(id)
-      } catch (e) {
-        if (endpointInexistente(e)) {
-          reaberturaIndisponivel.value = true
-          throw new ReaberturaIndisponivelError()
-        }
-        throw e
-      }
-    })
+  const reabrir = (id: number) => comCaixaExistente(id, () => reabrirCaixa(id))
 
-  return { executando, erro, desatualizado, fechar, definirValorInicial, reabrir, reaberturaIndisponivel }
+  /**
+   * Abre a competência ou redefine o valor inicial. Havendo caixa anterior, o servidor usa o saldo herdado
+   * e ignora `valor` (a tela não o pede nesse caso e envia 0, que o DTO exige).
+   */
+  const abrir = (competencia: string, valor: number) => executar(() => abrirCaixa(competencia, valor))
+
+  return { executando, erro, desatualizado, abrir, fechar, reabrir }
 }

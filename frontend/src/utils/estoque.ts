@@ -1,6 +1,7 @@
 import { filtrarDecimal, normalizarDecimal, textoParaEscala } from './decimal'
 import { normalizarTexto } from './formatadores'
 import { rotuloUnidade, simboloUnidade } from './materiais'
+import type { ErroApi } from '../services/api'
 import type { ProjetoUtilizandoMaterial } from '../types/estoque'
 
 /** Limites (a API não tem @Max: estes seguem as colunas DECIMAL(12,3)). */
@@ -34,6 +35,14 @@ export function percentualDisponivel(atual: string | number, disponivel: string 
   const d = Number(disponivel)
   if (!(a > 0) || !Number.isFinite(d)) return 0
   return Math.max(0, Math.min(100, Math.round((d / a) * 100)))
+}
+
+/** Unidades contáveis do backend (`quantidade.util.ts`): exigem quantidade inteira; as demais aceitam até 3 casas. */
+const UNIDADES_INTEIRAS = ['un', 'unidade', 'unidades', 'pc', 'pcs', 'peca', 'pecas', 'barra', 'caixa', 'rolo']
+
+/** Conveniência de tela; quem decide é o servidor (`QUANTIDADE_INTEIRA_OBRIGATORIA`). */
+export function unidadeExigeInteiro(unidade: string): boolean {
+  return UNIDADES_INTEIRAS.includes(normalizarTexto(unidade))
 }
 
 /** Filtro por tecla da quantidade: mesma regra de orçamentos e projetos (9 inteiros, 3 decimais; ver utils/decimal.ts). */
@@ -86,4 +95,20 @@ export function mensagemEstoque(mensagem: string, unidade?: string): string {
     return `Quantidade acima do saldo disponível. Máximo para saída: ${valor}.`
   }
   return MENSAGENS.find(([padrao]) => padrao.test(k))?.[1] ?? mensagem
+}
+
+/** Mensagem do erro da API usando `codigo` e `detalhes` (sem extrair números do texto). */
+export function mensagemErroEstoque(erro: ErroApi, unidade?: string): string {
+  const { codigo, detalhes } = erro
+  const comUnidade = (valor: number) => (unidade ? quantidadeComUnidade(valor, unidade) : formatarQuantidade(valor))
+  if (codigo === 'ESTOQUE_SAIDA_ACIMA_DO_DISPONIVEL' && typeof detalhes.maximo === 'number') {
+    return `Quantidade acima do saldo disponível. Máximo para saída: ${comUnidade(detalhes.maximo)}.`
+  }
+  if (codigo === 'ESTOQUE_LIMITE_EXCEDIDO' && typeof detalhes.maximoEntrada === 'number') {
+    return `A entrada passaria do limite do estoque. Máximo para entrada: ${comUnidade(detalhes.maximoEntrada)}.`
+  }
+  if (codigo === 'QUANTIDADE_INTEIRA_OBRIGATORIA') return 'Esta unidade exige quantidade inteira.'
+  if (codigo === 'ESTOQUE_SALDO_ALTERADO') return MENSAGENS[2]![1]
+  if (codigo === 'MATERIAL_INATIVO') return MENSAGENS[1]![1]
+  return mensagemEstoque(erro.mensagem, unidade)
 }

@@ -1,39 +1,48 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import type { NovoMaterialEstoquePayload } from '../types/estoque'
-import { limparEspacos } from '../utils/formatadores'
+import { limparEspacos, moedaParaNumero } from '../utils/formatadores'
 import {
   QUANTIDADE_MAXIMA,
-  mensagemEstoque,
+  mensagemErroEstoque,
   quantidadeParaNumero,
+  unidadeExigeInteiro,
 } from '../utils/estoque'
 import {
   LIMITE_CATEGORIA_MATERIAL,
   LIMITE_NOME_MATERIAL,
   LIMITE_UNIDADE_MATERIAL,
-  opcoesCategoria,
-  opcoesUnidade,
+  VALOR_MAXIMO_MATERIAL,
+  opcoesDeCatalogo,
   simboloUnidade,
 } from '../utils/materiais'
+import { useCatalogoMaterial } from './useCatalogoMaterial'
 
 export interface CamposNovoMaterialEstoque {
   nome: string
   categoria: string
   unidade: string
   quantidade: string
+  /** Preço de referência já com máscara de moeda. */
+  preco: string
 }
 
 export type ErrosNovoMaterialEstoque = Partial<Record<keyof CamposNovoMaterialEstoque, string>>
 
-const CHAVES: (keyof CamposNovoMaterialEstoque)[] = ['nome', 'categoria', 'unidade', 'quantidade']
+const CHAVES: (keyof CamposNovoMaterialEstoque)[] = ['nome', 'categoria', 'unidade', 'quantidade', 'preco']
 
 /** Formulário do modal "Adicionar Novo Material no Estoque" (`POST /estoque/materiais`). */
 export function useFormularioNovoMaterialEstoque() {
-  const campos = reactive<CamposNovoMaterialEstoque>({ nome: '', categoria: '', unidade: '', quantidade: '' })
+  const campos = reactive<CamposNovoMaterialEstoque>({ nome: '', categoria: '', unidade: '', quantidade: '', preco: '' })
   const erros = reactive<ErrosNovoMaterialEstoque>({})
   const erroGeral = shallowRef<string | null>(null)
 
-  const opcoes = { categoria: opcoesCategoria(), unidade: opcoesUnidade() }
+  // Categorias e unidades vêm do catálogo da API.
+  const catalogo = useCatalogoMaterial()
+  const opcoes = computed(() => ({
+    categoria: opcoesDeCatalogo(catalogo.categorias.value),
+    unidade: opcoesDeCatalogo(catalogo.unidades.value),
+  }))
 
   /** "Quantidade Inicial (m)": a unidade escolhida aparece no rótulo, como no Figma. */
   const rotuloQuantidade = computed(() => {
@@ -69,6 +78,14 @@ export function useFormularioNovoMaterialEstoque() {
     else if (quantidade === null) resultado.quantidade = 'Quantidade inválida. Use até 3 casas decimais.'
     else if (quantidade < 0.001) resultado.quantidade = 'A quantidade deve ser de pelo menos 0,001.'
     else if (quantidade > QUANTIDADE_MAXIMA) resultado.quantidade = 'Quantidade acima do limite permitido.'
+    else if (campos.unidade !== '' && unidadeExigeInteiro(campos.unidade) && !Number.isInteger(quantidade)) {
+      resultado.quantidade = 'Esta unidade exige quantidade inteira.'
+    }
+
+    const preco = moedaParaNumero(campos.preco)
+    if (preco === null) resultado.preco = 'Informe o preço de referência.'
+    else if (preco < 0.01) resultado.preco = 'O preço deve ser de pelo menos R$ 0,01.'
+    else if (preco > VALOR_MAXIMO_MATERIAL) resultado.preco = 'Valor acima do limite permitido.'
 
     for (const chave of CHAVES) erros[chave] = resultado[chave]
     return Object.keys(resultado).length === 0
@@ -80,16 +97,37 @@ export function useFormularioNovoMaterialEstoque() {
       categoria: campos.categoria,
       unidadeMedida: campos.unidade,
       quantidadeInicial: quantidadeParaNumero(campos.quantidade) ?? 0,
+      precoReferencia: moedaParaNumero(campos.preco) ?? 0,
     }
   }
 
   const alterado = computed(() => CHAVES.some((chave) => campos[chave].trim() !== ''))
 
-  function tratarErroApi(erro: unknown) {
-    erroGeral.value = mensagemEstoque(extrairErro(erro).mensagem)
+  /** Campo do DTO -> campo do formulário (a quantidade chega como `quantidadeInicial` ou `quantidade`). */
+  const CAMPO_DO_SERVIDOR: Record<string, keyof CamposNovoMaterialEstoque> = {
+    nome: 'nome',
+    categoria: 'categoria',
+    unidadeMedida: 'unidade',
+    quantidadeInicial: 'quantidade',
+    quantidade: 'quantidade',
+    precoReferencia: 'preco',
   }
 
-  return { campos, erros, erroGeral, opcoes, rotuloQuantidade, validar, paraPayload, alterado, tratarErroApi }
+  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
+  function tratarErroApi(erro: unknown) {
+    erroGeral.value = null
+    const detalhado = extrairErro(erro)
+    let mapeado = false
+    for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
+      const chave = CAMPO_DO_SERVIDOR[campoServidor]
+      if (!chave) continue
+      erros[chave] = detalhado.codigo === 'QUANTIDADE_INTEIRA_OBRIGATORIA' ? mensagemErroEstoque(detalhado) : mensagem
+      mapeado = true
+    }
+    if (!mapeado) erroGeral.value = mensagemErroEstoque(detalhado)
+  }
+
+  return { campos, erros, erroGeral, opcoes, catalogo, rotuloQuantidade, validar, paraPayload, alterado, tratarErroApi }
 }
 
 export type FormularioNovoMaterialEstoque = ReturnType<typeof useFormularioNovoMaterialEstoque>

@@ -11,13 +11,13 @@ import {
   deslocarCompetencia,
   limitarCompetencia,
   mensagemCaixa,
-  situacaoDoCaixa,
 } from '../utils/caixa'
 
 /**
  * Caixa de um mês guardado em `?competencia=AAAA-MM` (link compartilhável; F5 mantém o mês). Sem query ou com
- * valor inválido vale o mês atual; meses futuros e anteriores a `MES_MINIMO` são trazidos de volta ao intervalo,
- * porque consultar um mês cria o caixa dele no banco.
+ * valor inválido vale o mês atual; meses futuros (a API não abre caixa futuro) e anteriores a `MES_MINIMO` são
+ * trazidos de volta ao intervalo. Consultar não cria o caixa: mês não aberto volta com `id: 0` e `naoAberto`.
+ * As setas voltam até `competenciaMinima` (o primeiro caixa existente) informada pela API.
  */
 export function useCaixaDoMes(nomeRota: string) {
   const route = useRoute()
@@ -35,9 +35,13 @@ export function useCaixaDoMes(nomeRota: string) {
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
 
-  const situacao = computed(() => (caixa.value ? situacaoDoCaixa(caixa.value) : null))
+  const situacao = computed(() => caixa.value?.situacao ?? null)
   const noMesAtual = computed(() => competencia.value === competenciaAtual())
-  const podeVoltar = computed(() => competencia.value > MES_MINIMO)
+  // Último limite informado pela API; antes da primeira resposta (ou sem nenhum caixa) as setas não voltam.
+  const competenciaMinima = computed(() => resultado.value?.competenciaMinima ?? null)
+  const podeVoltar = computed(
+    () => competenciaMinima.value !== null && competencia.value > competenciaMinima.value && competencia.value > MES_MINIMO,
+  )
   const podeAvancar = computed(() => competencia.value < competenciaAtual())
 
   // Só a última requisição vale (cliques rápidos nas setas).
@@ -62,6 +66,9 @@ export function useCaixaDoMes(nomeRota: string) {
 
   /** Troca o resultado atual (resposta de abrir/fechar/reabrir já traz o caixa completo). */
   function aplicar(novo: Caixa) {
+    // Invalida um carregar() em andamento para ele não sobrescrever o caixa recém-devolvido.
+    ultimaRequisicao++
+    carregando.value = false
     if (competenciaDoCaixa(novo) === competencia.value) resultado.value = novo
     else void carregar()
   }

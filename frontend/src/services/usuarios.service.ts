@@ -1,6 +1,7 @@
 import { api } from './api'
 import type {
   FiltrosUsuarios,
+  OpcaoFuncionarioUsuario,
   OpcaoModulo,
   Usuario,
   UsuarioAtualizacao,
@@ -39,5 +40,11 @@ export async function desativarUsuario(id: number): Promise<Usuario> {
 
 export async function reativarUsuario(id: number): Promise<Usuario> {
   const { data } = await api.patch<Usuario>(`/usuarios/${id}/reativar`)
+  return data
+}
+
+/** Funcionários ativos sem usuário (candidatos ao cadastro); exige GESTAO_USUARIOS gerenciar. */
+export async function listarFuncionariosElegiveis(): Promise<OpcaoFuncionarioUsuario[]> {
+  const { data } = await api.get<OpcaoFuncionarioUsuario[]>('/usuarios/opcoes/funcionarios')
   return data
 }
