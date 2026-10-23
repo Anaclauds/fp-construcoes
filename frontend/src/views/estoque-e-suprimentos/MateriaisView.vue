@@ -20,7 +20,7 @@ import type { Material } from '../../types/material'
 import { formatarMoeda } from '../../utils/formatadores'
 import { rotuloUnidade } from '../../utils/materiais'
 
-type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; material: Material } | null
+type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; material: Material; deVisualizar: boolean } | null
 
 const router = useRouter()
 const { temPermissao } = useAuth()
@@ -30,41 +30,60 @@ const podeGerenciar = computed(() => temPermissao('MATERIAIS', 'gerenciar'))
 
 const { busca, categoria, status, pagina, porPagina, materiais, total, carregando, erro, carregar } = useListaMateriais()
 
-// Categorias do catálogo da API (inclui as cadastradas pelos usuários).
-const catalogo = useCatalogoMaterial(false)
-const opcoesCategoria = computed<OpcaoFiltro[]>(() => [
-  { valor: 'TODAS', rotulo: 'Todos' },
-  ...catalogo.categorias.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
-])
+// Categorias do catálogo da API (inclui as cadastradas pelos usuários) e as legadas gravadas em materiais (ativos e inativos).
+const catalogo = useCatalogoMaterial({ unidades: false, emUso: 'TODOS' })
+const opcoesCategoria = computed<OpcaoFiltro[]>(() => {
+  const lista: OpcaoFiltro[] = [
+    { valor: 'TODAS', rotulo: 'Todas' },
+    ...catalogo.categoriasFiltro.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
+  ]
+  // Categoria vinda da URL (ou fora do limite lido): continua selecionada em vez de deixar a lista em branco.
+  if (categoria.value !== 'TODAS' && !lista.some((o) => o.valor === categoria.value)) {
+    lista.push({ valor: categoria.value, rotulo: categoria.value })
+  }
+  return lista
+})
+// Acima do limite de páginas lidas, categorias podem faltar no filtro; a busca por texto continua achando todos os materiais.
+const apoioCategoria = computed(() =>
+  catalogo.emUsoCompleto.value ? undefined : 'Há muitos materiais: algumas categorias podem não aparecer na lista. Use a busca para encontrá-las.',
+)
 
 const colunas: ColunaTabela[] = [
   { chave: 'codigo', rotulo: 'Código', largura: '11%' },
   { chave: 'nome', rotulo: 'Nome do Material', largura: '26%' },
   { chave: 'categoria', rotulo: 'Categoria', largura: '16%' },
   { chave: 'unidade', rotulo: 'Unidade', largura: '16%' },
-  { chave: 'preco', rotulo: 'Preço Ref.', largura: '17%' },
+  { chave: 'preco', rotulo: 'Preço Ref.', largura: '17%', numerica: true },
   { chave: 'acoes', rotulo: 'Ações', largura: '14%' },
 ]
 
 const modal = shallowRef<Modal>(null)
 
-function abrir(tipoModal: NonNullable<Modal>['tipo'], material: Material) {
-  modal.value = { tipo: tipoModal, material }
+function abrir(tipoModal: NonNullable<Modal>['tipo'], material: Material, deVisualizar = false) {
+  modal.value = { tipo: tipoModal, material, deVisualizar }
 }
 
 function fecharModal() {
   modal.value = null
 }
 
+/** Desistiu de editar a partir dos detalhes: volta a eles (se partiu da lista, só fecha). */
+function cancelarEdicao() {
+  const atual = modal.value
+  if (atual?.deVisualizar) abrir('visualizar', atual.material)
+  else fecharModal()
+}
+
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
-  await carregar()
+  mostrarToast('Material atualizado!')
+  // A edição pode ter criado uma categoria ou mudado a do material: atualiza também o filtro de categorias.
+  await Promise.all([carregar(), catalogo.recarregar()])
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Material desativado!' : 'Material reativado!')
   await carregar()
 }
 
@@ -104,6 +123,8 @@ onMounted(carregar)
       class="busca-lista"
       placeholder="Buscar por nome, código ou categoria..."
       rotulo-filtro="Categoria:"
+      filtro-em-lista
+      :apoio-filtro="apoioCategoria"
       :opcoes="opcoesCategoria"
     >
       <template #filtros-extra>
@@ -196,13 +217,13 @@ onMounted(carregar)
       :material="modal.material"
       :pode-editar="podeGerenciar"
       @fechar="fecharModal"
-      @editar="abrir('editar', modal.material)"
+      @editar="abrir('editar', modal.material, true)"
     />
     <MaterialModalEditar
       v-else-if="modal?.tipo === 'editar'"
       :key="modal.material.id"
       :material="modal.material"
-      @fechar="fecharModal"
+      @fechar="cancelarEdicao"
       @salvo="aoSalvar"
     />
     <MaterialModalStatus
@@ -220,7 +241,7 @@ onMounted(carregar)
   flex: 1;
   display: flex;
   flex-direction: column;
-  /* Espaços um pouco menores que nas outras consultas: com os chips de categoria o cartão de filtros ocupa duas linhas e a tabela precisa dos 8 registros. */
+  /* Espaços um pouco menores que nas outras consultas: o cartão de filtros (categoria + status) pode ocupar duas linhas e a tabela precisa dos 8 registros. */
   gap: 20px;
   padding-bottom: 14px;
 }

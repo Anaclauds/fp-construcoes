@@ -9,7 +9,7 @@ import {
   LIMITE_UNIDADE_MATERIAL,
   VALOR_MAXIMO_MATERIAL,
   categoriaParaOpcao,
-  mensagemMaterial,
+  interpretarErroMaterial,
   opcoesDeCatalogo,
   unidadeParaOpcao,
 } from '../utils/materiais'
@@ -155,17 +155,22 @@ export function useFormularioMaterial(inicial?: Material) {
     fornecedorPreferencialId: 'fornecedor',
   }
 
-  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
+  /** Erros de negócio (por `codigo`) e de validação (por campo) vão para o campo citado; o que não tem campo vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
     erroGeral.value = null
+    const interpretado = interpretarErroMaterial(extrairErro(erro))
+    if (interpretado.campo) {
+      erros[interpretado.campo] = interpretado.mensagem
+      return
+    }
     let mapeado = false
     for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
       const chave = CAMPO_DO_SERVIDOR[campoServidor]
       if (!chave) continue
-      erros[chave] = mensagemMaterial(mensagem)
+      erros[chave] = mensagem
       mapeado = true
     }
-    if (!mapeado) erroGeral.value = mensagemMaterial(extrairErro(erro).mensagem)
+    if (!mapeado) erroGeral.value = interpretado.mensagem
   }
 
   return { campos, erros, erroGeral, opcoes, catalogo, fornecedorAtual, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }

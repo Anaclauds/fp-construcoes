@@ -31,6 +31,7 @@ function pedirFechar() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await nextTick()
     focarPrimeiroErro(raiz.value)
@@ -102,7 +103,7 @@ async function salvar() {
         autocomplete="off"
         :mascara="mascararQuantidade"
         :normalizar="normalizarQuantidade"
-        aviso="Quantidade disponível ao cadastrar. Pode ser ajustada depois."
+        aviso="Mínimo 0,001; zero não é aceito. Pode ser ajustada depois."
         :erro="form.erros.quantidade"
       />
       <CampoFormulario

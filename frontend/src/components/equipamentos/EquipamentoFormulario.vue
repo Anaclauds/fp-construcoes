@@ -96,7 +96,7 @@ const apoioFornecedor = computed(() =>
           :maxlength="LIMITE_MODELO_EQUIPAMENTO"
           :erro="form.erros.modelo"
         />
-        <!-- A API não limita as observações (coluna TEXT): o limite de 1000 é só do front, por isso o contador fica visível. -->
+        <!-- O DTO de equipamento aceita observações de até 3000 caracteres (mesmo limite deste campo); o contador fica visível. -->
         <CampoFormulario
           v-model="form.campos.observacoes"
           class="c-observacoes"

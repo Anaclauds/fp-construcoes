@@ -20,6 +20,7 @@ const salvando = shallowRef(false)
 const { mostrarToast } = useToast()
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return

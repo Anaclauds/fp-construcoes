@@ -29,18 +29,36 @@ function abrir() {
 }
 
 async function cadastrar() {
+  // Enter duplo ou clique + Enter: só a primeira chamada grava.
+  if (salvando.value) return
   const texto = limparEspacos(nome.value)
   if (texto === '') {
     erroNome.value = 'Informe o nome da categoria.'
     return
   }
+
+  // Já existe no catálogo (ignora caixa e acento): só seleciona, sem cadastrar de novo.
+  const existente = props.catalogo.categoriaExistente(texto)
+  if (existente !== undefined) {
+    categoria.value = existente
+    cadastrando.value = false
+    return
+  }
+
   salvando.value = true
   erroNome.value = undefined
   try {
     categoria.value = await props.catalogo.cadastrarCategoria(texto)
     cadastrando.value = false
   } catch (e) {
-    erroNome.value = errosPorCampo(e).nome ?? extrairErro(e).mensagem
+    const erro = extrairErro(e)
+    // O servidor recusou nome repetido (outra pessoa cadastrou antes): conflito 409 (chave única, código P2002).
+    if (erro.status === 409) {
+      erroNome.value = 'Categoria já cadastrada.'
+      void props.catalogo.recarregar() // a lista local estava desatualizada: a categoria passa a aparecer no campo
+    } else {
+      erroNome.value = errosPorCampo(e).nome ?? erro.mensagem
+    }
   } finally {
     salvando.value = false
   }

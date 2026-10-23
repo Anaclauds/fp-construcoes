@@ -64,6 +64,7 @@ export function useListaEstoque() {
       if (requisicao === ultimaRequisicao) {
         itens.value = []
         total.value = 0
+        indicadores.value = null
         erro.value = extrairMensagemErro(e)
       }
     } finally {

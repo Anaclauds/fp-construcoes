@@ -10,7 +10,7 @@ import {
   LIMITE_OBSERVACOES_EQUIPAMENTO,
   TIPOS_EQUIPAMENTO,
   VALOR_MAXIMO_EQUIPAMENTO,
-  mensagemEquipamento,
+  interpretarErroEquipamento,
   opcoesTipoEquipamento,
 } from '../utils/equipamentos'
 import { dataBrNoFuturo, dataBrValida } from '../utils/validacao'
@@ -62,10 +62,13 @@ type Normalizado = ReturnType<typeof normalizar>
 
 function validarCampos(c: CamposEquipamento, base: Normalizado | null): ErrosEquipamento {
   const erros: ErrosEquipamento = {}
+  const atual = normalizar(c)
+  // O PATCH só leva o que mudou: texto antigo que já excede o limite (cadastro anterior) não bloqueia a edição de outros campos.
+  const excede = (chave: 'nome' | 'marca' | 'modelo' | 'observacoes', max: number) =>
+    atual[chave].length > max && (base === null || atual[chave] !== base[chave])
   const obrigatorio = (chave: 'nome' | 'marca', mensagem: string, max: number) => {
-    const valor = c[chave].trim()
-    if (valor === '') erros[chave] = mensagem
-    else if (valor.length > max) erros[chave] = `Use no máximo ${max} caracteres.`
+    if (atual[chave] === '') erros[chave] = mensagem
+    else if (excede(chave, max)) erros[chave] = `Use no máximo ${max} caracteres.`
   }
   obrigatorio('nome', 'Informe o nome do equipamento.', LIMITE_NOME_EQUIPAMENTO)
   obrigatorio('marca', 'Informe a marca.', LIMITE_MARCA_EQUIPAMENTO)
@@ -75,8 +78,8 @@ function validarCampos(c: CamposEquipamento, base: Normalizado | null): ErrosEqu
     erros.tipo = 'Tipo inválido.'
   }
 
-  if (c.modelo.trim().length > LIMITE_MODELO_EQUIPAMENTO) erros.modelo = `Use no máximo ${LIMITE_MODELO_EQUIPAMENTO} caracteres.`
-  if (c.observacoes.trim().length > LIMITE_OBSERVACOES_EQUIPAMENTO) {
+  if (excede('modelo', LIMITE_MODELO_EQUIPAMENTO)) erros.modelo = `Use no máximo ${LIMITE_MODELO_EQUIPAMENTO} caracteres.`
+  if (excede('observacoes', LIMITE_OBSERVACOES_EQUIPAMENTO)) {
     erros.observacoes = `Use no máximo ${LIMITE_OBSERVACOES_EQUIPAMENTO} caracteres.`
   }
 
@@ -172,20 +175,22 @@ export function useFormularioEquipamento(inicial?: Equipamento) {
     fornecedorId: 'fornecedor',
   }
 
-  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
+  /** Erros de negócio (por `codigo`) e de validação (por campo) vão para o campo citado; o que não tem campo vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
     erroGeral.value = null
+    const interpretado = interpretarErroEquipamento(extrairErro(erro))
+    if (interpretado.campo) {
+      erros[interpretado.campo] = interpretado.mensagem
+      return
+    }
     let mapeado = false
     for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
       const chave = CAMPO_DO_SERVIDOR[campoServidor]
       if (!chave) continue
-      erros[chave] = mensagemEquipamento(mensagem)
+      erros[chave] = mensagem
       mapeado = true
     }
-    if (mapeado) return
-    const mensagem = mensagemEquipamento(extrairErro(erro).mensagem)
-    if (/data de aquisi/i.test(mensagem)) erros.data = mensagem
-    else erroGeral.value = mensagem
+    if (!mapeado) erroGeral.value = interpretado.mensagem
   }
 
   return { campos, erros, erroGeral, opcoes, fornecedorAtual, validar, paraPayload, paraAtualizacao, alterado, tratarErroApi }

@@ -76,7 +76,7 @@ export function useFormularioNovoMaterialEstoque() {
     const quantidade = quantidadeParaNumero(campos.quantidade)
     if (campos.quantidade.trim() === '') resultado.quantidade = 'Informe a quantidade inicial.'
     else if (quantidade === null) resultado.quantidade = 'Quantidade inválida. Use até 3 casas decimais.'
-    else if (quantidade < 0.001) resultado.quantidade = 'A quantidade deve ser de pelo menos 0,001.'
+    else if (quantidade < 0.001) resultado.quantidade = 'Informe uma quantidade maior que zero (mínimo 0,001).'
     else if (quantidade > QUANTIDADE_MAXIMA) resultado.quantidade = 'Quantidade acima do limite permitido.'
     else if (campos.unidade !== '' && unidadeExigeInteiro(campos.unidade) && !Number.isInteger(quantidade)) {
       resultado.quantidade = 'Esta unidade exige quantidade inteira.'
@@ -113,18 +113,23 @@ export function useFormularioNovoMaterialEstoque() {
     precoReferencia: 'preco',
   }
 
-  /** Erros do servidor vão para o campo citado; o que não tem campo vira mensagem geral. */
+  /** Erros de negócio (por `codigo`) e de validação (por campo) vão para o campo citado; o que não tem campo vira mensagem geral. */
   function tratarErroApi(erro: unknown) {
     erroGeral.value = null
     const detalhado = extrairErro(erro)
+    const mensagem = mensagemErroEstoque(detalhado)
+    if (detalhado.codigo === 'MATERIAIS_VALIDARNOME_CONFLICT_01') {
+      erros.nome = mensagem
+      return
+    }
     let mapeado = false
-    for (const [campoServidor, mensagem] of Object.entries(errosPorCampo(erro))) {
+    for (const [campoServidor, mensagemCampo] of Object.entries(errosPorCampo(erro))) {
       const chave = CAMPO_DO_SERVIDOR[campoServidor]
       if (!chave) continue
-      erros[chave] = detalhado.codigo === 'QUANTIDADE_INTEIRA_OBRIGATORIA' ? mensagemErroEstoque(detalhado) : mensagem
+      erros[chave] = detalhado.codigo === 'QUANTIDADE_INTEIRA_OBRIGATORIA' ? mensagem : mensagemCampo
       mapeado = true
     }
-    if (!mapeado) erroGeral.value = mensagemErroEstoque(detalhado)
+    if (!mapeado) erroGeral.value = mensagem
   }
 
   return { campos, erros, erroGeral, opcoes, catalogo, rotuloQuantidade, validar, paraPayload, alterado, tratarErroApi }

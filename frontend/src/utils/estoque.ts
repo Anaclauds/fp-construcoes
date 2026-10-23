@@ -4,7 +4,7 @@ import { rotuloUnidade, simboloUnidade } from './materiais'
 import type { ErroApi } from '../services/api'
 import type { ProjetoUtilizandoMaterial } from '../types/estoque'
 
-/** Limites (a API não tem @Max: estes seguem as colunas DECIMAL(12,3)). */
+/** Limites do DTO de estoque no backend (quantidade até 999.999.999,999 com 3 casas; justificativa até 1000 caracteres). */
 export const QUANTIDADE_MAXIMA = 999_999_999.999
 export const LIMITE_JUSTIFICATIVA = 1000
 
@@ -57,11 +57,6 @@ export function quantidadeParaNumero(texto: string): number | null {
   return escala === null ? null : escala / 1000
 }
 
-/** Número -> texto do campo ("12.5" -> "12,5"). */
-export function quantidadeParaTexto(valor: string | number): string {
-  return String(Number(valor)).replace('.', ',')
-}
-
 export interface ProjetoAgrupado {
   projetoId: number
   titulo: string
@@ -69,46 +64,51 @@ export interface ProjetoAgrupado {
   quantidade: number
 }
 
-/** A API devolve uma linha por reserva; aqui vira uma linha por projeto com o total reservado. */
+/** Quantidade da API em milésimos inteiros (a coluna tem 3 casas), para somar sem erro de ponto flutuante. */
+const emMilesimos = (quantidade: string): number => Math.round(Number(quantidade) * 1000)
+
+/** A API devolve uma linha por reserva; aqui vira uma linha por projeto com o total reservado (somado em milésimos). */
 export function agruparProjetos(reservas: ProjetoUtilizandoMaterial[]): ProjetoAgrupado[] {
-  const mapa = new Map<number, ProjetoAgrupado>()
+  const mapa = new Map<number, { projeto: ProjetoAgrupado; milesimos: number }>()
   for (const r of reservas) {
     const existente = mapa.get(r.projetoId)
-    if (existente) existente.quantidade += Number(r.quantidade)
-    else mapa.set(r.projetoId, { projetoId: r.projetoId, titulo: r.projeto, cliente: r.cliente, quantidade: Number(r.quantidade) })
+    if (existente) existente.milesimos += emMilesimos(r.quantidade)
+    else mapa.set(r.projetoId, { projeto: { projetoId: r.projetoId, titulo: r.projeto, cliente: r.cliente, quantidade: 0 }, milesimos: emMilesimos(r.quantidade) })
   }
-  return [...mapa.values()]
+  return [...mapa.values()].map(({ projeto, milesimos }) => ({ ...projeto, quantidade: milesimos / 1000 }))
 }
 
-const MENSAGENS: [RegExp, string][] = [
-  [/material nao encontrado/, 'Material não encontrado. Atualize a lista.'],
-  [/material ativo nao encontrado/, 'Material não encontrado ou inativo. Atualize a lista.'],
-  [/o saldo disponivel foi alterado/, 'O saldo disponível mudou enquanto você preenchia. Confira os valores e tente de novo.'],
-]
-
-/** Mensagem da API (sem acento) -> frase para o usuário; "Quantidade maxima para saida: 65.000" ganha unidade. */
-export function mensagemEstoque(mensagem: string, unidade?: string): string {
-  const k = normalizarTexto(mensagem)
-  const maxima = /quantidade maxima para saida:\s*([\d.,]+)/.exec(k)
-  if (maxima) {
-    const valor = unidade ? quantidadeComUnidade(maxima[1]!, unidade) : formatarQuantidade(maxima[1]!)
-    return `Quantidade acima do saldo disponível. Máximo para saída: ${valor}.`
-  }
-  return MENSAGENS.find(([padrao]) => padrao.test(k))?.[1] ?? mensagem
-}
-
-/** Mensagem do erro da API usando `codigo` e `detalhes` (sem extrair números do texto). */
+/**
+ * Mensagem do erro da API decidida pelo `codigo` e por `detalhes` (sem extrair números nem frases do texto, que vem sem acento).
+ * Os terminados em `_01` são gerados pelo nome do método no backend (`estoque.service.ts`, `materiais.service.ts`); não há
+ * código legível para eles, então ficam só aqui e precisam acompanhar o backend.
+ */
 export function mensagemErroEstoque(erro: ErroApi, unidade?: string): string {
   const { codigo, detalhes } = erro
   const comUnidade = (valor: number) => (unidade ? quantidadeComUnidade(valor, unidade) : formatarQuantidade(valor))
-  if (codigo === 'ESTOQUE_SAIDA_ACIMA_DO_DISPONIVEL' && typeof detalhes.maximo === 'number') {
-    return `Quantidade acima do saldo disponível. Máximo para saída: ${comUnidade(detalhes.maximo)}.`
+  switch (codigo) {
+    case 'ESTOQUE_SAIDA_ACIMA_DO_DISPONIVEL':
+      return typeof detalhes.maximo === 'number'
+        ? `Quantidade acima do saldo disponível. Máximo para saída: ${comUnidade(detalhes.maximo)}.`
+        : 'Quantidade acima do saldo disponível.'
+    case 'ESTOQUE_LIMITE_EXCEDIDO':
+      return typeof detalhes.maximoEntrada === 'number'
+        ? `A entrada passaria do limite do estoque. Máximo para entrada: ${comUnidade(detalhes.maximoEntrada)}.`
+        : 'A entrada passaria do limite do estoque.'
+    case 'QUANTIDADE_INTEIRA_OBRIGATORIA':
+      return 'Esta unidade exige quantidade inteira.'
+    case 'ESTOQUE_SALDO_ALTERADO':
+      return 'O saldo disponível mudou enquanto você preenchia. Confira os valores e tente de novo.'
+    case 'MATERIAL_INATIVO':
+      return 'Material não encontrado ou inativo. Atualize a lista.'
+    case 'ESTOQUE_FINDONE_NOTFOUND_01':
+    case 'MATERIAIS_FINDONE_NOTFOUND_01':
+      return 'Material não encontrado. Atualize a lista.'
+    case 'MATERIAIS_VALIDARNOME_CONFLICT_01':
+      return 'Já existe um material ativo com este nome.'
+    case 'ESTOQUE_AJUSTAR_BADREQUEST_01':
+      return 'Informe a justificativa do ajuste.'
+    default:
+      return erro.mensagem
   }
-  if (codigo === 'ESTOQUE_LIMITE_EXCEDIDO' && typeof detalhes.maximoEntrada === 'number') {
-    return `A entrada passaria do limite do estoque. Máximo para entrada: ${comUnidade(detalhes.maximoEntrada)}.`
-  }
-  if (codigo === 'QUANTIDADE_INTEIRA_OBRIGATORIA') return 'Esta unidade exige quantidade inteira.'
-  if (codigo === 'ESTOQUE_SALDO_ALTERADO') return MENSAGENS[2]![1]
-  if (codigo === 'MATERIAL_INATIVO') return MENSAGENS[1]![1]
-  return mensagemEstoque(erro.mensagem, unidade)
 }

@@ -17,7 +17,7 @@ import { useToast } from '../../composables/useToast'
 import type { Fornecedor } from '../../types/fornecedor'
 import { formatarCnpj, formatarTelefone } from '../../utils/formatadores'
 
-type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; fornecedor: Fornecedor } | null
+type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; fornecedor: Fornecedor; deVisualizar: boolean } | null
 
 const router = useRouter()
 const { temPermissao } = useAuth()
@@ -37,23 +37,30 @@ const colunas: ColunaTabela[] = [
 
 const modal = shallowRef<Modal>(null)
 
-function abrir(tipoModal: NonNullable<Modal>['tipo'], fornecedor: Fornecedor) {
-  modal.value = { tipo: tipoModal, fornecedor }
+function abrir(tipoModal: NonNullable<Modal>['tipo'], fornecedor: Fornecedor, deVisualizar = false) {
+  modal.value = { tipo: tipoModal, fornecedor, deVisualizar }
 }
 
 function fecharModal() {
   modal.value = null
 }
 
+/** Desistiu de editar a partir dos detalhes: volta a eles (se partiu da lista, só fecha). */
+function cancelarEdicao() {
+  const atual = modal.value
+  if (atual?.deVisualizar) abrir('visualizar', atual.fornecedor)
+  else fecharModal()
+}
+
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Fornecedor atualizado!')
   await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Fornecedor desativado!' : 'Fornecedor reativado!')
   await carregar()
 }
 
@@ -162,13 +169,13 @@ onMounted(carregar)
       :fornecedor="modal.fornecedor"
       :pode-editar="podeGerenciar"
       @fechar="fecharModal"
-      @editar="abrir('editar', modal.fornecedor)"
+      @editar="abrir('editar', modal.fornecedor, true)"
     />
     <FornecedorModalEditar
       v-else-if="modal?.tipo === 'editar'"
       :key="modal.fornecedor.id"
       :fornecedor="modal.fornecedor"
-      @fechar="fecharModal"
+      @fechar="cancelarEdicao"
       @salvo="aoSalvar"
     />
     <FornecedorModalStatus

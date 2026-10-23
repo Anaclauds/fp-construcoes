@@ -1,11 +1,12 @@
 import { computed, onMounted, shallowRef } from 'vue'
 import type { OpcaoAutocomplete } from '../components/ui/CampoAutocomplete.vue'
-import { listarFornecedoresAtivos } from '../services/fornecedores.service'
+import { invalidarFornecedoresAtivos, listarFornecedoresAtivos } from '../services/fornecedores.service'
 import type { OpcaoFornecedor } from '../types/fornecedor'
 import { formatarCnpj } from '../utils/formatadores'
 
 /**
  * Fornecedores ativos para o campo "Fornecedor" de material e equipamento (`GET /fornecedores/opcoes/ativos`).
+ * A consulta é compartilhada na sessão (cache em `fornecedores.service`), então abrir vários formulários não repete a chamada.
  * Se a lista não carregar (sem permissão, API fora), `indisponivel` fica verdadeiro e o campo avisa em vez de travar o formulário.
  */
 export function useOpcoesFornecedores() {
@@ -35,5 +36,11 @@ export function useOpcoesFornecedores() {
 
   onMounted(() => void carregar())
 
-  return { opcoes, carregando, indisponivel, recarregar: carregar }
+  /** Descarta o cache e consulta de novo. */
+  function recarregar() {
+    invalidarFornecedoresAtivos()
+    return carregar()
+  }
+
+  return { opcoes, carregando, indisponivel, recarregar }
 }

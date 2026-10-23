@@ -17,8 +17,9 @@ import { useListaEquipamentos, type FiltroTipoEquipamento } from '../../composab
 import { useToast } from '../../composables/useToast'
 import type { Equipamento } from '../../types/equipamento'
 import { ROTULO_TIPO_EQUIPAMENTO, TIPOS_EQUIPAMENTO, rotuloTipoEquipamento } from '../../utils/equipamentos'
+import { rotuloFornecedorVinculado } from '../../utils/fornecedores'
 
-type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; equipamento: Equipamento } | null
+type Modal = { tipo: 'visualizar' | 'editar' | 'desativar' | 'reativar'; equipamento: Equipamento; deVisualizar: boolean } | null
 
 const router = useRouter()
 const { temPermissao } = useAuth()
@@ -44,23 +45,30 @@ const colunas: ColunaTabela[] = [
 
 const modal = shallowRef<Modal>(null)
 
-function abrir(tipoModal: NonNullable<Modal>['tipo'], equipamento: Equipamento) {
-  modal.value = { tipo: tipoModal, equipamento }
+function abrir(tipoModal: NonNullable<Modal>['tipo'], equipamento: Equipamento, deVisualizar = false) {
+  modal.value = { tipo: tipoModal, equipamento, deVisualizar }
 }
 
 function fecharModal() {
   modal.value = null
 }
 
+/** Desistiu de editar a partir dos detalhes: volta a eles (se partiu da lista, só fecha). */
+function cancelarEdicao() {
+  const atual = modal.value
+  if (atual?.deVisualizar) abrir('visualizar', atual.equipamento)
+  else fecharModal()
+}
+
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Equipamento atualizado!')
   await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Equipamento desativado!' : 'Equipamento reativado!')
   await carregar()
 }
 
@@ -155,7 +163,7 @@ onMounted(carregar)
         >{{ linha.modelo }}</span>
       </template>
       <template #celula-fornecedor="{ linha }">
-        <span class="celula-principal">{{ linha.fornecedor?.nomeFantasia ?? '—' }}</span>
+        <span class="celula-principal">{{ rotuloFornecedorVinculado(linha.fornecedor) || '—' }}</span>
       </template>
       <template #celula-acoes="{ linha }">
         <div class="acoes">
@@ -193,13 +201,13 @@ onMounted(carregar)
       :equipamento="modal.equipamento"
       :pode-editar="podeGerenciar"
       @fechar="fecharModal"
-      @editar="abrir('editar', modal.equipamento)"
+      @editar="abrir('editar', modal.equipamento, true)"
     />
     <EquipamentoModalEditar
       v-else-if="modal?.tipo === 'editar'"
       :key="modal.equipamento.id"
       :equipamento="modal.equipamento"
-      @fechar="fecharModal"
+      @fechar="cancelarEdicao"
       @salvo="aoSalvar"
     />
     <EquipamentoModalStatus

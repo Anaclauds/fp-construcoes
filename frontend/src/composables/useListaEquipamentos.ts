@@ -3,7 +3,7 @@ import { listarEquipamentos } from '../services/equipamentos.service'
 import type { Equipamento, FiltrosEquipamentos, TipoEquipamento } from '../types/equipamento'
 import { semAcento } from '../utils/formatadores'
 import { TIPOS_EQUIPAMENTO } from '../utils/equipamentos'
-import { useListaPaginadaEstoque } from './useListaPaginadaEstoque'
+import { useListaPaginadaCadastro } from './useListaPaginadaCadastro'
 
 export type FiltroTipoEquipamento = 'TODOS' | TipoEquipamento
 
@@ -11,7 +11,7 @@ export type FiltroTipoEquipamento = 'TODOS' | TipoEquipamento
 export function useListaEquipamentos() {
   const tipo = shallowRef<FiltroTipoEquipamento>('TODOS')
 
-  const lista = useListaPaginadaEstoque<Equipamento, FiltrosEquipamentos>({
+  const lista = useListaPaginadaCadastro<Equipamento, FiltrosEquipamentos>({
     listar: listarEquipamentos,
     filtrosExtras: () => (tipo.value === 'TODOS' ? {} : { tipo: tipo.value }),
     fontesExtras: [tipo],
