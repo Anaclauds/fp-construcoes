@@ -29,9 +29,12 @@ function dataCompra(compra: MovimentacaoEstoque): { texto: string; registro: boo
   return { texto: instanteParaDataBrNegocio(compra.dataHora), registro: true }
 }
 
-/** Projeto da baixa e justificativa (quando houver), em uma linha de apoio. */
+/**
+ * Linha de apoio da baixa: só o projeto. A justificativa de uma baixa de projeto é gerada pelo sistema
+ * ("Consumo na conclusao do projeto 12") e traz o id interno, que não é informação para o usuário.
+ */
 function detalheBaixa(baixa: MovimentacaoEstoque): string {
-  return [baixa.projeto, baixa.justificativa].filter(Boolean).join(' · ')
+  return baixa.projeto ?? ''
 }
 
 function quem(movimentacao: MovimentacaoEstoque): string {

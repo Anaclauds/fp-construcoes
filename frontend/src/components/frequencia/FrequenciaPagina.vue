@@ -8,6 +8,8 @@ defineProps<{
   titulo: string
   subtitulo: string
   indicadores: Indicadores
+  /** Último dia que o seletor aceita (YYYY-MM-DD); sem ele qualquer dia vale. */
+  dataMaxima?: string
 }>()
 
 // Dia exibido (YYYY-MM-DD); quem usa decide como trocá-lo (ex.: navegar mudando a query).
@@ -23,6 +25,7 @@ const data = defineModel<string>('data', { required: true })
       <template #acao>
         <SeletorData
           :model-value="data"
+          :maximo="dataMaxima"
           @update:model-value="(nova) => (data = nova)"
         />
       </template>

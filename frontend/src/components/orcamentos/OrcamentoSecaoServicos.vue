@@ -90,6 +90,7 @@ const placeholderServico = computed(() => (semTipo.value ? 'Selecione o tipo pri
           placeholder="0"
           inputmode="decimal"
           autocomplete="off"
+          :somente-leitura="form.servicoInativo(linha)"
           :mascara="mascaraQuantidade"
           :normalizar="normalizarQuantidade"
           :erro="form.errosServicos[linha.chave]?.quantidade"
@@ -101,6 +102,7 @@ const placeholderServico = computed(() => (semTipo.value ? 'Selecione o tipo pri
           placeholder="0,00"
           inputmode="decimal"
           autocomplete="off"
+          :somente-leitura="form.servicoInativo(linha)"
           :mascara="mascaraValor"
           :normalizar="normalizarValor"
           :erro="form.errosServicos[linha.chave]?.valorUnitario"
@@ -120,6 +122,13 @@ const placeholderServico = computed(() => (semTipo.value ? 'Selecione o tipo pri
         >
           Remover
         </BotaoFp>
+        <p
+          v-if="form.servicoInativo(linha)"
+          class="dica-inativo"
+        >
+          Item inativo mantido pelo histórico: quantidade e valor não podem ser alterados. Para mudar, remova a
+          linha e escolha um item ativo.
+        </p>
       </div>
     </div>
 
@@ -175,6 +184,13 @@ const placeholderServico = computed(() => (semTipo.value ? 'Selecione o tipo pri
   border: 0;
 }
 
+.dica-inativo {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #92400e;
+  font-size: 12.5px;
+}
+
 .remover {
   height: var(--campo-altura, 42px);
 }
@@ -217,6 +233,17 @@ const placeholderServico = computed(() => (semTipo.value ? 'Selecione o tipo pri
     grid-column: 1 / -1;
     margin-top: 0;
     justify-self: end;
+  }
+}
+
+/* Contêiner muito estreito (celular): quantidade e valor lado a lado, total em linha própria. */
+@container (max-width: 440px) {
+  .linha {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .linha > :nth-child(5) {
+    grid-column: 1 / -1;
   }
 }
 </style>

@@ -1,6 +1,6 @@
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { extrairErro, type MaterialSemSaldo } from '../services/api'
-import type { IniciarProjetoPayload, ProjetoResumo } from '../types/projeto'
+import type { CobrancaProjeto, IniciarProjetoPayload, ProjetoResumo } from '../types/projeto'
 import { hojeIso } from '../utils/datas'
 import { dataBrParaIso, isoParaDataBr, paraCentavos } from '../utils/formatadores'
 import { duracaoEmDias, ehEstoqueInsuficiente, mensagemProjeto } from '../utils/projetos'
@@ -17,12 +17,15 @@ export type ErrosIniciar = Partial<Record<keyof CamposIniciar, string>>
 
 /**
  * Formulário "Iniciar Projeto". Construção Civil tem uma etapa só (cronograma; a cobrança vem por medição);
- * Serralheria e Calhas têm a etapa de cronograma e a de cobrança (condição da cobrança FINAL sobre o valor do orçamento).
+ * Serralheria e Calhas têm a etapa de cronograma e a de cobrança (condição da cobrança FINAL sobre o saldo do orçamento:
+ * valor total menos as entradas já cobradas, como o `iniciar` do servidor; se as entradas cobrem tudo, não há cobrança).
  * Data de início nasce com a previsão de início e a previsão de conclusão com a cadastrada (ambas editáveis).
+ *
+ * Regras de negócio mais restritas que a API, mantidas de propósito: a data de início real não pode ser futura (a API
+ * aceita) e a previsão de conclusão é obrigatória em Construção Civil (a API aceita sem ela).
  */
 export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   const construcaoCivil = projeto.orcamento.tipo === 'CONSTRUCAO_CIVIL'
-  const geraCobranca = !construcaoCivil
 
   // A obra começa hoje ou antes: previsão no futuro não vira sugestão (o início real não pode ser futuro).
   const sugestaoInicio = isoParaDataBr(projeto.previsaoInicio && projeto.previsaoInicio.slice(0, 10) <= hojeIso() ? projeto.previsaoInicio : hojeIso())
@@ -42,7 +45,19 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   /** O backend disse que o projeto mudou (já iniciado...): a lista precisa recarregar. */
   const desatualizado = shallowRef(false)
 
-  const valorBase = computed(() => paraCentavos(projeto.orcamento.valorTotal))
+  /** Entradas (cobranças ENTRADA vigentes do projeto) já lançadas: o servidor cobra só o restante. Vem do detalhe do projeto. */
+  const entradasCentavos = shallowRef(0)
+  /** Valor da cobrança FINAL: total do orçamento menos as entradas (nunca negativo). */
+  const valorBase = computed(() => Math.max(0, paraCentavos(projeto.orcamento.valorTotal) - entradasCentavos.value))
+  /** Serralheria/Calhas só cobram se ainda restar saldo depois das entradas (senão o servidor não cria cobrança). */
+  const geraCobranca = computed(() => !construcaoCivil && valorBase.value > 0)
+
+  function definirEntradas(cobrancas: CobrancaProjeto[]) {
+    entradasCentavos.value = cobrancas
+      .filter((c) => c.etapaId === null && c.tipo === 'ENTRADA' && c.status !== 'CANCELADO')
+      .reduce((total, c) => total + paraCentavos(c.valorTotal), 0)
+  }
+
   const cobranca = useCobrancaProjeto(valorBase, { projetoId: projeto.id })
 
   for (const chave of ['dataInicio', 'previsaoConclusao'] as const) {
@@ -75,7 +90,7 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
     () =>
       campos.dataInicio !== sugestaoInicio ||
       campos.previsaoConclusao !== sugestaoConclusao ||
-      (geraCobranca && cobranca.alterado.value),
+      (geraCobranca.value && cobranca.alterado.value),
   )
 
   /** Valida o cronograma (etapa 1). */
@@ -110,14 +125,14 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
     return {
       dataInicio: dataBrParaIso(campos.dataInicio),
       ...(campos.previsaoConclusao ? { previsaoConclusao: dataBrParaIso(campos.previsaoConclusao) } : {}),
-      ...(geraCobranca ? cobranca.paraPayload() : {}),
+      ...(geraCobranca.value ? cobranca.paraPayload() : {}),
     }
   }
 
   /** Falta de estoque, projeto já iniciado, data inválida... viram mensagem no próprio modal. */
   function tratarErroApi(erro: unknown): 'cronograma' | 'cobranca' {
     const { mensagem, materiais, codigo, status } = extrairErro(erro)
-    const texto = mensagemProjeto(mensagem)
+    const texto = mensagemProjeto(mensagem, codigo)
     erroGeral.value = texto
     erroEstoque.value = ehEstoqueInsuficiente(codigo)
     materiaisSemSaldo.value = materiais
@@ -133,6 +148,9 @@ export function useFormularioIniciarProjeto(projeto: ProjetoResumo) {
   return {
     construcaoCivil,
     geraCobranca,
+    entradasCentavos,
+    valorBase,
+    definirEntradas,
     sugestaoInicio,
     campos,
     erros,

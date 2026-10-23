@@ -12,7 +12,7 @@ import { useDataDaRota } from '../../composables/useDataDaRota'
 import { useFolhaFrequencia } from '../../composables/useFolhaFrequencia'
 import { useToast } from '../../composables/useToast'
 import type { StatusFrequencia } from '../../types'
-import { isoParaDataBr } from '../../utils/formatadores'
+import { isoParaDataBr, normalizarTexto } from '../../utils/formatadores'
 import { ROTULO_CURTO_STATUS, STATUS_FREQUENCIA, paraLinhaFolha, type LinhaFolha } from '../../utils/frequencia'
 
 type FiltroFolha = 'TODOS' | 'NAO_REGISTRADO' | StatusFrequencia
@@ -23,7 +23,6 @@ const { temPermissao } = useAuth()
 const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('FREQUENCIA', 'gerenciar'))
-const podeVerRelatorio = computed(() => temPermissao('FREQUENCIA', 'visualizar'))
 
 const { data, irParaData } = useDataDaRota('frequencia')
 const { registros, indicadores, carregando, erro, carregar } = useFolhaFrequencia(data)
@@ -37,18 +36,16 @@ const opcoesFiltro: OpcaoFiltro<FiltroFolha>[] = [
   { valor: 'NAO_REGISTRADO', rotulo: 'Não registrado' },
 ]
 
-const semAcento = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
-
 const todasAsLinhas = computed(() => registros.value.map(paraLinhaFolha))
 
 // Busca e filtro de status são locais: a API já devolve a folha inteira do dia.
 const linhas = computed(() => {
-  const termo = semAcento(busca.value.trim())
+  const termo = normalizarTexto(busca.value.trim())
   return todasAsLinhas.value.filter((linha) => {
     if (filtro.value === 'NAO_REGISTRADO' ? linha.status !== null : filtro.value !== 'TODOS' && linha.status !== filtro.value) {
       return false
     }
-    return !termo || semAcento(`${linha.nome} ${linha.apelido ?? ''} ${linha.funcao}`).includes(termo)
+    return !termo || normalizarTexto(`${linha.nome} ${linha.apelido ?? ''} ${linha.funcao}`).includes(termo)
   })
 })
 
@@ -73,7 +70,7 @@ function abrir(tipo: NonNullable<Modal>['tipo'], linha: LinhaFolha) {
 
 async function aoSalvarObservacao() {
   modal.value = null
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Observação salva!')
   await carregar()
 }
 
@@ -121,7 +118,6 @@ onMounted(carregar)
         >{{ resumo }}</span>
         <div class="acoes">
           <BotaoFp
-            v-if="podeVerRelatorio"
             variante="secundario"
             tamanho="pagina"
             @click="router.push({ name: 'relatorioFrequencia' })"

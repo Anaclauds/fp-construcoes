@@ -16,6 +16,7 @@ const salvando = shallowRef(false)
 const salvo = shallowRef(false)
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return
@@ -25,7 +26,7 @@ async function salvar() {
   try {
     await criarMaterial(form.paraPayload())
     salvo.value = true
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Material cadastrado!')
     await router.push({ name: 'materiais' })
   } catch (erro) {
     form.tratarErroApi(erro)

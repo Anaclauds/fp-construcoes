@@ -77,6 +77,14 @@ const selecionado = defineModel<V>({ required: true })
   color: #fff;
 }
 
+/* Celular: alvo de toque maior. */
+@media (max-width: 767px) {
+  .chip {
+    height: 36px;
+    padding: 0 14px;
+  }
+}
+
 .chip:focus-visible {
   outline: none;
   box-shadow: var(--fp-foco);

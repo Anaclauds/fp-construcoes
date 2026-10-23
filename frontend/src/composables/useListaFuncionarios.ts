@@ -5,6 +5,7 @@ import { listarFuncionarios } from '../services/funcionarios.service'
 import type { FiltrosFuncionarios, Funcionario } from '../types'
 import { termoDeBusca } from '../utils/formatadores'
 import { useDebounce } from './useDebounce'
+import { pareceDocumento, useFiltrosNaUrl } from './useFiltrosNaUrl'
 
 const POR_PAGINA = 8
 const ATRASO_BUSCA_MS = 300
@@ -54,6 +55,32 @@ export function useListaFuncionarios() {
       if (requisicao === ultimaRequisicao) carregando.value = false
     }
   }
+
+  // Busca, status e página ficam na URL: recarregar (F5) ou voltar de outra tela reabre a lista como estava.
+  // Antes dos `watch` abaixo, para a leitura inicial não consultar duas vezes.
+  useFiltrosNaUrl(
+    'funcionarios',
+    [
+      {
+        param: 'busca',
+        ler: () => buscaAplicada.value.trim(),
+        naoGravarSe: pareceDocumento,
+        definir: (valor) => {
+          busca.value = valor
+          buscaAplicada.value = valor // na hora: senão a URL voltaria a receber a busca antiga
+        },
+        padrao: '',
+      },
+      {
+        param: 'status',
+        ler: () => status.value,
+        definir: (valor) => (status.value = valor as FiltroStatus),
+        padrao: 'TODOS',
+        valido: (valor) => valor === 'ATIVO' || valor === 'INATIVO',
+      },
+    ],
+    pagina,
+  )
 
   // Muda a página: busca nova no servidor.
   watch(pagina, () => void carregar())

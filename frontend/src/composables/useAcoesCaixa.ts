@@ -22,9 +22,9 @@ export function useAcoesCaixa() {
     try {
       return await acao()
     } catch (e) {
-      const { mensagem, status } = extrairErro(e)
-      erro.value = mensagemCaixa(mensagem)
-      desatualizado.value = status === 409 && mensagemDeCaixaDesatualizado(mensagem)
+      const { mensagem, status, codigo } = extrairErro(e)
+      erro.value = mensagemCaixa(mensagem, codigo)
+      desatualizado.value = status === 409 && mensagemDeCaixaDesatualizado(mensagem, codigo)
       return null
     } finally {
       executando.value = false

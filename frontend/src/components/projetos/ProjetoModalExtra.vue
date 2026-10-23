@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, shallowRef, useId, useTemplateRef } from
 import { useFormularioExtraProjeto } from '../../composables/useFormularioExtraProjeto'
 import { useOpcoesProjeto } from '../../composables/useOpcoesProjeto'
 import { registrarExtra } from '../../services/projetos.service'
-import type { ProjetoResumo } from '../../types/projeto'
+import type { ProjetoDetalhe, ProjetoResumo } from '../../types/projeto'
 import { focarPrimeiroErro } from '../../utils/foco'
 import { formatarMoeda } from '../../utils/formatadores'
 import { centavosParaMoeda } from '../../utils/orcamentos'
@@ -21,7 +21,8 @@ const props = defineProps<{ projeto: ProjetoResumo }>()
 
 const emit = defineEmits<{
   fechar: []
-  registrado: []
+  /** Extra registrado; leva o projeto atualizado. */
+  registrado: [projeto: ProjetoDetalhe]
   /** O backend indicou que o projeto mudou (não está mais em execução...): a lista precisa recarregar. */
   desatualizado: []
 }>()
@@ -69,8 +70,7 @@ async function confirmar() {
 
   enviando.value = true
   try {
-    await registrarExtra(props.projeto.id, form.paraPayload())
-    emit('registrado')
+    emit('registrado', await registrarExtra(props.projeto.id, form.paraPayload()))
   } catch (erro) {
     form.tratarErroApi(erro)
     if (form.desatualizado.value) emit('desatualizado')

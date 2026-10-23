@@ -63,7 +63,7 @@ const colunas: ColunaTabela[] = [
   { chave: 'titulo', rotulo: 'Título / Tipo', largura: '22%' },
   { chave: 'cliente', rotulo: 'Cliente', largura: '19%' },
   { chave: 'cidade', rotulo: 'Cidade', largura: '12%' },
-  { chave: 'valor', rotulo: 'Valor Total', largura: '11%' },
+  { chave: 'valor', rotulo: 'Valor Total', largura: '11%', numerica: true },
   { chave: 'status', rotulo: 'Status', largura: '14%' },
   { chave: 'acoes', rotulo: 'Ações', largura: '146px' },
 ]
@@ -90,7 +90,7 @@ function cancelarStatus() {
 
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Orçamento atualizado!')
   await carregar()
 }
 
@@ -100,16 +100,23 @@ async function aoAprovar() {
   await carregar()
 }
 
+const TOAST_POR_STATUS: Record<StatusDefinivel, string> = {
+  PENDENTE: 'Orçamento reaberto!',
+  EM_ANALISE: 'Orçamento em análise!',
+  REPROVADO: 'Orçamento reprovado!',
+  CANCELADO: 'Orçamento cancelado!',
+}
+
 async function aoAlterarStatus() {
+  const destino = modal.value?.tipo === 'status' ? modal.value.destino : null
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast(destino ? TOAST_POR_STATUS[destino] : 'Orçamento atualizado!')
   await carregar()
 }
 
-/** Texto do Figma ("Baixar PDF"). Limitação: o navegador não informa se o usuário salvou ou cancelou o diálogo (como no Relatório de Frequência). */
+/** Sem toast: o navegador não informa se o usuário salvou ou cancelou o diálogo de impressão. */
 function aoConcluirPdf() {
   imprimindo.value = null
-  mostrarToast('PDF baixado!')
 }
 
 function podeAgirNoOrcamento(orcamento: Orcamento): boolean {
@@ -275,6 +282,7 @@ onMounted(carregar)
       :orcamento="modal.orcamento"
       @fechar="fecharModal"
       @salvo="aoSalvar"
+      @desatualizado="carregar"
     />
     <OrcamentoModalAprovar
       v-else-if="modal?.tipo === 'aprovar'"
@@ -290,6 +298,7 @@ onMounted(carregar)
       :destino="modal.destino"
       @fechar="cancelarStatus"
       @concluido="aoAlterarStatus"
+      @desatualizado="carregar"
     />
 
     <OrcamentoImpressao
@@ -389,6 +398,14 @@ onMounted(carregar)
 @media (max-width: 1000px) {
   .indicadores {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Celular: os indicadores são contagens curtas, então cabem 2 por linha. */
+@media (max-width: 575px) {
+  .indicadores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 </style>

@@ -29,7 +29,7 @@ const { mostrarToast } = useToast()
 
 const podeGerenciar = computed(() => temPermissao('GESTAO_USUARIOS', 'gerenciar'))
 
-const { busca, status, carregando, erro, carregar, pagina, porPagina, total, itensDaPagina } =
+const { busca, status, carregando, erro, carregar, pagina, porPagina, total, usuarios } =
   useListaUsuarios()
 
 const colunas: ColunaTabela[] = [
@@ -69,7 +69,7 @@ async function atualizarPermissoesPropria() {
 async function aoSalvar() {
   const alvo = modal.value?.usuario
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Usuário atualizado!')
   if (alvo && ehUsuarioLogado(alvo)) await atualizarPermissoesPropria()
   if (route.name === 'usuarios') await carregar()
 }
@@ -84,7 +84,7 @@ async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
     mostrarToast('Sua conta foi desativada. Você foi desconectado.', 'info')
     return
   }
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Usuário desativado!' : 'Usuário reativado!')
   await carregar()
 }
 
@@ -128,7 +128,7 @@ onMounted(carregar)
       v-model:pagina="pagina"
       rotulo="Usuários"
       :colunas="colunas"
-      :linhas="itensDaPagina"
+      :linhas="usuarios"
       :chave-linha="(usuario: Usuario) => usuario.id"
       :total="total"
       :por-pagina="porPagina"
@@ -169,6 +169,8 @@ onMounted(carregar)
               v-if="linha.status === 'ATIVO'"
               tipo="desativar"
               :alvo="linha.funcionario.nomeCompleto"
+              :disabled="funcionarioInativo(linha)"
+              :title="funcionarioInativo(linha) ? 'O acesso já está bloqueado: o funcionário está inativo' : undefined"
               @click="abrir('desativar', linha)"
             />
             <BotaoAcao

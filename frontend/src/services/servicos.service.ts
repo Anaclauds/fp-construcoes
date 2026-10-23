@@ -7,11 +7,6 @@ export async function listarServicos(filtros: FiltrosServicos = {}): Promise<Pag
   return data
 }
 
-export async function buscarServico(id: number): Promise<Servico> {
-  const { data } = await api.get<Servico>(`/servicos/${id}`)
-  return data
-}
-
 export async function criarServico(payload: ServicoPayload): Promise<Servico> {
   const { data } = await api.post<Servico>('/servicos', payload)
   return data

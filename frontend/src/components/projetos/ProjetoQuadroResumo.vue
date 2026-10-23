@@ -72,14 +72,18 @@ defineProps<{
 }
 
 dt {
-  flex-shrink: 0;
+  /* Rótulo longo quebra de linha em vez de empurrar o valor para fora do cartão. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
   color: #6a7282;
   font-size: 14px;
   font-weight: 400;
 }
 
 dd {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 8ch;
   margin: 0;
   color: #333;
   font-size: 14px;

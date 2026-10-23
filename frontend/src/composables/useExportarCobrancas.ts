@@ -32,7 +32,8 @@ export function useExportarCobrancas(filtros: Ref<FiltrosCobrancas>) {
       // Download real do arquivo (blob): aqui o aviso do Figma é verdadeiro.
       mostrarToast(formato === 'pdf' ? 'PDF baixado!' : 'Excel baixado!')
     } catch (erro) {
-      mostrarToast(`Não foi possível gerar o relatório. ${extrairMensagemErro(erro)}`, 'erro')
+      // Mensagem única, já completa (a da API ou o texto padrão de extrairErro).
+      mostrarToast(extrairMensagemErro(erro), 'erro')
     } finally {
       if (!desmontado) exportando.value = null
     }

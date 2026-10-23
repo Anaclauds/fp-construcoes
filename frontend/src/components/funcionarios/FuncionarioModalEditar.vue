@@ -33,6 +33,7 @@ function pedirFechar() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return

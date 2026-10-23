@@ -22,11 +22,6 @@ export async function salvarFolha(payload: SalvarFolhaPayload): Promise<FolhaFre
   return data
 }
 
-export async function buscarFrequencia(id: number): Promise<Frequencia> {
-  const { data } = await api.get<Frequencia>(`/frequencias/${id}`)
-  return data
-}
-
 export async function atualizarObservacao(id: number, observacao: string): Promise<Frequencia> {
   const { data } = await api.patch<Frequencia>(`/frequencias/${id}/observacao`, { observacao })
   return data

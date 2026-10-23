@@ -1,4 +1,5 @@
 import { api } from './api'
+import { invalidarCachesDeMaterial } from './materiais.service'
 import type {
   AjusteEstoquePayload,
   DetalheEstoque,
@@ -20,6 +21,7 @@ export async function buscarDetalheEstoque(materialId: number): Promise<DetalheE
 
 export async function criarMaterialNoEstoque(payload: NovoMaterialEstoquePayload): Promise<Material> {
   const { data } = await api.post<Material>('/estoque/materiais', payload)
+  invalidarCachesDeMaterial()
   return data
 }
 

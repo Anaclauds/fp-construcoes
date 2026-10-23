@@ -13,7 +13,7 @@ import {
   LIMITE_RAZAO_SOCIAL,
   LIMITE_RESPONSAVEL,
   LIMITE_RUA,
-  mensagemFornecedor,
+  interpretarErroFornecedor,
 } from '../utils/fornecedores'
 import { CARGOS_RESPONSAVEL, UFS, montarOpcoes } from '../utils/opcoes-cliente'
 import { cnpjValido, telefoneValido } from '../utils/validacao'
@@ -148,7 +148,11 @@ export function useFormularioFornecedor(inicial?: Fornecedor) {
     estado: montarOpcoes(UFS, inicial?.estado),
   }))
 
-  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'))
+  // "ji-parana" salvo -> "Ji-Paraná" da lista do IBGE: o valor original da edição passa a ser o oficial, então o ajuste
+  // automático ao abrir não marca o formulário como alterado nem envia a cidade no PATCH.
+  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'), (anterior, oficial) => {
+    if (base && base.cidade === anterior.trim()) base.cidade = oficial
+  })
 
   for (const chave of CHAVES) {
     watch(
@@ -194,23 +198,24 @@ export function useFormularioFornecedor(inicial?: Fornecedor) {
     base ? Object.keys(paraAtualizacao()).length > 0 : CHAVES.some((chave) => campos[chave].trim() !== ''),
   )
 
-  /** Erros por campo (nomes do DTO = nomes do formulário) vão para o campo; CNPJ duplicado e CEP inválido têm código próprio. */
+  /**
+   * Erros de negócio decididos pelo `codigo` (CNPJ duplicado, CNPJ/CEP inválidos, nome fantasia repetido) vão para o campo;
+   * erros de validação vão pelo nome do campo (iguais aos do DTO); o que não tem campo vira mensagem geral.
+   */
   function tratarErroApi(erro: unknown) {
     erroGeral.value = null
-    const { mensagem, status, codigo } = extrairErro(erro)
-    const texto = mensagemFornecedor(mensagem)
+    const interpretado = interpretarErroFornecedor(extrairErro(erro))
+    if (interpretado.campo) {
+      erros[interpretado.campo] = interpretado.mensagem
+      return
+    }
     let mapeado = false
     for (const [campo, msg] of Object.entries(errosPorCampo(erro))) {
       if (!(CHAVES as string[]).includes(campo)) continue
-      erros[campo as keyof CamposFornecedor] = mensagemFornecedor(msg)
+      erros[campo as keyof CamposFornecedor] = msg
       mapeado = true
     }
-    if (mapeado) return
-    if (codigo === 'CPF_CNPJ_DUPLICADO' || status === 409) erros.cnpj = 'CNPJ já cadastrado para outro fornecedor.'
-    else if (codigo === 'CEP_INVALIDO') erros.cep = 'CEP inválido. Use 8 dígitos.'
-    else if (/cnpj/i.test(texto)) erros.cnpj = texto
-    else if (/cep/i.test(texto)) erros.cep = texto
-    else erroGeral.value = texto
+    if (!mapeado) erroGeral.value = interpretado.mensagem
   }
 
   const { buscandoCep, buscarCep } = useBuscaCep({

@@ -10,7 +10,7 @@ import ModalDescartar from '../../components/ui/ModalDescartar.vue'
 import { useAvisoAlteracoes } from '../../composables/useAvisoAlteracoes'
 import { useFuncionariosSemUsuario } from '../../composables/useFuncionariosSemUsuario'
 import { useToast } from '../../composables/useToast'
-import { extrairErro } from '../../services/api'
+import { errosPorCampo, extrairErro } from '../../services/api'
 import { criarUsuario } from '../../services/usuarios.service'
 import { formatarCpf, rotuloLegivel } from '../../utils/formatadores'
 import { permissoesParaPayload, type MapaPermissoes } from '../../utils/permissoes'
@@ -47,8 +47,15 @@ const opcoesFuncionario = computed(() =>
 )
 const selecionado = computed(() => funcionarios.value.find((f) => String(f.id) === funcionarioId.value))
 
+/**
+ * Funcionário inativo/inválido (400) ao criar. O backend ainda não tem código legível para este erro: é o
+ * gerado `USUARIOS_CREATE_BADREQUEST_02` (último recurso). Outros 400 (senha, permissões) não afetam a lista.
+ */
+const CODIGO_FUNCIONARIO_INATIVO = 'USUARIOS_CREATE_BADREQUEST_02'
+
 const placeholderFuncionario = computed(() => {
   if (carregandoFuncionarios.value) return 'Carregando funcionários...'
+  if (erroFuncionarios.value) return 'Não foi possível carregar'
   if (opcoesFuncionario.value.length === 0) return 'Nenhum funcionário disponível'
   return 'Selecione o funcionário'
 })
@@ -62,6 +69,7 @@ function validar(): boolean {
 }
 
 async function salvar() {
+  if (salvando.value) return
   erroApi.value = null
   if (!validar() || !selecionado.value) return
 
@@ -74,13 +82,20 @@ async function salvar() {
       permissoes: permissoesParaPayload(permissoes.value),
     })
     salvo.value = true
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Usuário cadastrado!')
     await router.push({ name: 'usuarios' })
   } catch (e) {
-    const { mensagem, status } = extrairErro(e)
-    erroApi.value = mensagem
-    // 409/404: a lista de candidatos ficou desatualizada.
-    if (status === 409 || status === 404) {
+    const { mensagem, status, codigo } = extrairErro(e)
+    const porCampo = errosPorCampo(e)
+    erros.senha = porCampo.senha
+    erros.confirmarSenha = porCampo.confirmarSenha
+    erros.funcionario = porCampo.funcionarioId
+    // Sem campo conhecido, a mensagem vai para o aviso geral do formulário.
+    erroApi.value = porCampo.senha || porCampo.confirmarSenha || porCampo.funcionarioId ? null : mensagem
+    // 409/404 (já tem usuário, não existe) e 400 de funcionário inativo: a lista de candidatos ficou desatualizada.
+    if (status === 409 || status === 404 || (status === 400 && codigo === CODIGO_FUNCIONARIO_INATIVO)) {
+      erroApi.value = mensagem
+      erros.funcionario = undefined
       funcionarioId.value = ''
       await carregar()
     }
@@ -120,7 +135,7 @@ onMounted(carregar)
           :placeholder="placeholderFuncionario"
           :opcoes="opcoesFuncionario"
           :desabilitado="carregandoFuncionarios"
-          :erro="erros.funcionario ?? erroFuncionarios ?? undefined"
+          :erro="erros.funcionario"
         />
         <CampoFormulario
           rotulo="Função:"
@@ -160,6 +175,22 @@ onMounted(carregar)
           autocomplete="new-password"
           :erro="erros.confirmarSenha"
         />
+      </div>
+
+      <div
+        v-if="erroFuncionarios"
+        class="erro-carga"
+        role="alert"
+      >
+        <span>{{ erroFuncionarios }}</span>
+        <BotaoFp
+          variante="secundario"
+          tamanho="compacto"
+          :carregando="carregandoFuncionarios"
+          @click="carregar"
+        >
+          Tentar novamente
+        </BotaoFp>
       </div>
 
       <AcessosPermitidos v-model="permissoes" />
@@ -230,6 +261,16 @@ onMounted(carregar)
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px 25px;
+}
+
+.erro-carga {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--fp-vermelho-escuro);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .erro-api {

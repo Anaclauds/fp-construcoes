@@ -36,14 +36,15 @@ const colunas: ColunaTabela[] = [
   { chave: 'data', rotulo: 'Data', largura: '11%' },
   { chave: 'categoria', rotulo: 'Categoria', largura: '20%' },
   { chave: 'descricao', rotulo: 'Descrição', largura: '39%' },
-  { chave: 'valor', rotulo: 'Valor', largura: '16%' },
+  { chave: 'valor', rotulo: 'Valor', largura: '16%', numerica: true },
   { chave: 'acoes', rotulo: 'Ações', largura: '14%' },
 ]
 
 /** Segunda linha da descrição: o que foi comprado e de quem, ou a origem de uma despesa gerada por extra. */
 function apoio(despesa: Despesa): string {
   const projeto = projetoDoExtra(despesa)
-  if (projeto !== null) return `Gerada pelo extra do projeto ${projeto}`
+  // O backend só manda o id interno do projeto (não o número nem o título): sem ele, o texto fica genérico.
+  if (projeto !== null) return 'Gerada por um extra de projeto'
   const materiais = resumoMateriais(despesa)
   const fornecedor = nomeFornecedor(despesa.fornecedor)
   return [materiais, fornecedor].filter(Boolean).join(' · ')

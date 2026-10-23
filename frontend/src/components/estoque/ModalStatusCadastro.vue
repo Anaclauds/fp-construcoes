@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue'
-import { extrairErro } from '../../services/api'
+import { extrairErro, type ErroApi } from '../../services/api'
 import ModalConfirmacao from '../ui/ModalConfirmacao.vue'
 
 /**
@@ -12,8 +12,8 @@ const props = defineProps<{
   entidade: string
   acao: 'desativar' | 'reativar'
   executar: () => Promise<unknown>
-  /** Converte a mensagem da API (sem acento) numa frase para o usuário. */
-  mapearErro: (mensagem: string) => string
+  /** Converte o erro da API (decidido pelo `codigo`) numa frase para o usuário. */
+  mapearErro: (erro: ErroApi) => string
 }>()
 
 const emit = defineEmits<{
@@ -27,13 +27,14 @@ const erro = shallowRef<string | null>(null)
 const desativando = computed(() => props.acao === 'desativar')
 
 async function confirmar() {
+  if (processando.value) return
   processando.value = true
   erro.value = null
   try {
     await props.executar()
     emit('concluido', props.acao)
   } catch (e) {
-    erro.value = props.mapearErro(extrairErro(e).mensagem)
+    erro.value = props.mapearErro(extrairErro(e))
   } finally {
     processando.value = false
   }
@@ -43,7 +44,7 @@ async function confirmar() {
 <template>
   <ModalConfirmacao
     aberto
-    :titulo="desativando ? `Desativar ${entidade}` : `Ativar ${entidade}`"
+    :titulo="desativando ? `Desativar ${entidade}` : `Reativar ${entidade}`"
     titulo-aviso="Atenção"
     :variante="desativando ? 'perigo' : 'sucesso'"
     :texto-confirmar="desativando ? 'Confirmar Desativação' : 'Sim, continuar'"

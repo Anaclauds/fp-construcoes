@@ -37,6 +37,12 @@ export const usuario = shallowRef<AuthUser | null>(lerUsuario())
 // Verdadeiro quando a API recusou o token (401): telas com alterações pendentes liberam a saída para o login.
 export const sessaoExpirada = shallowRef(false)
 
+// Função (cargo) do funcionário logado, vinda de /auth/profile; null enquanto não carregou. Fica aqui para que
+// qualquer encerramento de sessão (logout ou 401 do interceptor) limpe junto com o token.
+export const funcao = shallowRef<string | null>(null)
+// Funcionário a quem a `funcao` pertence (evita recarregar e descarta resposta de outra sessão).
+export const funcaoDoFuncionarioId = shallowRef<number | null>(null)
+
 export function salvarSessao(novoToken: string, novoUsuario: AuthUser) {
   sessaoExpirada.value = false
   token.value = novoToken
@@ -51,6 +57,8 @@ export function salvarUsuario(novoUsuario: AuthUser) {
 }
 
 export function limparSessao() {
+  funcao.value = null
+  funcaoDoFuncionarioId.value = null
   token.value = null
   usuario.value = null
   gravar(CHAVE_TOKEN, null)

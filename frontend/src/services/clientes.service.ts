@@ -12,11 +12,6 @@ export async function listarClientes(filtros: FiltrosClientes = {}): Promise<Pag
   return data
 }
 
-export async function buscarCliente(id: number): Promise<Cliente> {
-  const { data } = await api.get<Cliente>(`/clientes/${id}`)
-  return data
-}
-
 export async function criarCliente(payload: ClientePayload): Promise<Cliente> {
   const { data } = await api.post<Cliente>('/clientes', payload)
   return data

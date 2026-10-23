@@ -1,5 +1,4 @@
 import { computed, shallowRef, watch } from 'vue'
-import { useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import { extrairMensagemErro } from '../services/api'
 import { buscarRelatorioCobrancas, listarCobrancas } from '../services/cobrancas.service'
 import type {
@@ -11,6 +10,7 @@ import type {
 } from '../types'
 import { termoDeBusca } from '../utils/formatadores'
 import { useDebounce } from './useDebounce'
+import { useFiltrosNaUrl } from './useFiltrosNaUrl'
 
 // O Figma mostra 5 linhas por página ("Mostrando 5 de 8 registros").
 const POR_PAGINA = 5
@@ -29,28 +29,17 @@ export interface ContagemProjetos {
   comPagamento: number
 }
 
-const primeiro = (valor: LocationQueryValue | LocationQueryValue[] | undefined) =>
-  (Array.isArray(valor) ? valor[0] : valor) ?? ''
-
 /**
  * Lista de projetos com cobranças: busca (debounce), filtros de tipo e status e paginação feita pelo servidor.
  * Busca, tipo, status e página ficam na query string da rota (`?busca=&tipo=&status=&pagina=`): ao voltar do
  * detalhe (ou recarregar a página) a lista reaparece exatamente como estava.
  */
 export function useListaCobrancas() {
-  const route = useRoute()
-  const router = useRouter()
-
-  const query = route.query
-  const tipoDaUrl = primeiro(query.tipo) as TipoOrcamento
-  const statusDaUrl = primeiro(query.status) as StatusProjetoCobranca
-  const paginaDaUrl = Number(primeiro(query.pagina))
-
-  const busca = shallowRef(primeiro(query.busca))
-  const status = shallowRef<FiltroStatusCobranca>(STATUS.includes(statusDaUrl) ? statusDaUrl : 'TODOS')
-  const tipo = shallowRef<FiltroTipoCobranca>(TIPOS.includes(tipoDaUrl) ? tipoDaUrl : 'TODOS')
+  const busca = shallowRef('')
+  const status = shallowRef<FiltroStatusCobranca>('TODOS')
+  const tipo = shallowRef<FiltroTipoCobranca>('TODOS')
   const buscaAplicada = useDebounce(busca, ATRASO_BUSCA_MS)
-  const pagina = shallowRef(Number.isInteger(paginaDaUrl) && paginaDaUrl > 1 ? paginaDaUrl : 1)
+  const pagina = shallowRef(1)
 
   const projetos = shallowRef<ProjetoCobrancas[]>([])
   const total = shallowRef(0)
@@ -71,8 +60,14 @@ export function useListaCobrancas() {
     return atuais
   })
 
-  /** Filtros que valem para os cartões: só o tipo (como os indicadores da lista, ignoram busca e status). */
-  const filtrosIndicadores = computed<FiltrosCobrancas>(() => (tipo.value === 'TODOS' ? {} : { tipo: tipo.value }))
+  /**
+   * Filtros que valem para os cartões: busca e tipo, sem o status. É o mesmo recorte dos indicadores de valor da lista
+   * (o backend os calcula com busca e tipo, ignorando status), então os cartões acompanham a busca digitada.
+   */
+  const filtrosIndicadores = computed<FiltrosCobrancas>(() => {
+    const { busca: termo, tipo: tipoAtual } = filtros.value
+    return { ...(termo ? { busca: termo } : {}), ...(tipoAtual ? { tipo: tipoAtual } : {}) }
+  })
 
   // Só a última requisição vale: respostas antigas (busca digitada rápido) são descartadas.
   let ultimaRequisicao = 0
@@ -110,7 +105,8 @@ export function useListaCobrancas() {
 
   /**
    * Cartões "N projetos iniciados / não receberam / receberam pagamento": contados a partir de
-   * `GET /cobrancas/relatorios` (sem paginação) com o mesmo filtro de tipo dos indicadores da lista.
+   * `GET /cobrancas/relatorios` (sem paginação) com a mesma busca e o mesmo tipo da lista (o status não entra: os
+   * cartões mostram a divisão entre os estados).
    * Em aberto = status EM_ABERTO; com pagamento = PARCIAL + PAGO. Falha aqui deixa "—" nos cartões.
    */
   async function carregarContagem() {
@@ -133,20 +129,40 @@ export function useListaCobrancas() {
     await Promise.all([carregar(), carregarContagem()])
   }
 
-  // Guarda os critérios na URL (replace: não enche o histórico a cada letra digitada).
-  function sincronizarUrl() {
-    // Já navegou para outra tela (o componente ainda não desmontou): não mexe na URL dela.
-    if (route.name !== 'cobrancas') return
-    const novos: Record<string, string> = {}
-    if (buscaAplicada.value.trim()) novos.busca = buscaAplicada.value.trim()
-    if (tipo.value !== 'TODOS') novos.tipo = tipo.value
-    if (status.value !== 'TODOS') novos.status = status.value
-    if (pagina.value > 1) novos.pagina = String(pagina.value)
-    void router.replace({ name: 'cobrancas', query: novos })
-  }
+  // Busca, tipo, status e página ficam na URL (`?busca=&tipo=&status=&pagina=`, replace: não enche o histórico a cada
+  // letra digitada). Antes dos `watch` abaixo, para a leitura inicial não consultar duas vezes.
+  useFiltrosNaUrl(
+    'cobrancas',
+    [
+      {
+        param: 'busca',
+        ler: () => buscaAplicada.value.trim(),
+        definir: (valor) => {
+          busca.value = valor
+          buscaAplicada.value = valor // na hora: senão a URL voltaria a receber a busca antiga
+        },
+        padrao: '',
+      },
+      {
+        param: 'tipo',
+        ler: () => tipo.value,
+        definir: (valor) => (tipo.value = valor as FiltroTipoCobranca),
+        padrao: 'TODOS',
+        valido: (valor) => TIPOS.includes(valor as TipoOrcamento),
+      },
+      {
+        param: 'status',
+        ler: () => status.value,
+        definir: (valor) => (status.value = valor as FiltroStatusCobranca),
+        padrao: 'TODOS',
+        valido: (valor) => STATUS.includes(valor as StatusProjetoCobranca),
+      },
+    ],
+    pagina,
+  )
 
-  // O tipo muda os cartões de contagem; busca/status/página não.
-  watch(tipo, () => void carregarContagem())
+  // Busca e tipo mudam os cartões de contagem; status e página não.
+  watch([buscaAplicada, tipo], () => void carregarContagem())
 
   // Muda a página: busca nova no servidor.
   watch(pagina, () => void carregar())
@@ -156,8 +172,6 @@ export function useListaCobrancas() {
     if (pagina.value !== 1) pagina.value = 1
     else void carregar()
   })
-
-  watch([buscaAplicada, status, tipo, pagina], sincronizarUrl)
 
   return {
     busca,

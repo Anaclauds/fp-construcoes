@@ -60,7 +60,7 @@ async function confirmar() {
         </dd>
       </div>
       <div class="linha linha--saldo">
-        <dt>Saldo Final</dt>
+        <dt>Saldo final</dt>
         <dd>{{ formatarMoeda(caixa.resumo.saldoAtual) }}</dd>
       </div>
     </dl>

@@ -65,4 +65,21 @@ p {
     font-size: 28px;
   }
 }
+
+/* Celular: o logo sai do canto (vai para a barra do topo), então a ação não reserva espaço para ele e desce com o texto. */
+@media (max-width: 767px) {
+  .cabecalho-pagina {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .cabecalho-pagina-acao {
+    margin-right: 0;
+    top: 0;
+  }
+}
 </style>

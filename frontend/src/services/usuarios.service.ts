@@ -3,18 +3,15 @@ import type {
   FiltrosUsuarios,
   OpcaoFuncionarioUsuario,
   OpcaoModulo,
+  Paginado,
   Usuario,
   UsuarioAtualizacao,
   UsuarioPayload,
 } from '../types'
 
-export async function listarUsuarios(filtros: FiltrosUsuarios = {}): Promise<Usuario[]> {
-  const { data } = await api.get<Usuario[]>('/usuarios', { params: filtros })
-  return data
-}
-
-export async function buscarUsuario(id: number): Promise<Usuario> {
-  const { data } = await api.get<Usuario>(`/usuarios/${id}`)
+/** Com `page`/`limit` a API devolve `{ data, meta }`; esta função sempre os envia. */
+export async function listarUsuarios(filtros: FiltrosUsuarios & { page: number; limit: number }): Promise<Paginado<Usuario>> {
+  const { data } = await api.get<Paginado<Usuario>>('/usuarios', { params: filtros })
   return data
 }
 

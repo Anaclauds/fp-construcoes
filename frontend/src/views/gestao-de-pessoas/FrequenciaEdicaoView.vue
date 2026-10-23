@@ -15,6 +15,7 @@ import { useFolhaFrequencia } from '../../composables/useFolhaFrequencia'
 import { useToast } from '../../composables/useToast'
 import { extrairErro } from '../../services/api'
 import { salvarFolha } from '../../services/frequencias.service'
+import { hojeIso } from '../../utils/datas'
 import { isoParaDataBr } from '../../utils/formatadores'
 import { calcularIndicadores, type LinhaFolha } from '../../utils/frequencia'
 
@@ -23,7 +24,7 @@ type Modal = { tipo: 'visualizar' | 'observacao'; linha: LinhaFolha } | null
 const router = useRouter()
 const { mostrarToast } = useToast()
 
-const { data, irParaData } = useDataDaRota('frequenciaEditar')
+const { data, irParaData } = useDataDaRota('frequenciaEditar', { limitarAHoje: true })
 const { registros, carregando, erro, carregar } = useFolhaFrequencia(data)
 const edicao = useEdicaoFolha(registros)
 
@@ -74,6 +75,7 @@ async function fecharPendencias() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   // Checagem antes de enviar: o mesmo bloqueio que a API faria, sem ida e volta.
   const pendentes = edicao.pendentes.value
   if (pendentes.length > 0) {
@@ -85,7 +87,7 @@ async function salvar() {
   try {
     await salvarFolha({ data: data.value, registros: edicao.paraPayload() })
     edicao.descartar()
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Frequência salva!')
     await router.push({ name: 'frequencia', query: { data: data.value } })
   } catch (e) {
     const falha = extrairErro(e)
@@ -105,6 +107,7 @@ onMounted(carregar)
     subtitulo="Registre o status de cada funcionário no dia selecionado"
     :indicadores="indicadores"
     :data="data"
+    :data-maxima="hojeIso()"
     @update:data="irParaData"
   >
     <template #aviso>

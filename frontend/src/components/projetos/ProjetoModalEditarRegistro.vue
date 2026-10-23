@@ -32,9 +32,13 @@ const emit = defineEmits<{
 const ehEtapa = props.registro.tipo === 'etapa'
 const nome = ehEtapa ? 'Etapa' : 'Extra'
 const rotuloTexto = ehEtapa ? 'Descrição:' : 'Justificativa:'
-/** Limite do backend ao editar a descrição da etapa e a justificativa do extra. */
+/** Limite do backend ao editar a descrição da etapa e a justificativa do extra (o extra pode ter sido criado com até 3000). */
 const LIMITE_TEXTO = 1000
-/** Códigos de conflito que indicam tela desatualizada (projeto fora de execução ou registro já cancelado). */
+/**
+ * Códigos de conflito que indicam tela desatualizada (projeto fora de execução ou registro já cancelado).
+ * Atenção: `PROJETOS_*_CONFLICT_nn` são códigos GERADOS e instáveis (mudam se o back renumerar); a API não tem código
+ * legível para "etapa/extra cancelado". Só `PROJETO_STATUS_INVALIDO` é estável. Último recurso, revisar se o back mudar.
+ */
 const CODIGOS_DESATUALIZADO = ['PROJETO_STATUS_INVALIDO', 'PROJETOS_UPDATEETAPA_CONFLICT_01', 'PROJETOS_UPDATEEXTRA_CONFLICT_01']
 
 const idFormulario = useId()
@@ -61,11 +65,12 @@ function pedirFechar() {
 
 function validar(): boolean {
   const valor = texto.value.trim()
+  // O limite de 1000 só vale para o texto que vai ser enviado: extra criado com mais de 1000 permite editar só a data.
   if (valor === '') erroTexto.value = ehEtapa ? 'Informe a descrição.' : 'Informe a justificativa.'
-  else if (valor.length > LIMITE_TEXTO) erroTexto.value = `Use no máximo ${LIMITE_TEXTO} caracteres.`
+  else if (textoMudou.value && valor.length > LIMITE_TEXTO) erroTexto.value = `Use no máximo ${LIMITE_TEXTO} caracteres.`
   else erroTexto.value = undefined
 
-  if (props.registro.dataTravada) erroData.value = undefined
+  if (!dataMudou.value) erroData.value = undefined
   else if (data.value === '') erroData.value = 'Informe a data.'
   else if (!dataBrValida(data.value, ANO_MINIMO_DATA_PROJETO)) erroData.value = 'Data inválida. Use DD/MM/AAAA.'
   else if (dataBrParaIso(data.value) > hojeIso()) erroData.value = 'A data do registro não pode ser futura.'
@@ -102,7 +107,7 @@ async function salvar() {
     emit('salvo', projeto)
   } catch (e) {
     const { mensagem, status, codigo } = extrairErro(e)
-    erroGeral.value = mensagemProjeto(mensagem)
+    erroGeral.value = mensagemProjeto(mensagem, codigo)
     // 404 (registro/projeto sumiu) e 409 por status do projeto ou do registro mudam a tela de fundo; 409 de recebimento/despesa não.
     if (status === 404 || CODIGOS_DESATUALIZADO.includes(codigo)) emit('desatualizado')
   } finally {
@@ -139,7 +144,7 @@ async function salvar() {
         tipo="area"
         obrigatorio
         :linhas="4"
-        :maxlength="LIMITE_TEXTO"
+        :maxlength="registro.texto.length > LIMITE_TEXTO ? undefined : LIMITE_TEXTO"
         :erro="erroTexto"
       />
 

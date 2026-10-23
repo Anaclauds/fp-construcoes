@@ -1,3 +1,4 @@
+import { isAxiosError, type AxiosResponse } from 'axios'
 import { api } from './api'
 import type {
   Cobranca,
@@ -49,14 +50,37 @@ export async function exportarRelatorioCobrancas(
   formato: FormatoRelatorioCobrancas,
   filtros: FiltrosCobrancas = {},
 ): Promise<ArquivoBaixado> {
-  const resposta = await api.get<Blob>(`/cobrancas/relatorios/exportar/${formato}`, {
-    params: filtros,
-    responseType: 'blob',
-  })
+  let resposta: AxiosResponse<Blob>
+  try {
+    resposta = await api.get<Blob>(`/cobrancas/relatorios/exportar/${formato}`, {
+      params: filtros,
+      responseType: 'blob',
+    })
+  } catch (erro) {
+    // Com `responseType: 'blob'` o corpo do erro também chega como Blob: lê como JSON e devolve a `response.data`,
+    // para o extrairErro funcionar (mesmo padrão de baixarRelatorioPdf em frequencias.service).
+    if (isAxiosError(erro) && erro.response?.data instanceof Blob) {
+      try {
+        erro.response.data = JSON.parse(await erro.response.data.text())
+      } catch {
+        erro.response.data = undefined
+      }
+    }
+    throw erro
+  }
   const disposicao = String(resposta.headers['content-disposition'] ?? '')
   const nomeServidor = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposicao)?.[1]
   const extensao = formato === 'pdf' ? 'pdf' : 'xlsx'
-  return { blob: resposta.data, nome: nomeServidor ? decodeURIComponent(nomeServidor) : `relatorio-cobrancas.${extensao}` }
+  const nomePadrao = `relatorio-cobrancas.${extensao}`
+  let nome = nomePadrao
+  if (nomeServidor) {
+    try {
+      nome = decodeURIComponent(nomeServidor).replace(/[^\w.\- ]/g, '_')
+    } catch {
+      nome = nomePadrao
+    }
+  }
+  return { blob: resposta.data, nome }
 }
 
 /** Cancela a cobrança (e suas parcelas) quando nada foi recebido. Devolve a cobrança atualizada. */

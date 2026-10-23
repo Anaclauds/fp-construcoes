@@ -46,7 +46,7 @@ const opcoesResponsavel = computed(() =>
 const placeholderResponsavel = computed(() => {
   if (funcionarios.semPermissao.value) return 'Sem permissão para listar responsáveis'
   if (funcionarios.carregando.value) return 'Carregando funcionários...'
-  return 'Selecione o funcionário responsável pela negociação'
+  return 'Selecione o funcionário responsável pelo projeto'
 })
 
 const avisoResponsavel = computed(() => {
@@ -61,12 +61,13 @@ const avisoResponsavel = computed(() => {
 const opcoesEstado = montarOpcoes(UFS)
 const identificacao = computed(() => `${formatarNumeroOrcamento(props.orcamento.numero)} · ${props.orcamento.titulo}`)
 
-/** Alterou algum dado (qualquer coisa além do endereço sugerido): pede confirmação ao descartar. */
+/** Alterou algum dado (responsável, datas ou o endereço da obra em relação ao sugerido): pede confirmação ao descartar. */
 const alterado = computed(
   () =>
     form.campos.responsavelId !== '' ||
     form.campos.previsaoInicio !== '' ||
-    form.campos.previsaoTermino !== '',
+    form.campos.previsaoTermino !== '' ||
+    form.enderecoModificado.value,
 )
 
 function pedirFechar() {
@@ -80,6 +81,7 @@ async function focarPrimeiroErro() {
 }
 
 async function confirmar() {
+  if (salvando.value) return
   if (funcionarios.semPermissao.value || clienteInativo.value) return
   if (!form.validar()) {
     await focarPrimeiroErro()

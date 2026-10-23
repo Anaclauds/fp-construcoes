@@ -23,6 +23,8 @@ export function useListaDespesas() {
   const busca = shallowRef('')
   const categoria = shallowRef<FiltroCategoriaDespesa>('TODAS')
   const tipo = shallowRef<FiltroTipoDespesa>('TODOS')
+  /** Id do fornecedor filtrado, como texto (`''` = todos). */
+  const fornecedorId = shallowRef('')
   const dataInicio = shallowRef('')
   const dataFim = shallowRef('')
   const buscaAplicada = useDebounce(busca, ATRASO_BUSCA_MS)
@@ -33,6 +35,12 @@ export function useListaDespesas() {
   const indicadores = shallowRef<IndicadoresDespesas | null>(null)
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
+
+  /** Nome do fornecedor filtrado, tirado da lista carregada (serve a quem já não está entre os ativos). */
+  const nomeFornecedorFiltrado = computed(() => {
+    const id = Number(fornecedorId.value)
+    return despesas.value.find((d) => d.fornecedor?.id === id)?.fornecedor?.nomeFantasia ?? ''
+  })
 
   const inicioIso = computed(() => (dataBrValida(dataInicio.value, ANO_MINIMO_DESPESA) ? dataBrParaIso(dataInicio.value) : ''))
   const fimIso = computed(() => (dataBrValida(dataFim.value, ANO_MINIMO_DESPESA) ? dataBrParaIso(dataFim.value) : ''))
@@ -53,6 +61,7 @@ export function useListaDespesas() {
       busca.value.trim() !== '' ||
       categoria.value !== 'TODAS' ||
       tipo.value !== 'TODOS' ||
+      fornecedorId.value !== '' ||
       dataInicio.value !== '' ||
       dataFim.value !== '',
   )
@@ -90,6 +99,14 @@ export function useListaDespesas() {
         valido: (valor) => valor === 'DIVERSA' || valor === 'COMPRA_MATERIAL',
       },
       {
+        param: 'fornecedor',
+        ler: () => fornecedorId.value,
+        definir: (valor) => (fornecedorId.value = valor),
+        padrao: '',
+        // O fornecedor pode estar inativo (despesa antiga): a URL só precisa de um id inteiro positivo.
+        valido: (valor) => /^[1-9]\d{0,9}$/.test(valor),
+      },
+      {
         param: 'de',
         ler: () => (inicioIso.value ? dataInicio.value : ''),
         definir: (valor) => (dataInicio.value = valor),
@@ -120,6 +137,7 @@ export function useListaDespesas() {
     if (termo) filtros.busca = termo
     if (categoria.value !== 'TODAS') filtros.categoria = categoria.value
     if (tipo.value !== 'TODOS') filtros.tipo = tipo.value
+    if (fornecedorId.value) filtros.fornecedorId = Number(fornecedorId.value)
     if (inicioIso.value) filtros.dataInicio = inicioIso.value
     if (fimIso.value) filtros.dataFim = fimIso.value
 
@@ -148,13 +166,14 @@ export function useListaDespesas() {
     buscaAplicada.value = ''
     categoria.value = 'TODAS'
     tipo.value = 'TODOS'
+    fornecedorId.value = ''
     dataInicio.value = ''
     dataFim.value = ''
   }
 
   watch(pagina, () => void carregar())
 
-  watch([buscaAplicada, categoria, tipo, inicioIso, fimIso], () => {
+  watch([buscaAplicada, categoria, tipo, fornecedorId, inicioIso, fimIso], () => {
     if (pagina.value !== 1) pagina.value = 1
     else void carregar()
   })
@@ -163,6 +182,8 @@ export function useListaDespesas() {
     busca,
     categoria,
     tipo,
+    fornecedorId,
+    nomeFornecedorFiltrado,
     dataInicio,
     dataFim,
     erroInicio,

@@ -2,6 +2,7 @@
 import { computed, onMounted, shallowRef } from 'vue'
 import CaixaCabecalho from '../../components/caixa/CaixaCabecalho.vue'
 import CaixaImpressao from '../../components/caixa/CaixaImpressao.vue'
+import CaixaModalHistorico from '../../components/caixa/CaixaModalHistorico.vue'
 import CaixaModalFechar from '../../components/caixa/CaixaModalFechar.vue'
 import CaixaModalRecebimentos from '../../components/caixa/CaixaModalRecebimentos.vue'
 import CaixaModalValorInicial from '../../components/caixa/CaixaModalValorInicial.vue'
@@ -15,10 +16,16 @@ import { useAuth } from '../../composables/useAuth'
 import { useCaixaDoMes } from '../../composables/useCaixaDoMes'
 import { useToast } from '../../composables/useToast'
 import type { Caixa } from '../../types/caixa'
-import { caixaNaoAberto, herdaSaldoAnterior, nomeDoMes, rotuloCompetencia } from '../../utils/caixa'
+import {
+  caixaNaoAberto,
+  herdaSaldoAnterior,
+  nomeDoMes,
+  rotuloCompetencia,
+  situacaoAbertura,
+} from '../../utils/caixa'
 import { formatarDataHoraIso } from '../../utils/formatadores'
 
-type Modal = 'fechar' | 'valor-inicial' | 'reabrir' | 'recebimentos' | null
+type Modal = 'fechar' | 'valor-inicial' | 'reabrir' | 'recebimentos' | 'historico' | null
 
 
 const { temPermissao } = useAuth()
@@ -36,18 +43,25 @@ const imprimindo = shallowRef(false)
 
 // Competência ainda não aberta (`id: 0`): só aceita "Abrir caixa"; nunca fechar nem reabrir.
 const naoAberto = computed(() => (mes.caixa.value ? caixaNaoAberto(mes.caixa.value) : false))
-// Antes do primeiro caixa existente o servidor criaria um caixa fora da ordem: não oferece abertura.
-const antesDoPrimeiro = computed(() => {
-  const minima = mes.caixa.value?.competenciaMinima
-  return naoAberto.value && !!minima && mes.competencia.value < minima
-})
+// Só se abre competência depois do último caixa (ou o primeiro, se não houver nenhum): meses no meio quebrariam a
+// continuidade dos saldos, e o servidor também herda o saldo do último caixa anterior.
+const aberturaDaCompetencia = computed(() =>
+  naoAberto.value
+    ? situacaoAbertura(mes.competencia.value, mes.caixa.value?.competenciaMinima ?? null, mes.ultimaCompetencia.value)
+    : 'liberada',
+)
+const podeAbrir = computed(() => podeGerenciar.value && naoAberto.value && aberturaDaCompetencia.value === 'liberada')
 const aberto = computed(() => mes.caixa.value?.status === 'ABERTO' && !naoAberto.value)
 const fechado = computed(() => mes.caixa.value?.status === 'FECHADO')
 const pendente = computed(() => mes.situacao.value === 'PENDENTE_FECHAMENTO')
 const emAndamento = computed(() => mes.situacao.value === 'EM_ANDAMENTO')
 const podeFechar = computed(() => mes.caixa.value?.podeFechar === true)
 
-const podeReabrir = computed(() => podeGerenciar.value && fechado.value)
+// O servidor recusa reabrir com caixa posterior: só o último caixa existente pode ser reaberto. Com o último
+// ainda desconhecido (consulta falhou) o botão fica liberado e o servidor decide.
+const ehUltimoCaixa = computed(() => mes.ultimaCompetencia.value === undefined || mes.ultimaCompetencia.value === mes.competencia.value)
+const mostrarReabrir = computed(() => podeGerenciar.value && fechado.value)
+const podeReabrir = computed(() => mostrarReabrir.value && ehUltimoCaixa.value)
 
 // O valor inicial só se redefine no primeiro caixa e antes dos lançamentos (o servidor recusa depois, e herda o saldo anterior).
 const podeAlterarInicial = computed(() => {
@@ -56,8 +70,9 @@ const podeAlterarInicial = computed(() => {
   return caixa.entradas.length === 0 && caixa.saidas.length === 0
 })
 
-/** Texto abaixo do botão de fechar quando ele está bloqueado. */
-const legendaFechar = computed(() => {
+/** Texto abaixo dos botões quando fechar ou reabrir está bloqueado. */
+const legendaAcoes = computed(() => {
+  if (mostrarReabrir.value && !ehUltimoCaixa.value) return 'Só o último caixa pode ser reaberto.'
   if (!podeGerenciar.value || !aberto.value || podeFechar.value) return ''
   if (emAndamento.value) return 'Disponível após o encerramento do mês.'
   return 'Feche os meses anteriores primeiro.'
@@ -76,7 +91,7 @@ function fecharModal() {
 function aoFechar(caixa: Caixa) {
   fecharModal()
   mes.aplicar(caixa)
-  mostrarToast('Fechamento Realizado!')
+  mostrarToast('Caixa fechado!')
 }
 
 /** Outra tela fechou/abriu o caixa antes desta ação: mostra o caixa como está agora, sem pedir para recarregar. */
@@ -90,7 +105,7 @@ function aoSalvarValorInicial(caixa: Caixa) {
   const abriu = naoAberto.value
   fecharModal()
   mes.aplicar(caixa)
-  mostrarToast(abriu ? 'Caixa aberto!' : 'Salvo com sucesso!')
+  mostrarToast(abriu ? 'Caixa aberto!' : 'Valor inicial atualizado!')
 }
 
 async function reabrir() {
@@ -100,23 +115,32 @@ async function reabrir() {
   if (resultado) {
     modal.value = null
     mes.aplicar(resultado)
-    mostrarToast('Caixa reaberto.')
+    mostrarToast('Caixa reaberto!')
   } else if (acoes.desatualizado.value) {
     aoDesatualizar()
   }
 }
 
-/** Mesma limitação do Relatório de Frequência: o diálogo de impressão não informa se o PDF foi salvo. */
+/** O diálogo de impressão não informa se o PDF foi salvo ou impresso: só o fecha, sem afirmar sucesso. */
 function aoConcluirImpressao() {
   imprimindo.value = false
-  mostrarToast('Impressão concluída.', 'info')
+}
+
+/** Linha do histórico escolhida: fecha o modal e abre a competência (a URL guarda o mês). */
+async function abrirCompetencia(competencia: string) {
+  fecharModal()
+  await mes.irPara(competencia)
 }
 
 onMounted(mes.carregar)
 </script>
 
 <template>
-  <section class="pagina">
+  <section
+    class="pagina"
+    :class="{ 'pagina--recarregando': mes.carregando.value && !!mes.caixa.value }"
+    :aria-busy="mes.carregando.value"
+  >
     <CaixaCabecalho
       subtitulo="Controle de entradas e saídas mensais"
       :situacao="mes.situacao.value"
@@ -136,6 +160,13 @@ onMounted(mes.carregar)
       <div class="barra-acoes">
         <div class="botoes">
           <BotaoFp
+            variante="secundario"
+            tamanho="pagina"
+            @click="modal = 'historico'"
+          >
+            Histórico de caixas
+          </BotaoFp>
+          <BotaoFp
             v-if="podeVerRecebimentos"
             variante="secundario"
             tamanho="pagina"
@@ -152,16 +183,17 @@ onMounted(mes.carregar)
             Imprimir
           </BotaoFp>
           <BotaoFp
-            v-if="podeGerenciar && naoAberto && !antesDoPrimeiro"
+            v-if="podeAbrir"
             tamanho="pagina"
             @click="modal = 'valor-inicial'"
           >
             Abrir Caixa
           </BotaoFp>
           <BotaoFp
-            v-if="podeReabrir"
+            v-if="mostrarReabrir"
             variante="secundario"
             tamanho="pagina"
+            :desabilitado="!podeReabrir"
             @click="modal = 'reabrir'"
           >
             Reabrir Mês
@@ -176,10 +208,10 @@ onMounted(mes.carregar)
           </BotaoFp>
         </div>
         <p
-          v-if="legendaFechar"
+          v-if="legendaAcoes"
           class="legenda"
         >
-          {{ legendaFechar }}
+          {{ legendaAcoes }}
         </p>
       </div>
     </div>
@@ -190,13 +222,17 @@ onMounted(mes.carregar)
       role="status"
     >
       <h2>O caixa de {{ rotuloCompetencia(mes.competencia.value) }} ainda não foi aberto</h2>
-      <p v-if="antesDoPrimeiro">
+      <p v-if="aberturaDaCompetencia === 'antes-do-primeiro'">
         Este mês é anterior ao primeiro caixa registrado e não pode ser aberto.
+      </p>
+      <p v-else-if="aberturaDaCompetencia === 'no-intervalo'">
+        Este mês fica entre caixas já existentes e não pode ser aberto depois: isso quebraria a continuidade dos saldos.
+        Só é possível abrir meses posteriores ao último caixa.
       </p>
       <p v-else-if="podeGerenciar">
         Abra o caixa para registrar despesas e recebimentos neste mês.
         <template v-if="herdaSaldoAnterior(mes.caixa.value)">
-          O valor inicial será o saldo final do mês anterior, que precisa estar fechado.
+          O valor inicial será o saldo final do último caixa, que precisa estar fechado.
         </template>
         <template v-else>
           Como é o primeiro caixa, você informa o valor inicial.
@@ -207,7 +243,10 @@ onMounted(mes.carregar)
       </p>
     </section>
 
-    <template v-else-if="mes.caixa.value">
+    <div
+      v-else-if="mes.caixa.value"
+      class="conteudo"
+    >
       <CaixaResumo
         :resumo="mes.caixa.value.resumo"
         :fechado="fechado"
@@ -242,7 +281,7 @@ onMounted(mes.carregar)
           :total="mes.caixa.value.resumo.totalSaidas"
         />
       </div>
-    </template>
+    </div>
 
     <p
       v-else-if="mes.erro.value"
@@ -286,6 +325,12 @@ onMounted(mes.carregar)
       @fechar="fecharModal"
     />
 
+    <CaixaModalHistorico
+      v-else-if="modal === 'historico'"
+      @fechar="fecharModal"
+      @selecionar="abrirCompetencia"
+    />
+
     <ModalConfirmacao
       :aberto="modal === 'reabrir'"
       titulo="Reabrir Caixa"
@@ -322,6 +367,21 @@ onMounted(mes.carregar)
   padding-bottom: 20px;
 }
 
+/* Recarga de um caixa já na tela (mesmo mês): esmaece o conteúdo sem mexer no layout. */
+.conteudo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: opacity 0.15s ease;
+}
+
+.pagina--recarregando .conteudo {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 /* Seletor de mês à esquerda; ações à direita (Figma: "Fechar Mês" com a legenda embaixo). */
 .barra {
   display: flex;
@@ -337,8 +397,13 @@ onMounted(mes.carregar)
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
-  /* Reserva o espaço do logo fixo no canto superior direito, como as demais telas. */
-  margin-right: 90px;
+}
+
+/* Reserva o espaço do logo fixo no canto superior direito, como as demais telas (só onde ele não sobrepõe o conteúdo). */
+@media (min-width: 768px) {
+  .barra-acoes {
+    margin-right: 90px;
+  }
 }
 
 .botoes {

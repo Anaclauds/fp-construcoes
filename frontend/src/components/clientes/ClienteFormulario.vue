@@ -197,6 +197,15 @@ defineExpose({ focarPrimeiroErro })
             :mascara="mascararTelefone"
             :erro="form.erros.celular"
           />
+          <CampoFormulario
+            v-model="form.campos.email"
+            class="s6 m8"
+            rotulo="E-mail:"
+            placeholder="cliente@email.com"
+            autocomplete="off"
+            :maxlength="180"
+            :erro="form.erros.email"
+          />
         </div>
       </section>
 
@@ -267,6 +276,15 @@ defineExpose({ focarPrimeiroErro })
             placeholder="Selecione o cargo"
             :opcoes="form.opcoes.value.cargoResponsavel"
             :erro="form.erros.cargoResponsavel"
+          />
+          <CampoFormulario
+            v-model="form.campos.email"
+            class="s6 m4"
+            rotulo="E-mail:"
+            placeholder="empresa@email.com"
+            autocomplete="off"
+            :maxlength="180"
+            :erro="form.erros.email"
           />
         </div>
       </section>
@@ -418,6 +436,7 @@ defineExpose({ focarPrimeiroErro })
 .s3 { grid-column: span 3; }
 .s4 { grid-column: span 4; }
 .s5 { grid-column: span 5; }
+.s6 { grid-column: span 6; }
 .s8 { grid-column: span 8; }
 
 .cep-linha {

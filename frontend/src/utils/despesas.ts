@@ -1,13 +1,8 @@
-import type { CategoriaDespesa, Despesa, TipoDespesa } from '../types/despesa'
+import type { CategoriaDespesa, Despesa } from '../types/despesa'
 import { CATEGORIA_COMPRA_MATERIAL, CATEGORIA_EXTRA_PROJETO, CATEGORIA_SEM_CATEGORIA } from '../types/despesa'
 import { formatarQuantidade } from './estoque'
 import { semAcento } from './formatadores'
 import { rotuloUnidade } from './materiais'
-
-export const ROTULO_TIPO_DESPESA: Record<TipoDespesa, string> = {
-  COMPRA_MATERIAL: 'Compra de Material',
-  DIVERSA: 'Despesa Diversa',
-}
 
 /** Despesa sem categoria (legado). */
 export const ROTULO_SEM_CATEGORIA = 'Sem categoria'
@@ -136,12 +131,10 @@ const TRADUCOES: [RegExp, string][] = [
     'Há material desta compra já usado ou reservado em projeto: a compra não pode ser estornada.',
   ],
   [/nao ha estoque disponivel para estornar/i, 'Não há estoque disponível para estornar esta compra.'],
-  [/despesa de caixa fechado nao pode ser editada/i, 'O caixa do mês desta despesa está fechado: ela não pode mais ser editada.'],
   [
     /nao ha caixa aberto para a competencia|abra o caixa da competencia/i,
     'Não há caixa aberto no mês dessa data. Abra o caixa do mês em Caixa antes de registrar.',
   ],
-  [/caixa da competencia.*fechado|caixa .* fechado/i, 'O caixa do mês dessa data está fechado. Use uma data de um mês com caixa aberto.'],
   [/data do lancamento deve ser entre 2000 e hoje/i, 'A data deve ser de 2000 até hoje.'],
   [
     /nao ha saldo disponivel para reduzir/i,
@@ -153,20 +146,26 @@ const TRADUCOES: [RegExp, string][] = [
   [/ja existe um registro com esses dados/i, 'Já existe um registro com esses dados.'],
 ]
 
-export function mensagemDespesa(mensagem: string): string {
+/** Decididas pelo `codigo` legível do backend (estável), sem olhar o texto da mensagem. */
+const MENSAGEM_POR_CODIGO_DESPESA: Record<string, string> = {
+  CAIXA_FECHADO: 'O caixa do mês dessa data está fechado. Use uma data de um mês com caixa aberto.',
+  DESPESA_CAIXA_FECHADO: 'O caixa do mês desta despesa está fechado: ela não pode mais ser editada.',
+}
+
+export function mensagemDespesa(mensagem: string, codigo = ''): string {
+  const porCodigo = MENSAGEM_POR_CODIGO_DESPESA[codigo]
+  if (porCodigo) return porCodigo
   const normalizada = semAcento(mensagem)
   return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
 /** A API recusou editar porque o caixa do mês da despesa já foi fechado (não se resolve no formulário). */
-export function mensagemDeCaixaFechado(mensagem: string, codigo = ''): boolean {
-  return codigo === 'DESPESA_CAIXA_FECHADO' || /despesa de caixa fechado/i.test(semAcento(mensagem))
+export function mensagemDeCaixaFechado(codigo: string): boolean {
+  return codigo === 'DESPESA_CAIXA_FECHADO'
 }
 
-/** Mensagem do estorno: o caixa fechado aqui é o do mês da despesa, não o de uma data digitada. */
-export function mensagemEstorno(mensagem: string): string {
-  if (/caixa .* fechado|caixa fechado/i.test(semAcento(mensagem))) {
-    return 'O caixa do mês desta despesa está fechado. Reabra o caixa para estornar.'
-  }
-  return mensagemDespesa(mensagem)
+/** Mensagem do estorno: o caixa fechado aqui é o do mês da despesa (`CAIXA_FECHADO`), não o de uma data digitada. */
+export function mensagemEstorno(mensagem: string, codigo = ''): string {
+  if (codigo === 'CAIXA_FECHADO') return 'O caixa do mês desta despesa está fechado. Reabra o caixa para estornar.'
+  return mensagemDespesa(mensagem, codigo)
 }

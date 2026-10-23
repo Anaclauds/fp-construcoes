@@ -55,12 +55,12 @@ async function confirmar() {
     } else {
       // A API respondeu sem erro, mas a despesa não consta como estornada: não afirma sucesso.
       recusada.value = true
-      erroApi.value = 'A API não confirmou o estorno desta despesa. Atualizamos a lista; confira antes de tentar de novo.'
+      erroApi.value = 'Não foi possível confirmar o estorno desta despesa. Atualizamos a lista; confira antes de tentar de novo.'
       emit('conflito')
     }
   } catch (e) {
-    const { status, mensagem } = extrairErro(e)
-    erroApi.value = mensagemEstorno(mensagem)
+    const { status, mensagem, codigo } = extrairErro(e)
+    erroApi.value = mensagemEstorno(mensagem, codigo)
     if (status === 409) {
       recusada.value = true
       emit('conflito')
@@ -125,7 +125,7 @@ async function confirmar() {
 
     <template #rodape>
       <BotaoFp
-        variante="neutro"
+        variante="secundario"
         :desabilitado="enviando"
         @click="emit('fechar')"
       >

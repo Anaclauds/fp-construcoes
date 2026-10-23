@@ -118,6 +118,9 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
 .botao-acao {
   width: 32px;
   height: 32px;
+  /* Em célula de tabela estreita o botão não pode amassar. */
+  flex-shrink: 0;
+  min-width: 32px;
 
   display: inline-flex;
   align-items: center;
@@ -186,6 +189,15 @@ const rotulo = computed(() => (props.alvo ? `${verbo[props.tipo]} ${props.alvo}`
 .botao-acao--reativar:hover,
 .botao-acao--iniciar:hover {
   filter: brightness(1.12);
+}
+
+/* Celular: alvo de toque maior. */
+@media (max-width: 767px) {
+  .botao-acao {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
 }
 
 .botao-acao:disabled,

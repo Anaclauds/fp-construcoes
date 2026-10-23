@@ -7,8 +7,8 @@ import { termoDeBusca } from '../utils/formatadores'
 const ATRASO_MS = 300
 const LIMITE = 10
 
-/** O que o autocomplete precisa de um cliente; a lista de Orçamentos não traz telefone nem CPF/CNPJ (só o cadastro rápido os devolve). */
-export type ClienteBusca = Pick<Cliente, 'id' | 'nome' | 'cidade' | 'estado'> & Partial<Pick<Cliente, 'telefone' | 'cpfCnpj'>>
+/** O que o autocomplete precisa de um cliente; `/orcamentos/opcoes/clientes` traz telefone, mas nunca CPF/CNPJ. */
+export type ClienteBusca = Pick<Cliente, 'id' | 'nome' | 'cidade' | 'estado'> & Partial<Pick<Cliente, 'telefone'>>
 
 /**
  * Autocomplete de clientes ATIVOS (só eles podem receber orçamento), com busca no servidor.

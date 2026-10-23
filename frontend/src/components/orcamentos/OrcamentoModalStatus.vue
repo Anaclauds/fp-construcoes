@@ -15,6 +15,8 @@ const emit = defineEmits<{
   fechar: []
   /** A API já foi chamada com sucesso; quem usa mostra o toast e recarrega a lista. */
   concluido: [orcamento: Orcamento]
+  /** O backend indicou que o orçamento mudou (aprovado, cancelado ou removido): a lista precisa recarregar. */
+  desatualizado: []
 }>()
 
 const processando = shallowRef(false)
@@ -37,13 +39,16 @@ const texto = computed(() => TEXTOS[props.destino])
 const identificacao = computed(() => `${formatarNumeroOrcamento(props.orcamento.numero)} · ${props.orcamento.titulo}`)
 
 async function confirmar() {
+  if (processando.value) return
   processando.value = true
   erro.value = null
   try {
     const atualizado = await alterarStatusOrcamento(props.orcamento.id, props.destino)
     emit('concluido', atualizado)
   } catch (e) {
-    erro.value = mensagemOrcamento(extrairErro(e).mensagem)
+    const { mensagem, codigo, status } = extrairErro(e)
+    erro.value = mensagemOrcamento(mensagem, codigo)
+    if (codigo === 'ORCAMENTO_STATUS_INVALIDO' || status === 404) emit('desatualizado')
   } finally {
     processando.value = false
   }
@@ -71,7 +76,7 @@ async function confirmar() {
     </template>
     <template v-else-if="destino === 'REPROVADO'">
       O orçamento <strong>{{ identificacao }}</strong> será marcado como <strong>Reprovado</strong> (não aprovado pelo
-      cliente). Ele continua na lista e ainda pode ser aprovado depois.
+      cliente). Ele continua na lista, mas só poderá ser aprovado depois de reaberto (voltar para Pendente ou Em Análise).
     </template>
     <template v-else>
       O orçamento <strong>{{ identificacao }}</strong> será <strong>cancelado</strong>. Orçamentos cancelados não podem

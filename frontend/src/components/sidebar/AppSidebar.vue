@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { isNavigationFailure, NavigationFailureType, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
+import { useMenuMovel } from '../../composables/useMenuMovel'
+import { haModalAberto } from '../../composables/usePilhaModais'
 import barraLateralIcon from '../../assets/icons/menu-barra-lateral.svg'
 import meusDadosIcon from '../../assets/icons/menu-meus-dados.svg'
 import sairIcon from '../../assets/icons/menu-sair.svg'
@@ -29,7 +31,22 @@ const gruposVisiveis = computed(() =>
 )
 
 // Telas estreitas (< 1200px) começam com o menu comprimido, só com ícones.
-const sidebarExpandida = shallowRef(!window.matchMedia('(max-width: 1199px)').matches)
+const consultaTelaMedia = window.matchMedia('(max-width: 1199px)')
+const telaMedia = shallowRef(consultaTelaMedia.matches)
+const sidebarExpandidaPreferida = shallowRef(!consultaTelaMedia.matches)
+// Ao redimensionar a janela atravessando os 1200px, o menu acompanha: comprimido abaixo, expandido acima.
+function aoMudarLarguraDaTela(evento: MediaQueryListEvent) {
+  telaMedia.value = evento.matches
+  sidebarExpandidaPreferida.value = !evento.matches
+}
+consultaTelaMedia.addEventListener('change', aoMudarLarguraDaTela)
+// Em telas de celular o menu é uma gaveta: sempre com os rótulos, sem a versão só de ícones.
+const { telaEstreita, menuMovelAberto, fecharMenuMovel } = useMenuMovel()
+const sidebarExpandida = computed(() => telaEstreita.value || sidebarExpandidaPreferida.value)
+// Tablet (768-1199px): expandido, o menu fica por cima do conteúdo e se comporta como a gaveta do celular.
+const tabletExpandido = computed(() => telaMedia.value && !telaEstreita.value && sidebarExpandidaPreferida.value)
+const gaveta = useTemplateRef<HTMLElement>('gaveta')
+const botaoAlternar = useTemplateRef<HTMLButtonElement>('botaoAlternar')
 const menuAberto = shallowRef<string | null>(null)
 
 const grupoAtivo = computed(() => grupoDaRota(route.name))
@@ -48,30 +65,115 @@ async function sair() {
   const falha = await router.replace({ name: 'home' })
   if (isNavigationFailure(falha, NavigationFailureType.aborted | NavigationFailureType.cancelled)) return
 
+  fecharMenuMovel()
   logout()
   await router.replace({ name: 'login' })
 }
 
 function alternarSidebar() {
-  sidebarExpandida.value = !sidebarExpandida.value
+  // No celular o botão fecha a gaveta; no computador recolhe/expande o menu.
+  if (telaEstreita.value) fecharMenuMovel()
+  else sidebarExpandidaPreferida.value = !sidebarExpandidaPreferida.value
 }
 
 function alternarGrupo(id: string) {
   // Comprimida: o clique no icone expande e ja mostra o grupo escolhido.
   if (!sidebarExpandida.value) {
-    sidebarExpandida.value = true
+    sidebarExpandidaPreferida.value = true
     menuAberto.value = id
     return
   }
 
   menuAberto.value = menuAberto.value === id ? null : id
 }
+
+// Gaveta (celular): fecha ao navegar, com Esc e ao clicar fora; o foco vai para dentro ao abrir e Tab não escapa dela.
+watch(
+  () => route.fullPath,
+  () => {
+    fecharMenuMovel()
+    // Tablet (768-1199px): o menu expandido fica sobre o conteúdo; ao navegar, volta a só ícones.
+    if (consultaTelaMedia.matches && !telaEstreita.value) sidebarExpandidaPreferida.value = false
+  },
+)
+
+function aoClicarNoMenu(evento: MouseEvent) {
+  // Clicar no link da tela em que já está não muda a rota: a gaveta fecha mesmo assim.
+  if (menuMovelAberto.value && evento.target instanceof Element && evento.target.closest('a')) fecharMenuMovel()
+}
+
+function aoTeclar(evento: KeyboardEvent) {
+  if (evento.key === 'Escape') {
+    fecharMenuMovel()
+    return
+  }
+  if (evento.key !== 'Tab' || !gaveta.value) return
+  const focaveis = Array.from(
+    gaveta.value.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+  ).filter((elemento) => elemento.offsetParent !== null)
+  const primeiro = focaveis[0]
+  const ultimo = focaveis[focaveis.length - 1]
+  if (!primeiro || !ultimo) return
+  const ativo = document.activeElement
+  if (evento.shiftKey && ativo === primeiro) {
+    evento.preventDefault()
+    ultimo.focus()
+  } else if (!evento.shiftKey && ativo === ultimo) {
+    evento.preventDefault()
+    primeiro.focus()
+  }
+}
+
+function fecharMenuTablet() {
+  sidebarExpandidaPreferida.value = false
+}
+
+// Esc recolhe o menu expandido do tablet; com modal aberto, o Esc é do modal.
+function aoTeclarTablet(evento: KeyboardEvent) {
+  if (evento.key === 'Escape' && !haModalAberto.value) fecharMenuTablet()
+}
+
+watch(tabletExpandido, (expandido) => {
+  if (expandido) window.addEventListener('keydown', aoTeclarTablet)
+  else window.removeEventListener('keydown', aoTeclarTablet)
+})
+
+watch(menuMovelAberto, async (aberta) => {
+  if (aberta) {
+    window.addEventListener('keydown', aoTeclar)
+    await nextTick()
+    botaoAlternar.value?.focus()
+  } else {
+    window.removeEventListener('keydown', aoTeclar)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', aoTeclar)
+  window.removeEventListener('keydown', aoTeclarTablet)
+  consultaTelaMedia.removeEventListener('change', aoMudarLarguraDaTela)
+})
 </script>
 
 <template>
+  <!-- Fundo da gaveta (celular) e do menu expandido (tablet): clicar fora fecha. O Esc é tratado no teclado. -->
+  <div
+    v-if="menuMovelAberto || tabletExpandido"
+    class="sidebar-fundo"
+    :class="{ 'sidebar-fundo--tablet': !menuMovelAberto }"
+    aria-hidden="true"
+    @click="menuMovelAberto ? fecharMenuMovel() : fecharMenuTablet()"
+  />
+
   <aside
+    ref="gaveta"
     class="sidebar"
-    :class="{ 'sidebar--comprimida': !sidebarExpandida }"
+    :class="{ 'sidebar--comprimida': !sidebarExpandida, 'sidebar--movel-aberta': menuMovelAberto }"
+    :inert="(telaEstreita && !menuMovelAberto) || haModalAberto"
+    :role="telaEstreita ? 'dialog' : undefined"
+    :aria-modal="telaEstreita && menuMovelAberto ? 'true' : undefined"
+    :aria-label="telaEstreita ? 'Menu' : undefined"
+    @click="aoClicarNoMenu"
   >
     <div class="sidebar-header">
       <RouterLink
@@ -98,10 +200,11 @@ function alternarGrupo(id: string) {
       </RouterLink>
 
       <button
+        ref="botaoAlternar"
         type="button"
         class="sidebar-toggle"
-        :aria-label="sidebarExpandida ? 'Recolher menu lateral' : 'Expandir menu lateral'"
-        :aria-expanded="sidebarExpandida"
+        :aria-label="telaEstreita ? 'Fechar menu' : sidebarExpandida ? 'Recolher menu lateral' : 'Expandir menu lateral'"
+        :aria-expanded="telaEstreita ? undefined : sidebarExpandida"
         @click="alternarSidebar"
       >
         <img
@@ -197,6 +300,66 @@ function alternarGrupo(id: string) {
 
 .sidebar--comprimida {
   width: 68px;
+}
+
+/* Celular (< 768px): o menu vira gaveta sobreposta, fechada por padrão; o fundo escurece o conteúdo. */
+.sidebar-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1500;
+    width: min(320px, 86vw);
+    height: 100dvh;
+
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.25s ease,
+      visibility 0s linear 0.25s;
+  }
+
+  .sidebar--movel-aberta {
+    transform: none;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .sidebar-nav {
+    margin-top: 20px;
+  }
+}
+
+/* Tablet (768-1199px): o menu sai do fluxo; comprimido ocupa a faixa de 68px (reservada em App.vue)
+   e, expandido, abre por cima do conteúdo em vez de espremê-lo. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    /* Abaixo dos modais (ModalBase usa 1600), inclusive os de confirmação/descarte. */
+    z-index: 900;
+    height: 100dvh;
+  }
+
+  .sidebar-fundo--tablet {
+    z-index: 890;
+  }
+
+  .sidebar:not(.sidebar--comprimida) {
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
 }
 
 .sidebar-header {

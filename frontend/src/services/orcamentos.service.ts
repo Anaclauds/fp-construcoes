@@ -22,11 +22,6 @@ export async function listarOrcamentos(filtros: FiltrosOrcamentos = {}): Promise
   return data
 }
 
-export async function buscarOrcamento(id: number): Promise<Orcamento> {
-  const { data } = await api.get<Orcamento>(`/orcamentos/${id}`)
-  return data
-}
-
 export async function criarOrcamento(payload: OrcamentoPayload): Promise<Orcamento> {
   const { data } = await api.post<Orcamento>('/orcamentos', payload)
   return data
@@ -64,12 +59,6 @@ export async function listarOpcoesServicos(tipo?: TipoOrcamento): Promise<OpcaoS
 /** Clientes ativos (`busca` por nome, razão social, fantasia, cidade ou telefone; `limit` até 200). */
 export async function listarClientesParaOrcamento(params: { busca?: string; limit?: number }): Promise<OpcaoClienteOrcamento[]> {
   const { data } = await api.get<OpcaoClienteOrcamento[]>('/orcamentos/opcoes/clientes', { params })
-  return data
-}
-
-/** Um cliente ativo com endereço. Cliente inativo ou inexistente responde 404. */
-export async function buscarClienteParaOrcamento(id: number): Promise<OpcaoClienteOrcamento> {
-  const { data } = await api.get<OpcaoClienteOrcamento>(`/orcamentos/opcoes/clientes/${id}`)
   return data
 }
 

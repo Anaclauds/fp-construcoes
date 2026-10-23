@@ -40,8 +40,8 @@ const nomeArquivo = computed(() => {
 })
 
 function imprimirRelatorio() {
-  // O navegador não informa se o usuário imprimiu ou cancelou: o aviso sai quando o diálogo fecha (`afterprint`).
-  imprimir(nomeArquivo.value, () => mostrarToast('Impressão concluída.', 'info'))
+  // Sem toast: o navegador não informa se o usuário imprimiu ou cancelou.
+  imprimir(nomeArquivo.value)
 }
 
 const baixando = shallowRef(false)
@@ -228,6 +228,18 @@ async function baixarPdf() {
 @media (max-width: 900px) {
   .resultado-acoes {
     margin-right: 0;
+  }
+}
+
+/* Celular: "Voltar" e as ações não cabem na mesma linha; quebram em vez de passar da margem. */
+@media (max-width: 575px) {
+  .resultado-barra,
+  .resultado-acoes {
+    flex-wrap: wrap;
+  }
+
+  .resultado-janela {
+    padding: 12px;
   }
 }
 </style>

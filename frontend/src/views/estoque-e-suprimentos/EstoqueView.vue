@@ -38,19 +38,33 @@ const podeEditarMaterial = computed(() => temPermissao('MATERIAIS', 'gerenciar')
 
 const { busca, categoria, pagina, porPagina, itens, indicadores, total, carregando, erro, carregar } = useListaEstoque()
 
-// Categorias do catálogo da API (inclui as cadastradas pelos usuários).
-const catalogo = useCatalogoMaterial(false)
-const opcoesCategoria = computed<OpcaoFiltro[]>(() => [
-  { valor: 'TODAS', rotulo: 'Todas' },
-  ...catalogo.categorias.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
-])
+// Categorias do catálogo da API (inclui as cadastradas pelos usuários) e as legadas gravadas em materiais ATIVOS:
+// o estoque só lista materiais ativos, então categorias que só têm material inativo não entram no filtro.
+const catalogo = useCatalogoMaterial({ unidades: false, emUso: 'ATIVO' })
+const opcoesCategoria = computed<OpcaoFiltro[]>(() => {
+  const lista: OpcaoFiltro[] = [
+    { valor: 'TODAS', rotulo: 'Todas' },
+    ...catalogo.categoriasFiltro.value.map(({ valor, rotulo }) => ({ valor, rotulo })),
+  ]
+  // Categoria vinda da URL (ou fora do limite lido): continua selecionada em vez de deixar a lista em branco.
+  if (categoria.value !== 'TODAS' && !lista.some((o) => o.valor === categoria.value)) {
+    lista.push({ valor: categoria.value, rotulo: categoria.value })
+  }
+  return lista
+})
+// Acima do limite de páginas lidas, categorias podem faltar no filtro; a busca por texto continua achando todos os materiais.
+const apoioCategoria = computed(() =>
+  catalogo.emUsoCompleto.value ? undefined : 'Há muitos materiais: algumas categorias podem não aparecer na lista. Use a busca para encontrá-las.',
+)
+
+const filtrado = computed(() => busca.value.trim() !== '' || categoria.value !== 'TODAS')
 
 const colunas: ColunaTabela[] = [
   { chave: 'material', rotulo: 'Material', largura: '21%' },
   { chave: 'categoria', rotulo: 'Categoria', largura: '13%' },
-  { chave: 'atual', rotulo: 'Estoque Atual', largura: '16%' },
-  { chave: 'reservado', rotulo: 'Reservado', largura: '17%' },
-  { chave: 'disponivel', rotulo: 'Disponível', largura: '17%' },
+  { chave: 'atual', rotulo: 'Estoque Atual', largura: '16%', numerica: true },
+  { chave: 'reservado', rotulo: 'Reservado', largura: '17%', numerica: true },
+  { chave: 'disponivel', rotulo: 'Disponível', largura: '17%', numerica: true },
   { chave: 'acoes', rotulo: 'Ações', largura: '16%' },
 ]
 
@@ -70,8 +84,11 @@ const abrindoEdicao = shallowRef<number | null>(null)
 async function abrirEdicao(item: ItemEstoque) {
   if (abrindoEdicao.value !== null) return
   abrindoEdicao.value = item.id
+  const modalAoPedir = modal.value
   try {
-    modal.value = { tipo: 'editar', material: await buscarMaterial(item.id) }
+    const material = await buscarMaterial(item.id)
+    // Enquanto o cadastro carregava, outro modal foi aberto ou este foi fechado: a resposta antiga não o sobrepõe.
+    if (modal.value === modalAoPedir) modal.value = { tipo: 'editar', material }
   } catch (e) {
     mostrarToast(extrairMensagemErro(e), 'erro')
   } finally {
@@ -81,20 +98,21 @@ async function abrirEdicao(item: ItemEstoque) {
 
 async function aoEditarMaterial() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
-  await carregar()
+  mostrarToast('Material atualizado!')
+  // A edição pode ter criado uma categoria ou mudado a do material: atualiza também o filtro de categorias.
+  await Promise.all([carregar(), catalogo.recarregar()])
 }
 
 async function aoAjustar() {
   fecharModal()
-  mostrarToast('Ajuste Realizado!')
+  mostrarToast('Ajuste realizado!')
   await carregar()
 }
 
 async function aoCriarMaterial() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
-  // Atualiza também os chips de categoria: o modal pode ter criado uma categoria nova.
+  mostrarToast('Material cadastrado!')
+  // Atualiza também o filtro de categorias: o modal pode ter criado uma categoria nova.
   await Promise.all([carregar(), catalogo.recarregar()])
 }
 
@@ -135,7 +153,10 @@ onMounted(carregar)
       </template>
     </CabecalhoPagina>
 
-    <EstoqueIndicadores :indicadores="indicadores" />
+    <EstoqueIndicadores
+      :indicadores="indicadores"
+      :filtrado="filtrado"
+    />
 
     <CardBuscaFiltro
       v-model:busca="busca"
@@ -143,6 +164,8 @@ onMounted(carregar)
       class="busca-lista"
       placeholder="Buscar material..."
       rotulo-filtro="Categoria:"
+      filtro-em-lista
+      :apoio-filtro="apoioCategoria"
       :opcoes="opcoesCategoria"
     />
 

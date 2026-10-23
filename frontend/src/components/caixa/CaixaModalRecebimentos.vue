@@ -23,7 +23,7 @@ const colunas: ColunaTabela[] = [
   { chave: 'projeto', rotulo: 'Projeto', largura: '28%' },
   { chave: 'cliente', rotulo: 'Cliente', largura: '22%' },
   { chave: 'forma', rotulo: 'Forma', largura: '19%' },
-  { chave: 'valor', rotulo: 'Valor', largura: '19%' },
+  { chave: 'valor', rotulo: 'Valor', largura: '19%', numerica: true },
 ]
 
 function forma(valor: string): string {
@@ -144,11 +144,12 @@ onMounted(relatorio.carregar)
 
 .periodo > :deep(.campo) {
   width: 190px;
+  max-width: 100%;
 }
 
 .indicadores {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin: 14px 0 0;
 }

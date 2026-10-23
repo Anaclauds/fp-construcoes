@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useProjetoDetalhe } from '../../composables/useProjetoDetalhe'
-import type { ProjetoResumo, RegistroEditavel } from '../../types/projeto'
+import type { ProjetoDetalhe, ProjetoResumo, RegistroEditavel } from '../../types/projeto'
 import { formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
 import { decimalApiParaTexto, formatarNumeroOrcamento, rotuloUnidade } from '../../utils/orcamentos'
 import { enderecoDaObra } from '../../utils/projetos'
@@ -18,6 +18,10 @@ const props = defineProps<{
   projeto: ProjetoResumo
   /** Usuário logado pode gerenciar projetos (iniciar, registrar etapa/extra, mudar status). */
   podeGerenciar: boolean
+  /** Detalhe já conhecido (resposta da ação que acabou de gravar): dispensa nova busca ao abrir. */
+  detalheInicial?: ProjetoDetalhe | null
+  /** A seção "Registros da obra" está aberta; guardado fora do modal porque ele é recriado após cada ação. */
+  registrosAbertos?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,10 +33,13 @@ const emit = defineEmits<{
   editar: []
   editarRegistro: [registro: RegistroEditavel]
   cancelarRegistro: [registro: RegistroEditavel]
+  'registros-abertos': [aberto: boolean]
 }>()
 
-const detalhe = useProjetoDetalhe(props.projeto.id)
-onMounted(detalhe.carregar)
+const detalhe = useProjetoDetalhe(props.projeto.id, props.detalheInicial)
+onMounted(() => {
+  if (!props.detalheInicial) void detalhe.carregar()
+})
 
 const { orcamento } = props.projeto
 const construcaoCivil = orcamento.tipo === 'CONSTRUCAO_CIVIL'
@@ -134,7 +141,7 @@ const podeEditarRegistros = computed(() => props.podeGerenciar && emExecucao.val
       <CampoLeitura
         class="dados-largo"
         rotulo="Responsável"
-        :valor="projeto.responsavel.nomeCompleto"
+        :valor="atual.responsavel.nomeCompleto"
       />
     </dl>
 
@@ -252,7 +259,10 @@ const podeEditarRegistros = computed(() => props.podeGerenciar && emExecucao.val
         class="secao"
         :etapas="detalhe.projeto.value.etapas"
         :extras="detalhe.projeto.value.extras"
+        :cobrancas="detalhe.projeto.value.cobrancas"
         :editavel="podeEditarRegistros"
+        :aberto="registrosAbertos"
+        @alternar="emit('registros-abertos', $event)"
         @editar="emit('editarRegistro', $event)"
         @cancelar="emit('cancelarRegistro', $event)"
       />

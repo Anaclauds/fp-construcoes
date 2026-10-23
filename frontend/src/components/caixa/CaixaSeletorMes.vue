@@ -74,6 +74,9 @@ defineEmits<{
 <style scoped>
 .seletor {
   display: flex;
+  /* Sem quebra no desktop: ao dividir a barra com as ações, a seta "próximo" não pode descer sozinha. */
+  flex-wrap: nowrap;
+  flex: none;
   align-items: center;
   gap: 10px;
 }
@@ -118,7 +121,7 @@ defineEmits<{
 }
 
 .mes {
-  min-width: 150px;
+  min-width: min(150px, 100%);
   margin: 0;
   color: var(--fp-texto-titulo-campo);
   font-size: 20px;
@@ -129,6 +132,7 @@ defineEmits<{
 .atalho {
   margin-left: 6px;
   padding: 4px 6px;
+  white-space: nowrap;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -138,5 +142,19 @@ defineEmits<{
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Celular: setas e mês ficam na mesma linha; o atalho "mês atual" desce para a linha de baixo. */
+@media (max-width: 575px) {
+  .seletor {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .mes {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 18px;
+  }
 }
 </style>

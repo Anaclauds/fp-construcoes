@@ -10,9 +10,9 @@ export function useImpressao() {
 
   /**
    * @param nomeArquivo título temporário do documento (vira o nome sugerido do PDF)
-   * @param aoTerminar chamado quando o diálogo de impressão fecha (imprimiu, salvou ou cancelou)
+   * @param aoTerminar opcional; chamado quando o diálogo de impressão fecha (imprimiu, salvou ou cancelou)
    */
-  function imprimir(nomeArquivo: string, aoTerminar: () => void) {
+  function imprimir(nomeArquivo: string, aoTerminar?: () => void) {
     limpar?.()
     const tituloOriginal = document.title
     document.title = nomeArquivo
@@ -21,7 +21,7 @@ export function useImpressao() {
       window.removeEventListener('afterprint', finalizar)
       document.title = tituloOriginal
       limpar = null
-      aoTerminar()
+      aoTerminar?.()
     }
 
     window.addEventListener('afterprint', finalizar)

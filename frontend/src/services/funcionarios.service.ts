@@ -14,11 +14,6 @@ export async function listarFuncionarios(
   return data
 }
 
-export async function buscarFuncionario(id: number): Promise<Funcionario> {
-  const { data } = await api.get<Funcionario>(`/funcionarios/${id}`)
-  return data
-}
-
 export async function criarFuncionario(payload: FuncionarioPayload): Promise<Funcionario> {
   const { data } = await api.post<Funcionario>('/funcionarios', payload)
   return data

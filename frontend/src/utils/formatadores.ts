@@ -44,12 +44,7 @@ export function formatarCpfCnpj(valor: string | null | undefined): string {
 
 /** Texto sem acentos, em minúsculas e com espaços simples: serve para comparar nomes ("Ji-Paraná" = "ji-parana"). */
 export function normalizarTexto(valor: string): string {
-  return valor
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
+  return semAcento(valor).toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 /** Máscara progressiva de telefone: (00) 0000-0000 ou (00) 00000-0000. */
@@ -192,11 +187,30 @@ export function instanteParaDataBrNegocio(valor: string | null | undefined): str
   return instanteParaDataBr(valor)
 }
 
-/** ISO com hora ("2026-07-16T14:32:00.000Z") -> "16/07/2026 14:32" no relógio local; inválido -> vazio. */
+/**
+ * ISO com hora ("2026-07-16T18:32:00.000Z") -> "16/07/2026 14:32" no fuso do negócio (America/Porto_Velho, o mesmo
+ * das datas e do backend), igual em qualquer máquina; inválido -> vazio. Sem Intl cai no relógio local.
+ */
 export function formatarDataHoraIso(valor: string | null | undefined): string {
   if (!valor) return ''
   const data = new Date(valor)
   if (Number.isNaN(data.getTime())) return ''
+  try {
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Porto_Velho',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(data)
+    const pega = (tipo: string) => partes.find((p) => p.type === tipo)?.value
+    const [dia, mes, ano, hora, minuto] = [pega('day'), pega('month'), pega('year'), pega('hour'), pega('minute')]
+    if (dia && mes && ano && hora && minuto) return `${dia}/${mes}/${ano} ${hora}:${minuto}`
+  } catch {
+    // Intl indisponível: usa o relógio local abaixo.
+  }
   const dois = (n: number) => String(n).padStart(2, '0')
   return `${dois(data.getDate())}/${dois(data.getMonth() + 1)}/${data.getFullYear()} ${dois(data.getHours())}:${dois(data.getMinutes())}`
 }
@@ -215,7 +229,10 @@ export function limparEspacos(texto: string): string {
   return texto.trim().replace(/[ \t]{2,}/g, ' ')
 }
 
-/** Remove acentos, para comparar mensagens da API com ou sem acento (o servidor passou a acentuar). */
+/**
+ * Remove só os acentos, preservando maiúsculas e espaços (a mensagem da API ainda precisa mostrar nomes de materiais).
+ * Base de `normalizarTexto`; para comparar texto livre use `normalizarTexto`.
+ */
 export function semAcento(texto: string): string {
-  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }

@@ -46,7 +46,7 @@ const CAMPO_DA_API: Record<string, keyof CamposEdicaoProjeto> = {
 
 type ProjetoEditavel = Pick<
   ProjetoBase,
-  | 'responsavelId' | 'dataInicio' | 'previsaoInicio' | 'previsaoConclusao' | 'cepObra' | 'ruaObra' | 'numeroObra'
+  | 'responsavelId' | 'previsaoInicio' | 'previsaoConclusao' | 'cepObra' | 'ruaObra' | 'numeroObra'
   | 'bairroObra' | 'cidadeObra' | 'estadoObra' | 'complementoObra'
 >
 
@@ -92,7 +92,11 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
     mensagemFalha: (e) => (e instanceof Error ? e.message : 'Não foi possível consultar o CEP.'),
   })
 
-  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'))
+  // "ji-parana" salvo -> "Ji-Paraná" da lista do IBGE: o valor original passa a ser o oficial, então o ajuste
+  // automático ao abrir não marca o formulário como alterado.
+  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'), (anterior, oficial) => {
+    if (inicial.cidade.trim() === anterior.trim()) inicial.cidade = oficial
+  })
 
   /** O usuário escolheu outro estado: a cidade anterior não vale mais. (A busca de CEP preenche os dois direto.) */
   function aoMudarEstado(uf: string) {
@@ -131,11 +135,10 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
   const alterado = computed(() => Object.keys(paraPayload()).length > 0)
 
   /**
-   * Início de referência da previsão de conclusão (mesma regra do backend): a data real de início, se a obra já
-   * começou; senão a previsão de início digitada. Vazio se não houver nenhuma.
+   * Início de referência da previsão de conclusão (mesma regra do `PATCH /projetos/:id`, PROJETOS_UPDATE_BADREQUEST_04):
+   * só a PREVISÃO de início (a digitada), nunca a data real de início da obra. Vazio se não houver previsão de início.
    */
   function inicioDeReferencia(): string {
-    if (projeto.dataInicio) return projeto.dataInicio.slice(0, 10)
     if (campos.previsaoInicio !== '' && dataBrValida(campos.previsaoInicio, ANO_MINIMO_DATA_PROJETO)) {
       return dataBrParaIso(campos.previsaoInicio)
     }
@@ -166,9 +169,7 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
     if (!erros.previsaoConclusao && campos.previsaoConclusao !== '') {
       const inicio = inicioDeReferencia()
       if (inicio && dataBrParaIso(campos.previsaoConclusao) < inicio) {
-        erros.previsaoConclusao = projeto.dataInicio
-          ? `A previsão de conclusão não pode ser anterior ao início da obra (${isoParaDataBr(inicio)}).`
-          : 'A previsão de conclusão não pode ser anterior à previsão de início.'
+        erros.previsaoConclusao = 'A previsão de conclusão não pode ser anterior à previsão de início.'
       }
     }
 
@@ -194,7 +195,7 @@ export function useFormularioEdicaoProjeto(projeto: ProjetoEditavel) {
    */
   function tratarErroApi(erro: unknown) {
     const { mensagem, status, codigo } = extrairErro(erro)
-    const texto = mensagemProjeto(mensagem)
+    const texto = mensagemProjeto(mensagem, codigo)
     if (codigo === 'RESPONSAVEL_INATIVO') {
       erros.responsavelId = texto
       return

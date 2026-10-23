@@ -16,7 +16,7 @@ const props = defineProps<{ item: ItemEstoque }>()
 
 const emit = defineEmits<{
   fechar: []
-  /** Ajuste gravado; quem usa mostra "Ajuste Realizado!" e recarrega a lista. */
+  /** Ajuste gravado; quem usa mostra "Ajuste realizado!" e recarrega a lista. */
   ajustado: []
 }>()
 
@@ -39,7 +39,7 @@ function pedirFechar() {
 }
 
 async function salvar() {
-  if (!detalhe.value) return
+  if (salvando.value || !detalhe.value) return
   if (!form.validar()) {
     await nextTick()
     focarPrimeiroErro(raiz.value)

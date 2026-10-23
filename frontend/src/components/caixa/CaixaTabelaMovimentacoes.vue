@@ -156,6 +156,8 @@ const textoVazio = computed(() =>
 
 table {
   width: 100%;
+  /* Em telas estreitas a tabela rola dentro do cartão em vez de espremer as colunas. */
+  min-width: 560px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;

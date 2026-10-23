@@ -39,22 +39,23 @@ function pedirFechar() {
 
 async function salvar() {
   if (salvando.value || semComoSalvar.value) return
-  // O limite do estoque precisa do saldo de cada material: espera as consultas em andamento antes de validar.
-  if (form.compra.value) await opcoes.carregarSaldos(form.itens.value.map((l) => l.materialId))
-  if (!form.validar()) {
-    await formulario.value?.focarPrimeiroErro()
-    return
-  }
-
-  // Nada mudou: não há o que enviar.
-  if (edicao.value && !form.alterado.value) {
-    mostrarToast('Nenhuma alteração para salvar.', 'info')
-    emit('fechar')
-    return
-  }
-
+  // Trava já aqui: as consultas de saldo abaixo são assíncronas e um segundo clique não pode reenviar.
   salvando.value = true
   try {
+    // O limite do estoque precisa do saldo de cada material: espera as consultas em andamento antes de validar.
+    if (form.compra.value) await opcoes.carregarSaldos(form.itens.value.map((l) => l.materialId))
+    if (!form.validar()) {
+      await formulario.value?.focarPrimeiroErro()
+      return
+    }
+
+    // Nada mudou: não há o que enviar.
+    if (edicao.value && !form.alterado.value) {
+      mostrarToast('Nenhuma alteração para salvar.', 'info')
+      emit('fechar')
+      return
+    }
+
     const salva =
       edicao.value && props.despesa
         ? await atualizarDespesa(props.despesa.id, form.paraAtualizacao())

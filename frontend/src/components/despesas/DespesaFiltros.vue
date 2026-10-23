@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
+import { useOpcoesFornecedores } from '../../composables/useOpcoesFornecedores'
 import type { FiltroCategoriaDespesa, FiltroTipoDespesa } from '../../composables/useListaDespesas'
 import { CATEGORIA_SEM_CATEGORIA } from '../../types/despesa'
 import { ROTULO_SEM_CATEGORIA } from '../../utils/despesas'
 import BotaoFp from '../ui/BotaoFp.vue'
+import CampoAutocomplete from '../ui/CampoAutocomplete.vue'
 import CampoData from '../ui/CampoData.vue'
 import CardBuscaFiltro, { type OpcaoFiltro } from '../ui/CardBuscaFiltro.vue'
 import GrupoChips from '../ui/GrupoChips.vue'
 
-defineProps<{
+const props = defineProps<{
   erroInicio?: string
   erroFim?: string
   temFiltros: boolean
+  /** Nome do fornecedor filtrado, conhecido pela lista carregada (cobre fornecedor que já não está ativo). */
+  nomeFornecedorFiltrado?: string
 }>()
 
 defineEmits<{ limpar: [] }>()
@@ -20,6 +24,7 @@ defineEmits<{ limpar: [] }>()
 const busca = defineModel<string>('busca', { required: true })
 const categoria = defineModel<FiltroCategoriaDespesa>('categoria', { required: true })
 const tipo = defineModel<FiltroTipoDespesa>('tipo', { required: true })
+const fornecedorId = defineModel<string>('fornecedorId', { required: true })
 const dataInicio = defineModel<string>('dataInicio', { required: true })
 const dataFim = defineModel<string>('dataFim', { required: true })
 
@@ -31,6 +36,17 @@ const opcoesCategoria = computed<OpcaoFiltro<FiltroCategoriaDespesa>[]>(() => [
   ...categorias.value.map((c) => ({ valor: c.nome, rotulo: c.rotulo })),
   { valor: CATEGORIA_SEM_CATEGORIA, rotulo: ROTULO_SEM_CATEGORIA },
 ])
+
+// Só fornecedores ativos vêm da API; um inativo (despesa antiga, ou id vindo da URL) continua filtrável e é marcado.
+const fornecedores = useOpcoesFornecedores()
+
+const rotuloFornecedorSelecionado = computed(() => {
+  if (!fornecedorId.value) return ''
+  const nome = props.nomeFornecedorFiltrado || 'Fornecedor selecionado'
+  const conhecido = fornecedores.opcoes.value.some((o) => o.valor === fornecedorId.value)
+  const sabeSeAtivo = !fornecedores.carregando.value && !fornecedores.indisponivel.value
+  return props.nomeFornecedorFiltrado && sabeSeAtivo && !conhecido ? `${nome} (inativo)` : nome
+})
 
 const opcoesTipo: OpcaoFiltro<FiltroTipoDespesa>[] = [
   { valor: 'TODOS', rotulo: 'Todos' },
@@ -62,6 +78,18 @@ const opcoesTipo: OpcaoFiltro<FiltroTipoDespesa>[] = [
         rotulo="Data Final:"
         :erro="erroFim"
         :ano-minimo="2000"
+      />
+      <CampoAutocomplete
+        v-model="fornecedorId"
+        class="filtros-fornecedor"
+        rotulo="Fornecedor:"
+        placeholder="Todos os fornecedores"
+        :opcoes="fornecedores.opcoes.value"
+        :rotulo-selecionado="rotuloFornecedorSelecionado"
+        :carregando="fornecedores.carregando.value"
+        :apoio="fornecedores.indisponivel.value ? 'Lista de fornecedores indisponível.' : undefined"
+        texto-vazio="Nenhum fornecedor encontrado."
+        limpavel
       />
       <GrupoChips
         v-model="tipo"
@@ -111,6 +139,12 @@ const opcoesTipo: OpcaoFiltro<FiltroTipoDespesa>[] = [
 
 .filtros-periodo > :deep(.campo) {
   width: 190px;
+  max-width: 100%;
+}
+
+.filtros-periodo > .filtros-fornecedor {
+  width: 260px;
+  max-width: 100%;
 }
 
 .filtros-tipo {

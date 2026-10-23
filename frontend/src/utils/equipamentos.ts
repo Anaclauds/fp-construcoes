@@ -1,11 +1,14 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
-import { mascararMoeda, normalizarTexto } from './formatadores'
+import type { ErroApi } from '../services/api'
+import { interpretarPorCodigo, type ErroInterpretado } from './erros-cadastro'
+import { mascararMoeda } from './formatadores'
 import type { TipoEquipamento } from '../types/equipamento'
 
 export const LIMITE_NOME_EQUIPAMENTO = 150
 export const LIMITE_MARCA_EQUIPAMENTO = 80
 export const LIMITE_MODELO_EQUIPAMENTO = 80
-export const LIMITE_OBSERVACOES_EQUIPAMENTO = 1000
+/** Mesmo limite do DTO de equipamento no backend (`observacoes`, 3000 caracteres). */
+export const LIMITE_OBSERVACOES_EQUIPAMENTO = 3000
 /** DECIMAL(12,2): maior valor aceito pela API. */
 export const VALOR_MAXIMO_EQUIPAMENTO = 9_999_999_999.99
 /** Ano mínimo aceito no calendário de aquisição. */
@@ -42,13 +45,24 @@ export function opcoesTipoEquipamento(atual?: string): OpcaoCampo[] {
 
 export const mascararValorEquipamento = (valor: string) => mascararMoeda(valor, 12)
 
-const MENSAGENS: [RegExp, string][] = [
-  [/equipamento nao encontrado/, 'Equipamento não encontrado. Atualize a lista.'],
-  [/fornecedor ativo nao encontrado/, 'O fornecedor escolhido não está mais ativo. Escolha outro ou deixe em branco.'],
-  [/data de aquisicao nao pode estar no futuro/, 'A data de aquisição não pode ser futura.'],
-]
+/** Campo do formulário de equipamento citado por um erro de negócio. */
+export type CampoErroEquipamento = 'data' | 'fornecedor'
 
-export function mensagemEquipamento(mensagem: string): string {
-  const k = normalizarTexto(mensagem)
-  return MENSAGENS.find(([padrao]) => padrao.test(k))?.[1] ?? mensagem
+/**
+ * Erros de negócio de equipamentos decididos pelo `codigo` (`equipamentos.service.ts`). Os terminados em `_01` são
+ * gerados pelo nome do método no backend; não há código legível para eles e precisam acompanhar o backend.
+ */
+const ERROS_EQUIPAMENTO: Record<string, ErroInterpretado<CampoErroEquipamento>> = {
+  EQUIPAMENTOS_FINDONE_NOTFOUND_01: { mensagem: 'Equipamento não encontrado. Atualize a lista.' },
+  FORNECEDOR_INATIVO: {
+    campo: 'fornecedor',
+    mensagem: 'O fornecedor escolhido não está mais ativo. Escolha outro ou deixe em branco.',
+  },
+  EQUIPAMENTOS_VALIDATEDATAAQUISICAO_BADREQUEST_01: { campo: 'data', mensagem: 'A data de aquisição não pode ser futura.' },
 }
+
+export const interpretarErroEquipamento = (erro: ErroApi): ErroInterpretado<CampoErroEquipamento> =>
+  interpretarPorCodigo(ERROS_EQUIPAMENTO, erro)
+
+/** Mensagem para o usuário (modais de ativar/desativar, que não têm campos). */
+export const mensagemEquipamento = (erro: ErroApi): string => interpretarErroEquipamento(erro).mensagem

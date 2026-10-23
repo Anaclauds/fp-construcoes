@@ -21,6 +21,7 @@ const erro = shallowRef<string | null>(null)
 const desativando = computed(() => props.acao === 'desativar')
 
 async function confirmar() {
+  if (processando.value) return
   processando.value = true
   erro.value = null
   try {
@@ -38,7 +39,7 @@ async function confirmar() {
 <template>
   <ModalConfirmacao
     aberto
-    :titulo="desativando ? 'Desativar Cliente' : 'Ativar Cliente'"
+    :titulo="desativando ? 'Desativar Cliente' : 'Reativar Cliente'"
     titulo-aviso="Atenção"
     :variante="desativando ? 'perigo' : 'sucesso'"
     :texto-confirmar="desativando ? 'Confirmar Desativação' : 'Sim, continuar'"

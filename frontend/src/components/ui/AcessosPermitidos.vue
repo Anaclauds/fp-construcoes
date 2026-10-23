@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 import ToggleFp from './ToggleFp.vue'
-import { gruposAcesso } from './acessos-grupos'
+import { useModulosAcesso } from '../../composables/useModulosAcesso'
 import type { ModuloSistema } from '../../types'
 import type { MapaPermissoes } from '../../utils/permissoes'
 
@@ -16,6 +16,7 @@ const props = withDefaults(
 )
 
 const idTitulo = useId()
+const { grupos, carregando, erro, carregar } = useModulosAcesso()
 const permissoes = defineModel<MapaPermissoes>({ default: () => ({}) })
 
 function visualizar(modulo: ModuloSistema) {
@@ -67,10 +68,35 @@ function definirGerenciar(modulo: ModuloSistema, ligado: boolean) {
         <span class="acessos-col">Gerenciar</span>
       </div>
 
-      <div class="acessos-lista">
+      <p
+        v-if="erro"
+        class="acessos-aviso acessos-aviso--erro"
+        role="alert"
+      >
+        {{ erro }}
+        <button
+          type="button"
+          class="acessos-tentar"
+          @click="carregar"
+        >
+          Tentar novamente
+        </button>
+      </p>
+      <p
+        v-else-if="carregando && grupos.length === 0"
+        class="acessos-aviso"
+        role="status"
+      >
+        Carregando...
+      </p>
+
+      <div
+        v-else
+        class="acessos-lista"
+      >
         <div
-          v-for="grupo in gruposAcesso"
-          :key="grupo.id"
+          v-for="grupo in grupos"
+          :key="grupo.rotulo"
           role="group"
           :aria-label="grupo.rotulo"
         >
@@ -206,8 +232,58 @@ function definirGerenciar(modulo: ModuloSistema, ligado: boolean) {
   background-color: #fff;
 }
 
+.acessos-aviso {
+  margin: 0;
+  padding: 16px 0;
+  text-align: center;
+  color: var(--fp-texto-titulo-campo);
+  font-size: 15px;
+}
+
+.acessos-aviso--erro {
+  color: var(--bs-danger, #dc3545);
+}
+
+.acessos-tentar {
+  display: block;
+  margin: 8px auto 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fp-verde);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
 .acessos-nome {
   color: var(--fp-texto-titulo-campo);
   font-size: 15px;
+}
+
+/* Celular: colunas dos interruptores estreitas para o nome do módulo caber (sem colar no interruptor). */
+@media (max-width: 575px) {
+  .acessos-miolo {
+    padding: 10px;
+  }
+
+  .acessos-cabecalho,
+  .acessos-linha {
+    grid-template-columns: minmax(0, 1fr) 68px 68px;
+    padding-inline: 10px;
+  }
+
+  .acessos-cabecalho {
+    font-size: 13px;
+  }
+
+  .acessos-nome {
+    font-size: 13px;
+    padding-right: 6px;
+  }
+
+  .acessos-grupo {
+    padding-inline: 10px;
+    font-size: 14px;
+  }
 }
 </style>

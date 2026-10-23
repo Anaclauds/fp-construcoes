@@ -1,4 +1,4 @@
-import type { Caixa, MovimentacaoCaixa, SituacaoCaixa } from '../types/caixa'
+import type { Caixa, CaixaHistorico, MovimentacaoCaixa, SituacaoCaixa } from '../types/caixa'
 import { hojeIso } from './datas'
 import { semAcento } from './formatadores'
 
@@ -81,9 +81,23 @@ export function herdaSaldoAnterior(caixa: Pick<Caixa, 'competencia' | 'competenc
   return caixa.competenciaMinima !== null && caixa.competenciaMinima < competenciaDoCaixa(caixa)
 }
 
-/** Situação mostrada na tela (Figma), como o backend a informa. */
-export function situacaoDoCaixa(caixa: Pick<Caixa, 'situacao'>): SituacaoCaixa {
-  return caixa.situacao
+/** Por que uma competência não aberta pode (ou não) ser aberta agora. */
+export type SituacaoAbertura = 'liberada' | 'antes-do-primeiro' | 'no-intervalo'
+
+/**
+ * A abertura só vale depois do último caixa existente (ou como primeiro caixa, se não houver nenhum): abrir um mês
+ * entre dois caixas quebraria a continuidade dos saldos. `ultima` indefinido = ainda não consultada; nesse caso só
+ * se barra o mês anterior ao primeiro caixa e o servidor decide o resto.
+ */
+export function situacaoAbertura(
+  competencia: string,
+  primeira: string | null,
+  ultima: string | null | undefined,
+): SituacaoAbertura {
+  if (ultima === null || primeira === null) return 'liberada'
+  if (competencia < primeira) return 'antes-do-primeiro'
+  if (ultima === undefined || competencia > ultima) return 'liberada'
+  return 'no-intervalo'
 }
 
 export const ROTULO_SITUACAO_CAIXA: Record<SituacaoCaixa, string> = {
@@ -118,11 +132,31 @@ export function contextoMovimentacao(movimentacao: Pick<MovimentacaoCaixa, 'proj
   return partes.join(' · ')
 }
 
+/** Mensagens por `codigo` legível do backend (estável); o texto da API só entra quando não há código conhecido. */
+const MENSAGEM_POR_CODIGO_CAIXA: Record<string, string> = {
+  CAIXA_JA_FECHADO: 'Este caixa já está fechado. Atualize a tela.',
+  CAIXA_JA_ABERTO: 'Este caixa já está aberto. Atualize a tela.',
+}
+
+/**
+ * Códigos que indicam caixa já alterado em outra tela. `CAIXA_FECHADO` fica de fora: no fechamento significa
+ * "só pode ser fechado depois do fim do mês" e, nos lançamentos, "caixa do mês fechado".
+ */
+const CODIGOS_CAIXA_DESATUALIZADO = new Set(['CAIXA_JA_FECHADO', 'CAIXA_JA_ABERTO'])
+
+/**
+ * "O saldo inicial não pode ser alterado depois de movimentações" (abrir caixa que já tem lançamentos). O backend só
+ * tem o código gerado, que muda se o método for renomeado: por isso é último recurso, com o texto como reserva.
+ */
+const CODIGO_SALDO_INICIAL_BLOQUEADO = 'FINANCEIRO_ABRIRCAIXA_CONFLICT_02'
+
+/*
+ * Os demais erros do caixa ainda não têm código legível no backend (só os gerados, como
+ * FINANCEIRO_ABRIRCAIXA_CONFLICT_02, que mudam se o método for renomeado): último recurso, pelo texto, sem acento.
+ */
 const TRADUCOES: [RegExp, string][] = [
   [/usuario sem permissao/i, 'Você não tem permissão para esta operação.'],
-  [/caixa ja esta fechado|caixa ja foi fechado|ja foi fechado/i, 'Este caixa já está fechado. Atualize a tela.'],
   [/caixa nao encontrado/i, 'Caixa não encontrado. Atualize a tela.'],
-  [/caixa ja esta aberto/i, 'Este caixa já está aberto. Atualize a tela.'],
   [/mes futuro/i, 'Não é possível abrir o caixa de um mês futuro.'],
   [/feche o caixa anterior antes de abrir/i, 'Feche o caixa do mês anterior antes de abrir este.'],
   [
@@ -137,12 +171,30 @@ const TRADUCOES: [RegExp, string][] = [
   ],
 ]
 
-export function mensagemCaixa(mensagem: string): string {
+export function mensagemCaixa(mensagem: string, codigo = ''): string {
+  const porCodigo = MENSAGEM_POR_CODIGO_CAIXA[codigo]
+  if (porCodigo) return porCodigo
   const normalizada = semAcento(mensagem)
   return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
-/** O caixa já mudou em outra tela (já fechado/aberto, ou já com lançamentos): a tela precisa recarregar o caixa. */
-export function mensagemDeCaixaDesatualizado(mensagem: string): boolean {
-  return /caixa ja esta (fechado|aberto)|ja foi fechado|saldo inicial nao pode ser alterado/i.test(semAcento(mensagem))
+/**
+ * O caixa já mudou em outra tela (já fechado/aberto, ou já com lançamentos): a tela precisa recarregar o caixa.
+ * Fechado/aberto vêm por `codigo`; "saldo inicial não pode ser alterado" só tem código gerado (ver acima).
+ */
+export function mensagemDeCaixaDesatualizado(mensagem: string, codigo = ''): boolean {
+  return (
+    CODIGOS_CAIXA_DESATUALIZADO.has(codigo) ||
+    codigo === CODIGO_SALDO_INICIAL_BLOQUEADO ||
+    /saldo inicial nao pode ser alterado/i.test(semAcento(mensagem))
+  )
+}
+
+/**
+ * Situação de uma linha do histórico, que não traz `situacao`: fechado é fechado; aberto de mês anterior ao atual
+ * aguarda fechamento; aberto do mês atual está em andamento (mesma regra do caixa do mês).
+ */
+export function situacaoDoCaixaHistorico(caixa: Pick<CaixaHistorico, 'status' | 'competencia'>): SituacaoCaixa {
+  if (caixa.status === 'FECHADO') return 'FECHADO'
+  return competenciaDoCaixa(caixa) < competenciaAtual() ? 'PENDENTE_FECHAMENTO' : 'EM_ANDAMENTO'
 }

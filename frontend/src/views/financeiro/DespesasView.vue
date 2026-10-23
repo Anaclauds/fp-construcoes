@@ -33,7 +33,7 @@ function fecharModal() {
 
 async function aoSalvar(_despesa: Despesa, edicao: boolean) {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast(edicao ? 'Despesa atualizada!' : 'Despesa cadastrada!')
   // Despesa nova cai no topo (ordem por data): volta à primeira página para vê-la, se o filtro a incluir.
   if (!edicao && lista.pagina.value !== 1) lista.pagina.value = 1
   else await lista.carregar()
@@ -42,7 +42,7 @@ async function aoSalvar(_despesa: Despesa, edicao: boolean) {
 /** Estorno confirmado pela API: fecha o modal e recarrega a lista (os totais e a despesa estornada mudam). */
 async function aoEstornar() {
   fecharModal()
-  mostrarToast('Despesa estornada.')
+  mostrarToast('Despesa estornada!')
   await lista.carregar()
 }
 
@@ -88,11 +88,13 @@ onMounted(() => {
       v-model:busca="lista.busca.value"
       v-model:categoria="lista.categoria.value"
       v-model:tipo="lista.tipo.value"
+      v-model:fornecedor-id="lista.fornecedorId.value"
       v-model:data-inicio="lista.dataInicio.value"
       v-model:data-fim="lista.dataFim.value"
       :erro-inicio="lista.erroInicio.value"
       :erro-fim="lista.erroFim.value"
       :tem-filtros="lista.temFiltros.value"
+      :nome-fornecedor-filtrado="lista.nomeFornecedorFiltrado.value"
       @limpar="lista.limparFiltros"
     />
 

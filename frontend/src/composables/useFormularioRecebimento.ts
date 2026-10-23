@@ -19,6 +19,8 @@ export type ErrosRecebimento = Partial<Record<keyof CamposRecebimento, string>>
 const CHAVES: (keyof CamposRecebimento)[] = ['parcelaId', 'valor', 'data', 'formaPagamento', 'observacoes']
 const LIMITE_OBSERVACOES = 1000
 
+// Só CAIXA_FECHADO é um código legível e estável. Os UTILS_*/COBRANCAS_* são GERADOS pelo backend (nome da função +
+// número) e mudam se o service for reorganizado: ficam aqui como último recurso, até o backend dar códigos legíveis.
 const CODIGOS_DE_DATA = ['CAIXA_FECHADO', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_01', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_03', 'UTILS_CAIXAPARALANCAMENTO_BADREQUEST_04']
 const CODIGOS_DESATUALIZADO = ['COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_01', 'COBRANCAS_REGISTRARRECEBIMENTO_BADREQUEST_02', 'PARCELA_PAGA_OU_CANCELADA']
 
@@ -121,11 +123,11 @@ export function useFormularioRecebimento(cobranca: Cobranca) {
       const restante = typeof detalhes.restante === 'number' ? detalhes.restante : null
       erros.valor =
         restante === null
-          ? mensagemCobranca(mensagem)
+          ? mensagemCobranca(mensagem, codigo)
           : `O valor não pode passar do restante da parcela (${formatarMoeda(restante)}).`
       return
     }
-    const texto = mensagemCobranca(mensagem)
+    const texto = mensagemCobranca(mensagem, codigo)
     // Caixa do mês fechado ou ainda não aberto, ou data fora do limite: o problema é a data escolhida,
     // então o erro aparece (e recebe o foco) no campo Data.
     if (CODIGOS_DE_DATA.includes(codigo)) {

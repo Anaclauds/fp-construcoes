@@ -40,6 +40,7 @@ async function focarPrimeiroErro() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await focarPrimeiroErro()
     return
@@ -48,7 +49,7 @@ async function salvar() {
   salvando.value = true
   try {
     const cliente = await criarCliente(form.paraPayload())
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Cliente cadastrado!')
     emit('salvo', cliente)
   } catch (erro) {
     form.tratarErroApi(erro)

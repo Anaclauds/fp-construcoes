@@ -8,6 +8,19 @@ import type {
 } from '../types'
 import { hojeIso } from './datas'
 
+/** Limite do relatório na API: do início até o fim (ou hoje, o que vier antes) no máximo 3660 dias (~10 anos). */
+const DIAS_MAXIMOS_RELATORIO = 3660
+
+/** True se o período (ISO) passa do limite que a API aceita; dias futuros não contam, como no backend. */
+export function periodoExcedeLimite(dataInicial: string, dataFinal: string, hoje = hojeIso()): boolean {
+  const limite = dataFinal < hoje ? dataFinal : hoje
+  const dia = (iso: string) => {
+    const [ano, mes, d] = iso.split('-').map(Number) as [number, number, number]
+    return Date.UTC(ano, mes - 1, d)
+  }
+  return (dia(limite) - dia(dataInicial)) / 86_400_000 > DIAS_MAXIMOS_RELATORIO
+}
+
 export const STATUS_FREQUENCIA: readonly StatusFrequencia[] = [
   'PRESENTE',
   'MEIO_PERIODO',

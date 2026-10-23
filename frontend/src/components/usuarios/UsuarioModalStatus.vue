@@ -26,6 +26,7 @@ const desativando = computed(() => props.acao === 'desativar')
 const propriaConta = computed(() => desativando.value && logado.value?.sub === props.usuario.id)
 
 async function confirmar() {
+  if (processando.value) return
   processando.value = true
   erro.value = null
   try {
@@ -43,7 +44,7 @@ async function confirmar() {
 <template>
   <ModalConfirmacao
     aberto
-    :titulo="desativando ? 'Desativar Usuário' : 'Ativar Usuário'"
+    :titulo="desativando ? 'Desativar Usuário' : 'Reativar Usuário'"
     :subtitulo="usuario.funcionario.nomeCompleto"
     :variante="desativando ? 'perigo' : 'sucesso'"
     :titulo-aviso="propriaConta ? 'Esta é a sua conta' : undefined"

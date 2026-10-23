@@ -81,7 +81,7 @@ const apoioFornecedor = computed(() =>
           :opcoes="form.opcoes.value.unidade"
           :erro="form.erros.unidade"
         />
-        <!-- A API não limita a descrição (coluna TEXT): o limite de 1000 é só do front, por isso o contador fica visível. -->
+        <!-- A API aceita descrição de até 1000 caracteres (mesmo limite validado aqui); o contador aparece ao chegar nele. -->
         <CampoFormulario
           v-model="form.campos.descricao"
           class="c-descricao"

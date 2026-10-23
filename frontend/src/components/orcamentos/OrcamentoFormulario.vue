@@ -49,8 +49,10 @@ const mensagemTroca = computed(() => {
     const servico = props.form.opcoes.servicosPorId.value.get(linha.servicoId)
     return servico?.nome ?? 'Serviço'
   })
-  const lista = nomes.length === 1 ? `o serviço ${nomes[0]}` : `os serviços ${nomes.join(', ')}`
-  return `Ao mudar para ${ROTULO_TIPO_ORCAMENTO[tipoPendente.value]}, ${lista} não serão mantidos, porque pertencem a outro tipo de orçamento. Os materiais continuam.`
+  const unico = nomes.length === 1
+  const lista = unico ? `o serviço ${nomes[0]}` : `os serviços ${nomes.join(', ')}`
+  const verbo = unico ? 'não será mantido, porque pertence' : 'não serão mantidos, porque pertencem'
+  return `Ao mudar para ${ROTULO_TIPO_ORCAMENTO[tipoPendente.value]}, ${lista} ${verbo} a outro tipo de orçamento. Os materiais continuam.`
 })
 
 /** Leva o foco ao primeiro campo com erro (chamar depois de `form.validar()` falhar). */
@@ -141,6 +143,8 @@ defineExpose({ focarPrimeiroErro })
       :materiais="form.resumo.value.materiais"
       :servicos="form.resumo.value.servicos"
       :total="form.resumo.value.total"
+      :desconto="form.resumo.value.desconto"
+      :calculando="form.simulando.value"
       :acima-do-limite="form.resumo.value.acimaDoLimite"
     />
 

@@ -149,6 +149,17 @@ function aoTeclar(evento: KeyboardEvent) {
   stroke-linejoin: round;
 }
 
+/* Celular: alvo de toque maior. */
+@media (max-width: 575px) {
+  .menu-gatilho {
+    min-height: 40px;
+  }
+
+  .menu-lista {
+    min-width: min(220px, calc(100vw - 48px));
+  }
+}
+
 /* Abre para cima: o menu fica no rodapé do modal. */
 .menu-lista {
   position: absolute;

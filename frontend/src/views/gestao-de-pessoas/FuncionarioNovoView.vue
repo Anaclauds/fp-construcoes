@@ -26,6 +26,7 @@ const preenchido = computed(
 const aviso = useAvisoAlteracoes(preenchido)
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return
@@ -35,7 +36,7 @@ async function salvar() {
   try {
     await criarFuncionario(form.paraPayload())
     salvo.value = true
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Funcionário cadastrado!')
     await router.push({ name: 'funcionarios' })
   } catch (erro) {
     form.tratarErroApi(erro)

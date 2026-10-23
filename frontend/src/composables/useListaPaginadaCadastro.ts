@@ -29,10 +29,10 @@ interface Opcoes<T, F extends FiltrosBase> {
 }
 
 /**
- * Lista de cadastros do Estoque e Suprimentos (material, equipamento, fornecedor) com busca (debounce),
+ * Lista de cadastros (material, equipamento, fornecedor, serviço) com busca (debounce),
  * filtro de status e paginação do servidor. O backend aceita `status=TODOS` (ativos e inativos juntos).
  */
-export function useListaPaginadaEstoque<T, F extends FiltrosBase>({
+export function useListaPaginadaCadastro<T, F extends FiltrosBase>({
   listar,
   filtrosExtras,
   fontesExtras,

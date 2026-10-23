@@ -32,9 +32,13 @@ const linhas = computed(() =>
   })),
 )
 
+// Os totais do rodapé são sempre do período inteiro (como no PDF da API); com filtro de status a tabela mostra só
+// parte dos dias, então o rodapé diz isso para não parecer que soma as linhas exibidas.
+const escopoTotais = computed(() => (props.statusFiltro ? 'No período inteiro: ' : ''))
+
 const totais = computed(() => {
   const i = props.relatorio.indicadores
-  return `${i.presentes} presentes · ${i.meioPeriodo} meio período · ${i.faltasJustificadas} f. justif. · ${i.faltasNaoJustificadas} f. n. justif. · ${i.naoRegistrados} não registrados`
+  return `${escopoTotais.value}${i.presentes} presentes · ${i.meioPeriodo} meio período · ${i.faltasJustificadas} f. justif. · ${i.faltasNaoJustificadas} f. n. justif. · ${i.naoRegistrados} não registrados`
 })
 
 const taxa = computed(() => {
@@ -47,7 +51,7 @@ const taxa = computed(() => {
 const totalDias = computed(() => {
   const { totalDias: dias, naoRegistrados } = props.relatorio.indicadores
   const n = dias - naoRegistrados
-  return `Total: ${n} ${n === 1 ? 'dia registrado' : 'dias registrados'}`
+  return `${props.statusFiltro ? 'No período inteiro' : 'Total'}: ${n} ${n === 1 ? 'dia registrado' : 'dias registrados'}`
 })
 
 const mensagemVazia = computed(() =>

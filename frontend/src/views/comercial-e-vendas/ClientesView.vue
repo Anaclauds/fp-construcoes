@@ -42,8 +42,8 @@ const colunas: ColunaTabela[] = [
   { chave: 'nome', rotulo: 'Nome / Razão Social', largura: '24%' },
   { chave: 'documento', rotulo: 'CPF / CNPJ', largura: '17%' },
   { chave: 'celular', rotulo: 'Celular', largura: '17%' },
-  { chave: 'cidade', rotulo: 'Cidade', largura: '19%' },
-  { chave: 'acoes', rotulo: 'Ações', largura: '12%' },
+  { chave: 'cidade', rotulo: 'Cidade', largura: '17%' },
+  { chave: 'acoes', rotulo: 'Ações', largura: '14%' },
 ]
 
 const modal = shallowRef<Modal>(null)
@@ -58,13 +58,13 @@ function fecharModal() {
 
 async function aoSalvar() {
   fecharModal()
-  mostrarToast('Salvo com sucesso!')
+  mostrarToast('Cliente atualizado!')
   await carregar()
 }
 
 async function aoAlterarStatus(acao: 'desativar' | 'reativar') {
   fecharModal()
-  mostrarToast(acao === 'desativar' ? 'Desativado com sucesso!' : 'Ativado com sucesso!')
+  mostrarToast(acao === 'desativar' ? 'Cliente desativado!' : 'Cliente reativado!')
   await carregar()
 }
 

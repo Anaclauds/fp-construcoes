@@ -1,8 +1,10 @@
 import type { OpcaoCampo } from '../components/ui/CampoFormulario.vue'
 import type { OpcaoSelecao } from '../types/categoria'
+import type { ErroApi } from '../services/api'
+import { interpretarPorCodigo, type ErroInterpretado } from './erros-cadastro'
 import { mascararMoeda, normalizarTexto } from './formatadores'
 
-/** Limites do cadastro (colunas da API). A descrição é TEXT no banco: o limite do front evita textos absurdos. */
+/** Limites do DTO de material no backend (nome 180, categoria 100, unidade 50, descrição 1000). */
 export const LIMITE_NOME_MATERIAL = 180
 export const LIMITE_CATEGORIA_MATERIAL = 100
 export const LIMITE_UNIDADE_MATERIAL = 50
@@ -110,15 +112,31 @@ export function simboloUnidade(unidade: string): string {
 /** Digitação em centavos até 12 dígitos ("1850" -> "R$ 18,50"), como o DECIMAL(12,2) da API. */
 export const mascararValorMaterial = (valor: string) => mascararMoeda(valor, 12)
 
-/** Mensagens da API (sem acento) -> frases para o usuário. A comparação ignora acentos e caixa. */
-const MENSAGENS: [RegExp, string][] = [
-  [/material nao encontrado/, 'Material não encontrado. Atualize a lista.'],
-  [/material ativo nao encontrado/, 'Material não encontrado ou inativo. Atualize a lista.'],
-  [/fornecedor preferencial nao encontrado/, 'O fornecedor escolhido não está mais ativo. Escolha outro ou deixe em branco.'],
-  [/reserva ativa nao pode ser desativado/, 'Este material tem reserva ativa em projeto e não pode ser desativado agora.'],
-]
+/** Campo do formulário de material ao qual um erro de negócio se refere. */
+export type CampoErroMaterial = 'nome' | 'fornecedor'
 
-export function mensagemMaterial(mensagem: string): string {
-  const k = chave(mensagem)
-  return MENSAGENS.find(([padrao]) => padrao.test(k))?.[1] ?? mensagem
+/**
+ * Erros de negócio de materiais, decididos pelo `codigo` (as mensagens da API vêm sem acento e podem mudar).
+ * Os terminados em `_01` são gerados pelo nome do método no backend (`materiais.service.ts`); não há código
+ * legível para eles, então ficam listados aqui, num só lugar, e precisam acompanhar o backend.
+ */
+const ERROS_MATERIAL: Record<string, ErroInterpretado<CampoErroMaterial>> = {
+  MATERIAIS_FINDONE_NOTFOUND_01: { mensagem: 'Material não encontrado. Atualize a lista.' },
+  ESTOQUE_FINDONE_NOTFOUND_01: { mensagem: 'Material não encontrado. Atualize a lista.' },
+  MATERIAL_INATIVO: { mensagem: 'Material não encontrado ou inativo. Atualize a lista.' },
+  MATERIAIS_VALIDARNOME_CONFLICT_01: { campo: 'nome', mensagem: 'Já existe um material ativo com este nome.' },
+  MATERIAIS_ENSUREFORNECEDORATIVO_NOTFOUND_01: {
+    campo: 'fornecedor',
+    mensagem: 'O fornecedor escolhido não está mais ativo. Escolha outro ou deixe em branco.',
+  },
+  MATERIAIS_UPDATESTATUS_CONFLICT_01: {
+    mensagem: 'Este material tem reserva ativa em projeto e não pode ser desativado agora.',
+  },
 }
+
+/** Frase e campo de um erro da API de material; código desconhecido mantém a mensagem do servidor. */
+export const interpretarErroMaterial = (erro: ErroApi): ErroInterpretado<CampoErroMaterial> =>
+  interpretarPorCodigo(ERROS_MATERIAL, erro)
+
+/** Mensagem para o usuário (modais de ativar/desativar, que não têm campos). */
+export const mensagemMaterial = (erro: ErroApi): string => interpretarErroMaterial(erro).mensagem

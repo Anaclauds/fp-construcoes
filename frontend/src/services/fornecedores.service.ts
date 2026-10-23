@@ -1,4 +1,5 @@
 import { api } from './api'
+import { criarCacheSessao } from './cache-sessao'
 import type {
   FiltrosFornecedores,
   Fornecedor,
@@ -13,32 +14,37 @@ export async function listarFornecedores(filtros: FiltrosFornecedores = {}): Pro
   return data
 }
 
-export async function listarFornecedoresAtivos(): Promise<OpcaoFornecedor[]> {
+// Fornecedores ativos dos campos "Fornecedor" (material, equipamento, despesa): cache de sessão, limpo por qualquer gravação aqui.
+const cacheFornecedoresAtivos = criarCacheSessao(async () => {
   const { data } = await api.get<OpcaoFornecedor[]>('/fornecedores/opcoes/ativos')
   return data
-}
+})
 
-export async function buscarFornecedor(id: number): Promise<Fornecedor> {
-  const { data } = await api.get<Fornecedor>(`/fornecedores/${id}`)
-  return data
-}
+export const listarFornecedoresAtivos = () => cacheFornecedoresAtivos.obter()
+
+/** Para quem precisa da lista atualizada na hora (ex.: botão de tentar de novo). */
+export const invalidarFornecedoresAtivos = () => cacheFornecedoresAtivos.invalidar()
 
 export async function criarFornecedor(payload: FornecedorPayload): Promise<Fornecedor> {
   const { data } = await api.post<Fornecedor>('/fornecedores', payload)
+  invalidarFornecedoresAtivos()
   return data
 }
 
 export async function atualizarFornecedor(id: number, payload: FornecedorAtualizacao): Promise<Fornecedor> {
   const { data } = await api.patch<Fornecedor>(`/fornecedores/${id}`, payload)
+  invalidarFornecedoresAtivos()
   return data
 }
 
 export async function desativarFornecedor(id: number): Promise<Fornecedor> {
   const { data } = await api.patch<Fornecedor>(`/fornecedores/${id}/desativar`)
+  invalidarFornecedoresAtivos()
   return data
 }
 
 export async function reativarFornecedor(id: number): Promise<Fornecedor> {
   const { data } = await api.patch<Fornecedor>(`/fornecedores/${id}/reativar`)
+  invalidarFornecedoresAtivos()
   return data
 }

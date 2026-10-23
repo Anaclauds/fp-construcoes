@@ -31,10 +31,10 @@ export function useProjetoCobrancas(projetoId: Ref<number>) {
       if (requisicao === ultimaRequisicao) projeto.value = dados
     } catch (e) {
       if (requisicao !== ultimaRequisicao) return
-      const { mensagem, status } = extrairErro(e)
+      const { mensagem, status, codigo } = extrairErro(e)
       projeto.value = null
       if (status === 404) naoEncontrado.value = true
-      else erro.value = mensagemCobranca(mensagem)
+      else erro.value = mensagemCobranca(mensagem, codigo)
     } finally {
       if (requisicao === ultimaRequisicao) carregando.value = false
     }

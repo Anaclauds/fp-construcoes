@@ -221,35 +221,38 @@ const itensMenu = computed<ItemMenuAcao[]>(() =>
       </div>
     </template>
     <template #rodape>
-      <BotaoFp
-        variante="secundario"
-        @click="emit('baixar-pdf')"
-      >
-        <template #icone>
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            aria-hidden="true"
-            class="icone-lapis"
-          >
-            <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5M4.5 19.5h15" />
-          </svg>
-        </template>
-        Baixar PDF
-      </BotaoFp>
-      <BotaoFp
-        v-if="podeGerenciar && aprovavel"
-        @click="emit('aprovar')"
-      >
-        Aprovar
-      </BotaoFp>
-      <BotaoFp
-        variante="secundario"
-        @click="emit('fechar')"
-      >
-        Fechar
-      </BotaoFp>
+      <div class="rodape-acoes">
+        <BotaoFp
+          variante="secundario"
+          @click="emit('baixar-pdf')"
+        >
+          <template #icone>
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              aria-hidden="true"
+              class="icone-lapis"
+            >
+              <path d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5M4.5 19.5h15" />
+            </svg>
+          </template>
+          Baixar PDF
+        </BotaoFp>
+        <BotaoFp
+          v-if="podeGerenciar && aprovavel"
+          class="rodape-principal"
+          @click="emit('aprovar')"
+        >
+          Aprovar
+        </BotaoFp>
+        <BotaoFp
+          variante="secundario"
+          @click="emit('fechar')"
+        >
+          Fechar
+        </BotaoFp>
+      </div>
     </template>
   </ModalBase>
 </template>
@@ -348,12 +351,40 @@ const itensMenu = computed<ItemMenuAcao[]>(() =>
   gap: 14px;
 }
 
+.rodape-acoes {
+  display: contents;
+}
+
 .icone-lapis {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Celular: ação principal em largura total; Baixar PDF e Fechar lado a lado; Editar e Mais ações numa linha só. */
+@media (max-width: 575px) {
+  .rodape-esquerda {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rodape-esquerda:empty {
+    display: none;
+  }
+
+  .rodape-acoes {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .rodape-principal {
+    grid-column: 1 / -1;
+    order: -1;
+  }
 }
 
 @media (max-width: 600px) {

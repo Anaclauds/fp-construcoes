@@ -4,7 +4,7 @@ import maisIcon from '../../assets/icons/icone-mais.svg'
 import { useAuth } from '../../composables/useAuth'
 import type { FormularioOrcamento } from '../../composables/useFormularioOrcamento'
 import { useBuscaClienteAtivo, type ClienteBusca } from '../../composables/useBuscaClienteAtivo'
-import { formatarCpfCnpj, formatarTelefone } from '../../utils/formatadores'
+import { formatarTelefone } from '../../utils/formatadores'
 import ClienteModalCadastroRapido from '../clientes/ClienteModalCadastroRapido.vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
@@ -26,7 +26,7 @@ const opcoes = computed<OpcaoAutocomplete[]>(() =>
   busca.clientes.value.map((cliente) => ({
     valor: String(cliente.id),
     rotulo: cliente.nome,
-    detalhe: [`${cliente.cidade}/${cliente.estado}`, formatarCpfCnpj(cliente.cpfCnpj ?? '') || (cliente.telefone ? formatarTelefone(cliente.telefone) : '')]
+    detalhe: [`${cliente.cidade}/${cliente.estado}`, cliente.telefone ? formatarTelefone(cliente.telefone) : '']
       .filter(Boolean)
       .join(' · '),
   })),

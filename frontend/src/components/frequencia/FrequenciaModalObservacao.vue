@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, useId } from 'vue'
 import BotaoFp from '../ui/BotaoFp.vue'
 import CampoFormulario from '../ui/CampoFormulario.vue'
 import ModalBase from '../ui/ModalBase.vue'
+import ModalDescartar from '../ui/ModalDescartar.vue'
 import FrequenciaResumoRegistro from './FrequenciaResumoRegistro.vue'
 import { extrairMensagemErro } from '../../services/api'
 import { atualizarObservacao } from '../../services/frequencias.service'
@@ -27,15 +28,27 @@ const emit = defineEmits<{
   salvo: [observacao: string]
 }>()
 
+const idFormulario = useId()
 const observacao = shallowRef(props.linha.observacao)
 const erro = shallowRef<string | undefined>()
 const erroApi = shallowRef<string | null>(null)
 const salvando = shallowRef(false)
+const confirmandoSaida = shallowRef(false)
+
+// Texto diferente do que a linha já tinha (espaços nas pontas não contam).
+const alterado = computed(() => observacao.value.trim() !== props.linha.observacao.trim())
+
+/** X, Esc, clique fora e Cancelar: com texto alterado pergunta antes de descartar. */
+function pedirFechar() {
+  if (alterado.value) confirmandoSaida.value = true
+  else emit('fechar')
+}
 
 const subtitulo = computed(() => `${isoParaDataBr(props.data)} · ${diaDaSemana(props.data)}`)
 const obrigatoria = computed(() => exigeObservacao(props.linha.status))
 
 async function salvar() {
+  if (salvando.value) return
   const texto = observacao.value.trim()
   erro.value = undefined
   erroApi.value = null
@@ -71,10 +84,10 @@ async function salvar() {
     icone="lapis"
     largura="520px"
     :bloqueado="salvando"
-    @fechar="emit('fechar')"
+    @fechar="pedirFechar"
   >
     <form
-      id="form-observacao"
+      :id="idFormulario"
       novalidate
       @submit.prevent="salvar"
     >
@@ -103,19 +116,27 @@ async function salvar() {
       <BotaoFp
         variante="secundario"
         :desabilitado="salvando"
-        @click="emit('fechar')"
+        @click="pedirFechar"
       >
         Cancelar
       </BotaoFp>
       <BotaoFp
         type="submit"
-        form="form-observacao"
+        :form="idFormulario"
         :carregando="salvando"
       >
         Salvar
       </BotaoFp>
     </template>
   </ModalBase>
+
+  <ModalDescartar
+    :aberto="confirmandoSaida"
+    titulo="Descartar alterações?"
+    mensagem="A observação digitada será perdida."
+    @confirmar="emit('fechar')"
+    @fechar="confirmandoSaida = false"
+  />
 </template>
 
 <style scoped>
