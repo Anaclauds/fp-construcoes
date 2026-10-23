@@ -1,8 +1,10 @@
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
+import { token } from '../services/sessao'
 import { criarCategoriaDespesa, listarCategoriasDespesas } from '../services/categorias.service'
 import type { Categoria } from '../types/categoria'
 import { CATEGORIA_COMPRA_MATERIAL, CATEGORIA_EXTRA_PROJETO } from '../types/despesa'
+import { normalizarTexto } from '../utils/formatadores'
 import { rotuloCategoriaPorCodigo } from '../utils/despesas'
 import { useAuth } from './useAuth'
 
@@ -12,6 +14,14 @@ const categorias = shallowRef<Categoria[]>([])
 const carregando = shallowRef(false)
 const erro = shallowRef<string | null>(null)
 let ultimaRequisicao = 0
+
+// Troca ou fim de sessão: descarta o catálogo (e respostas em voo) para não mostrar dados de outro usuário.
+watch(token, () => {
+  ultimaRequisicao++
+  categorias.value = []
+  carregando.value = false
+  erro.value = null
+})
 
 async function carregarCatalogo() {
   const requisicao = ++ultimaRequisicao
@@ -53,6 +63,10 @@ export function useCategoriasDespesa() {
   }
 
   async function cadastrar(nome: string): Promise<ResultadoNovaCategoria> {
+    // Inclui as categorias fixas (Compra de materiais, Extra de projeto): o backend não as reconhece como repetidas.
+    if (categorias.value.some((c) => normalizarTexto(c.rotulo) === normalizarTexto(nome))) {
+      return { erro: 'Já existe uma categoria com esse nome. Escolha-a na lista.', duplicada: true }
+    }
     try {
       const categoria = await criarCategoriaDespesa({ nome })
       await carregarCatalogo()

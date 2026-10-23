@@ -36,6 +36,7 @@ const saldoNegativo = computed(() => Number(props.resumo.saldoAtual) < 0)
         v-if="podeAlterarInicial"
         type="button"
         class="resumo-link"
+        :aria-label="Number(resumo.valorInicial) === 0 ? undefined : 'Alterar valor inicial'"
         @click="$emit('alterar-inicial')"
       >
         {{ Number(resumo.valorInicial) === 0 ? 'Definir valor inicial' : 'Alterar' }}
@@ -62,7 +63,7 @@ const saldoNegativo = computed(() => Number(props.resumo.saldoAtual) < 0)
       </dd>
     </div>
     <div class="resumo-item">
-      <dt>{{ fechado ? 'Saldo final' : 'Saldo Atual' }}</dt>
+      <dt>{{ fechado ? 'Saldo final' : 'Saldo atual' }}</dt>
       <dd
         class="valor-saldo"
         :class="{ 'valor-saida': saldoNegativo, 'valor-longo': longo(resumo.saldoAtual) }"
@@ -162,6 +163,12 @@ dd {
 
   .resumo-item:nth-child(n + 3) {
     border-top: 1px solid var(--fp-cinza-borda);
+  }
+}
+
+@media (max-width: 480px) {
+  .resumo-item {
+    padding: 12px 14px;
   }
 }
 </style>

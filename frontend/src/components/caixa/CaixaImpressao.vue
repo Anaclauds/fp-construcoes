@@ -9,7 +9,6 @@ import {
   contextoMovimentacao,
   rotuloCategoriaCaixa,
   rotuloCompetencia,
-  situacaoDoCaixa,
 } from '../../utils/caixa'
 import { formatarDataHora } from '../../utils/datas'
 import { formatarDataHoraIso, formatarMoeda, isoParaDataBr } from '../../utils/formatadores'
@@ -37,7 +36,7 @@ const rotulo = rotuloCompetencia(competencia)
 
 const dadosCabecalho = [
   { rotulo: 'Competência', valor: rotulo },
-  { rotulo: 'Situação', valor: ROTULO_SITUACAO_CAIXA[situacaoDoCaixa(props.caixa)] },
+  { rotulo: 'Situação', valor: ROTULO_SITUACAO_CAIXA[props.caixa.situacao] },
   { rotulo: 'Emitido em', valor: emitidoEm },
 ]
 

@@ -78,8 +78,26 @@ export interface RecebimentoRelatorio {
 }
 
 export interface RelatorioRecebimentos {
-  indicadores: { totalRecebido: string; quantidadeRecebimentos: number; ticketMedio: string }
+  indicadores: { totalRecebido: string; quantidadeRecebimentos: number; ticketMedio: string | number }
   resumoPorFormaPagamento: { formaPagamento: string; quantidade: number; valor: string }[]
   data: RecebimentoRelatorio[]
   meta: { total: number; page: number; limit: number; totalPages: number }
+}
+
+/** Linha do histórico (`GET /financeiro/caixas`): caixas existentes, sem movimentações. Não traz `situacao`. */
+export interface CaixaHistorico {
+  id: number
+  /** Dia 1 do mês, em ISO ("2026-09-01T00:00:00.000Z"). */
+  competencia: string
+  status: StatusCaixa
+  valorInicial: string
+  abertoEm: string | null
+  fechadoEm: string | null
+  resumo: ResumoCaixa
+}
+
+export interface FiltrosHistoricoCaixas {
+  status?: StatusCaixa
+  page?: number
+  limit?: number
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useAuth } from '../../composables/useAuth'
 import type { Despesa } from '../../types/despesa'
 import { formatarMoeda, formatarCnpj, formatarDataHoraIso, isoParaDataBr } from '../../utils/formatadores'
 import { formatarQuantidade } from '../../utils/estoque'
@@ -31,7 +33,9 @@ const mostrarEstorno = computed(() => props.podeGerenciar && podeEstornarDespesa
 /** Caixa fechado: nem edição nem estorno enquanto o caixa do mês não for reaberto. */
 const caixaFechado = computed(() => !estornada.value && caixaDaDespesaFechado(props.despesa))
 
+const { temPermissao } = useAuth()
 const projetoExtra = computed(() => projetoDoExtra(props.despesa))
+const podeVerProjetos = computed(() => temPermissao('PROJETOS', 'visualizar'))
 const registradoPor = computed(
   () => props.despesa.registradoPorUsuario?.funcionario?.nomeCompleto ?? props.despesa.registradoPorUsuario?.login ?? '',
 )
@@ -66,8 +70,15 @@ const competencia = computed(() => {
       v-else-if="projetoExtra !== null"
       class="aviso"
     >
-      Despesa gerada pelo extra do projeto {{ projetoExtra }}. O valor e a data acompanham o projeto (só a descrição
-      pode ser editada) e o estorno é feito cancelando o extra no projeto.
+      Despesa gerada por um extra de projeto. O valor e a data acompanham o projeto (só a descrição pode ser editada) e
+      o estorno é feito cancelando o extra no projeto.
+      <RouterLink
+        v-if="podeVerProjetos"
+        :to="{ name: 'projetos' }"
+        class="aviso-link"
+      >
+        Abrir Projetos
+      </RouterLink>
     </p>
     <p
       v-if="caixaFechado"
@@ -210,6 +221,13 @@ const competencia = computed(() => {
   background-color: #fffbeb;
   color: #b45309;
   font-size: 13px;
+}
+
+.aviso-link {
+  margin-left: 4px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .aviso--estorno {

@@ -4,7 +4,7 @@ import type { FormularioDespesa } from '../../composables/useFormularioDespesa'
 import type { OpcoesCompraDespesa } from '../../composables/useOpcoesCompraDespesa'
 import { useCategoriasDespesa } from '../../composables/useCategoriasDespesa'
 import type { Despesa } from '../../types/despesa'
-import { ANO_MINIMO_DESPESA, LIMITE_DESCRICAO_DESPESA, nomeFornecedor, projetoDoExtra } from '../../utils/despesas'
+import { ANO_MINIMO_DESPESA, LIMITE_DESCRICAO_DESPESA, nomeFornecedor } from '../../utils/despesas'
 import { mascararMoeda } from '../../utils/formatadores'
 import { focarPrimeiroErro as focarPrimeiroErroEm } from '../../utils/foco'
 import CampoAutocomplete, { type OpcaoAutocomplete } from '../ui/CampoAutocomplete.vue'
@@ -24,7 +24,6 @@ const props = defineProps<{
 const raiz = useTemplateRef<HTMLElement>('raiz')
 
 const edicao = computed(() => props.despesa !== undefined)
-const projetoExtra = computed(() => (props.despesa ? projetoDoExtra(props.despesa) : null))
 const somenteDescricao = computed(() => props.form.somenteDescricao)
 
 const catalogo = useCategoriasDespesa()
@@ -117,8 +116,7 @@ defineExpose({ focarPrimeiroErro })
         v-if="somenteDescricao"
         class="aviso-extra"
       >
-        Despesa gerada pelo extra do projeto {{ projetoExtra }}: valor, data e categoria vêm do extra e ficam
-        bloqueados. Só a descrição pode ser alterada aqui.
+        Despesa gerada por um extra de projeto: valor, data e categoria vêm do extra e ficam bloqueados. Só a descrição pode ser alterada aqui.
       </p>
 
       <div class="grade">

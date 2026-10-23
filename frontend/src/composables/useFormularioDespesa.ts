@@ -376,10 +376,10 @@ export function useFormularioDespesa(inicial?: Despesa, saldoAtual?: (materialId
   /** Erros da API: sem campo único, tudo vira mensagem geral (com travas para o que não se resolve no formulário). */
   function tratarErroApi(erro: unknown) {
     const detalhado = extrairErro(erro)
-    caixaFechado.value = mensagemDeCaixaFechado(detalhado.mensagem, detalhado.codigo)
+    caixaFechado.value = mensagemDeCaixaFechado(detalhado.codigo)
     erroGeral.value = CODIGOS_ESTOQUE.includes(detalhado.codigo)
       ? mensagemErroEstoque(detalhado)
-      : mensagemDespesa(detalhado.mensagem)
+      : mensagemDespesa(detalhado.mensagem, detalhado.codigo)
   }
 
   return {

@@ -15,11 +15,6 @@ export async function listarDespesas(filtros: FiltrosDespesas = {}): Promise<Res
   return data
 }
 
-export async function buscarDespesa(id: number): Promise<Despesa> {
-  const { data } = await api.get<Despesa>(`/despesas/${id}`)
-  return data
-}
-
 export async function criarDespesa(payload: DespesaPayload): Promise<Despesa> {
   const { data } = await api.post<Despesa>('/despesas', payload)
   return data

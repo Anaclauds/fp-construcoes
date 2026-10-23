@@ -74,14 +74,14 @@ async function salvar() {
         v-if="herdado"
         class="explicacao"
       >
-        O valor inicial de {{ nomeDoMes(competencia) }} <strong>é o saldo final do mês anterior</strong>, calculado pelo
-        sistema: não é preciso informar nem pode ser alterado. O caixa do mês anterior precisa estar fechado para
-        abrir este.
+        O valor inicial de {{ nomeDoMes(competencia) }} <strong>é o saldo final do último caixa</strong>, calculado pelo
+        sistema: não é preciso informar nem pode ser alterado. O último caixa precisa estar fechado para abrir
+        este.
       </p>
       <template v-else>
         <p class="explicacao">
           Este é o primeiro caixa do sistema: informe com quanto o caixa de {{ nomeDoMes(competencia) }} começou. Os
-          próximos meses herdam o saldo final do mês anterior. O valor pode ser alterado enquanto o caixa estiver
+          próximos meses herdam o saldo final do último caixa. O valor pode ser alterado enquanto o caixa estiver
           aberto e sem lançamentos.
         </p>
 
