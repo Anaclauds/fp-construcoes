@@ -40,7 +40,11 @@ export interface ErrosAlterarSenha {
 export function validarAlterarSenha(senhaAtual: string, novaSenha: string, confirmarNovaSenha: string): ErrosAlterarSenha {
   const erros: ErrosAlterarSenha = {}
 
+  // A API exige no mínimo 6 caracteres também na senha atual (DTO); antes disso nem vale a chamada.
   if (senhaAtual === '') erros.senhaAtual = 'Informe a senha atual.'
+  else if (senhaAtual.length < TAMANHO_MINIMO_SENHA) {
+    erros.senhaAtual = `A senha atual deve ter no mínimo ${TAMANHO_MINIMO_SENHA} caracteres.`
+  }
 
   if (novaSenha === '') {
     erros.novaSenha = 'Informe a nova senha.'

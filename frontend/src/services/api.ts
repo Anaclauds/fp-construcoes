@@ -1,9 +1,16 @@
 import axios, { isAxiosError } from 'axios'
 import { useToast } from '../composables/useToast'
+import { MENSAGEM_POR_CODIGO } from '../utils/mensagens-erro'
 import { limparSessao, marcarSessaoExpirada, token } from './sessao'
 
 // Sem .env, usa a API local padrão do backend (npm run start:dev).
 const urlApi = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+
+/**
+ * Código do 401 de PATCH /auth/password quando a senha atual não confere. O backend ainda não tem código legível
+ * para este erro (é o gerado `AUTH_CHANGEPASSWORD_UNAUTHORIZED_01`): último recurso, trocar quando houver um estável.
+ */
+export const CODIGO_SENHA_ATUAL_INCORRETA = 'AUTH_CHANGEPASSWORD_UNAUTHORIZED_01'
 
 export const api = axios.create({
   baseURL: urlApi,
@@ -21,9 +28,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (resposta) => resposta,
   async (erro: unknown) => {
-    // Nestas rotas o 401 é erro do formulário (credencial errada), não sessão expirada.
+    // 401 do login é credencial errada; 401 de /auth/password só é erro do formulário quando é a senha atual
+    // incorreta. Qualquer outro 401 (token vencido, usuário desativado) segue o fluxo de sessão expirada.
     const ehErroDeCredencial =
-      isAxiosError(erro) && ['/auth/login', '/auth/password'].some((rota) => erro.config?.url?.includes(rota))
+      isAxiosError<CorpoErro>(erro) &&
+      (erro.config?.url?.includes('/auth/login') === true ||
+        (erro.config?.url?.includes('/auth/password') === true &&
+          erro.response?.data?.codigo === CODIGO_SENHA_ATUAL_INCORRETA))
 
     if (isAxiosError(erro) && erro.response?.status === 401 && !ehErroDeCredencial) {
       // Várias chamadas em andamento podem falhar juntas: só a primeira avisa e redireciona.
@@ -132,7 +143,8 @@ export function extrairErro(erro: unknown): ErroApi {
           ? MENSAGEM_SEM_PERMISSAO
           : status >= 500
             ? MENSAGEM_SERVIDOR
-            : traduzirMensagem(corpo.message, padrao)
+            : (typeof corpo.codigo === 'string' ? MENSAGEM_POR_CODIGO[corpo.codigo] : undefined) ??
+              traduzirMensagem(corpo.message, padrao)
     const detalhes =
       corpo.detalhes && typeof corpo.detalhes === 'object' && !Array.isArray(corpo.detalhes) ? corpo.detalhes : {}
     const materiais = Array.isArray(corpo.materiais)

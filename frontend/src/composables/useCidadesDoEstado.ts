@@ -12,7 +12,15 @@ import { UFS } from '../utils/opcoes-funcionario'
  *   opção extra para o dado não se perder.
  * - Se o IBGE falhar, `indisponivel` fica verdadeiro e a tela deve oferecer campo de texto livre.
  */
-export function useCidadesDoEstado(estado: Ref<string>, cidade: Ref<string>) {
+export function useCidadesDoEstado(
+  estado: Ref<string>,
+  cidade: Ref<string>,
+  /**
+   * Chamado quando a cidade foi trocada pelo nome oficial da lista. Quem tem um valor "original" para comparar (formulário de
+   * edição) o atualiza aqui: o ajuste automático ao abrir não conta como alteração do usuário nem vai no PATCH.
+   */
+  aoNormalizar?: (anterior: string, oficial: string) => void,
+) {
   const nomes = shallowRef<string[]>([])
   const carregando = shallowRef(false)
   const indisponivel = shallowRef(false)
@@ -49,7 +57,9 @@ export function useCidadesDoEstado(estado: Ref<string>, cidade: Ref<string>) {
     if (!atual || nomes.value.length === 0 || nomes.value.includes(atual)) return
     const alvo = normalizarTexto(atual)
     const oficial = nomes.value.find((nome) => normalizarTexto(nome) === alvo)
-    if (oficial) cidade.value = oficial
+    if (!oficial) return
+    cidade.value = oficial
+    aoNormalizar?.(atual, oficial)
   })
 
   const opcoes = computed<OpcaoCampo[]>(() => {

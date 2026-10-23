@@ -1,6 +1,6 @@
-import { computed, shallowRef } from 'vue'
+import { computed } from 'vue'
 import { buscarMeusDados, buscarUsuarioLogado, entrar } from '../services/auth.service'
-import { limparSessao, salvarSessao, salvarUsuario, token, usuario } from '../services/sessao'
+import { funcao, funcaoDoFuncionarioId, limparSessao, salvarSessao, salvarUsuario, token, usuario } from '../services/sessao'
 import type { AcaoPermissao, ModuloSistema } from '../types'
 
 // Estado em escopo de módulo: todas as chamadas de useAuth() compartilham a mesma sessão.
@@ -14,15 +14,13 @@ const iniciais = computed(() => {
   return (primeira + ultima).toUpperCase()
 })
 
-// Função (cargo) do funcionário logado, vinda de /auth/profile; null enquanto não carregou ou se falhar.
-const funcao = shallowRef<string | null>(null)
-let funcaoDoFuncionarioId: number | null = null
+// A função (cargo) do logado vem de /auth/profile e vive em sessao.ts, limpa junto com a sessão.
 let carregandoFuncao = false
 
 /** Carrega a função uma vez por usuário logado; falhas são ignoradas (a tela usa o texto padrão). */
 async function carregarFuncao() {
   const id = usuario.value?.funcionarioId ?? null
-  if (id === null || id === funcaoDoFuncionarioId || carregandoFuncao) return
+  if (id === null || id === funcaoDoFuncionarioId.value || carregandoFuncao) return
 
   carregandoFuncao = true
   try {
@@ -30,7 +28,7 @@ async function carregarFuncao() {
     // Se a sessão trocou durante a chamada, descarta a resposta.
     if (usuario.value?.funcionarioId === id) {
       funcao.value = dados.funcao || null
-      funcaoDoFuncionarioId = id
+      funcaoDoFuncionarioId.value = id
     }
   } catch {
     // Sem a função o menu mostra "Usuário"; nova tentativa na próxima montagem do menu.
@@ -45,8 +43,6 @@ async function login(cpf: string, senha: string) {
 }
 
 function logout() {
-  funcao.value = null
-  funcaoDoFuncionarioId = null
   limparSessao()
 }
 

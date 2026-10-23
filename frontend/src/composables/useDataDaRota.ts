@@ -4,16 +4,20 @@ import { hojeIso, isoValido } from '../utils/datas'
 
 /**
  * Data da tela guardada em `?data=YYYY-MM-DD` (link compartilhável, F5 mantém o dia).
- * Sem query ou com valor inválido vale hoje no relógio local. Atribuir à `data` navega (replace),
+ * Sem query ou com valor inválido vale hoje no fuso do negócio (`hojeIso`, America/Porto_Velho), não o relógio do navegador.
+ * Com `limitarAHoje`, data futura na URL também vira hoje (a API não bloqueia frequência futura, então a tela é quem limita). Atribuir à `data` navega (replace),
  * então guardas de rota (alterações não salvas) também veem a troca de dia.
  */
-export function useDataDaRota(nomeRota: string) {
+export function useDataDaRota(nomeRota: string, opcoes: { limitarAHoje?: boolean } = {}) {
   const route = useRoute()
   const router = useRouter()
 
   const lerQuery = () => {
     const valor = route.query.data
-    return typeof valor === 'string' && isoValido(valor) ? valor.slice(0, 10) : hojeIso()
+    if (typeof valor !== 'string' || !isoValido(valor)) return hojeIso()
+    const dia = valor.slice(0, 10)
+    // Datas ISO (YYYY-MM-DD) comparam certo como texto.
+    return opcoes.limitarAHoje && dia > hojeIso() ? hojeIso() : dia
   }
 
   const data = shallowRef(lerQuery())

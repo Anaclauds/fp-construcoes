@@ -13,6 +13,13 @@ export interface CampoUrl {
   padrao: string
   /** Rejeita valores inválidos da URL (voltam ao padrão). */
   valido?: (valor: string) => boolean
+  /** Valor que funciona na lista mas não deve ir para a URL/histórico (ex.: CPF digitado na busca). */
+  naoGravarSe?: (valor: string) => boolean
+}
+
+/** Texto que parece CPF/CNPJ (só dígitos, ponto, traço, barra e espaços, com 6+ dígitos): dado pessoal, fora da URL. */
+export function pareceDocumento(valor: string): boolean {
+  return /^[\d.\-/\s]+$/.test(valor) && (valor.match(/\d/g)?.length ?? 0) >= 6
 }
 
 const primeiro = (valor: LocationQueryValue | LocationQueryValue[] | undefined) =>
@@ -40,7 +47,7 @@ export function useFiltrosNaUrl(nomeRota: string, campos: CampoUrl[], pagina: Sh
     const novos: Record<string, string> = {}
     campos.forEach((campo, i) => {
       const valor = valores[i] ?? ''
-      if (valor.trim() !== '' && valor !== campo.padrao) novos[campo.param] = valor.trim()
+      if (valor.trim() !== '' && valor !== campo.padrao && !campo.naoGravarSe?.(valor.trim())) novos[campo.param] = valor.trim()
     })
     if (numeroPagina > 1) novos.pagina = String(numeroPagina)
     return novos
@@ -59,6 +66,8 @@ export function useFiltrosNaUrl(nomeRota: string, campos: CampoUrl[], pagina: Sh
     const alvo = lerQuery(query)
     const agora = atuais()
     campos.forEach((campo, i) => {
+      // Valor que de propósito não vai para a URL: a URL sem ele não significa "limpar".
+      if (alvo.valores[i] === campo.padrao && campo.naoGravarSe?.(agora[i] ?? '')) return
       if (alvo.valores[i] !== agora[i]) campo.definir(alvo.valores[i] ?? campo.padrao)
     })
     if (alvo.pagina !== pagina.value) pagina.value = alvo.pagina
