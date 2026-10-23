@@ -88,9 +88,6 @@ export function normalizarDecimal(valor: string, casas: number, inteiros = 9): s
   return `${parteInteira === '' ? '0' : parteInteira},${parteFracao}`
 }
 
-/** Mesmo que `filtrarDecimal` (nome antigo, usado como `:mascara`). */
-export const mascararDecimal = filtrarDecimal
-
 /**
  * "2,5" -> 2500 (escala 3); "1.000" -> 1000000 (mil), "12.5" -> 12500. Vazio, inválido (letras, sinal)
  * ou com casas a mais devolve null.

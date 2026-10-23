@@ -1,65 +1,76 @@
 <script setup lang="ts">
-import { useToast } from '../../composables/useToast'
+import { computed } from 'vue'
+import { useToast, type Toast } from '../../composables/useToast'
 
-const { toasts, fecharToast } = useToast()
+const { toasts, fecharToast, pausarToast, retomarToast } = useToast()
+
+// Duas regiões vivas: erro é anunciado na hora (assertive); o resto espera o leitor de tela terminar a fala (polite).
+const erros = computed(() => toasts.value.filter((t) => t.tipo === 'erro'))
+const avisos = computed(() => toasts.value.filter((t) => t.tipo !== 'erro'))
+
+const regioes = computed(() => [
+  { chave: 'avisos', role: 'status', vivo: 'polite', itens: avisos.value },
+  { chave: 'erros', role: 'alert', vivo: 'assertive', itens: erros.value },
+] as const)
+
+const caminhoIcone = (tipo: Toast['tipo']) =>
+  tipo === 'sucesso' ? 'M5 12.5l4.5 4.5L19 7.5' : tipo === 'info' ? 'M12 11v5.5M12 7.5h.01' : 'M7 7l10 10M17 7L7 17'
 </script>
 
 <template>
-  <!-- Região viva: leitores de tela anunciam a mensagem quando ela aparece. -->
-  <div
-    class="notificacoes"
-    role="status"
-    aria-live="polite"
-  >
-    <TransitionGroup name="notificacao">
-      <div
-        v-for="toast in toasts"
-        :key="toast.id"
-        class="notificacao"
-        :class="[`notificacao--${toast.tipo}`, { 'notificacao--detalhes': toast.detalhes }]"
-      >
-        <span
-          class="notificacao-icone"
-          aria-hidden="true"
+  <div class="notificacoes">
+    <div
+      v-for="regiao in regioes"
+      :key="regiao.chave"
+      class="notificacoes-regiao"
+      :role="regiao.role"
+      :aria-live="regiao.vivo"
+      aria-atomic="false"
+    >
+      <TransitionGroup name="notificacao">
+        <!-- Mouse em cima ou foco dentro seguram o toast aberto até o usuário terminar de ler. -->
+        <div
+          v-for="toast in regiao.itens"
+          :key="toast.id"
+          class="notificacao"
+          :class="[`notificacao--${toast.tipo}`, { 'notificacao--detalhes': toast.detalhes }]"
+          @mouseenter="pausarToast(toast.id, 'ponteiro')"
+          @mouseleave="retomarToast(toast.id, 'ponteiro')"
+          @focusin="pausarToast(toast.id, 'foco')"
+          @focusout="retomarToast(toast.id, 'foco')"
         >
-          <svg viewBox="0 0 24 24">
-            <path
-              v-if="toast.tipo === 'sucesso'"
-              d="M5 12.5l4.5 4.5L19 7.5"
-            />
-            <path
-              v-else-if="toast.tipo === 'info'"
-              d="M12 11v5.5M12 7.5h.01"
-            />
-            <path
-              v-else
-              d="M7 7l10 10M17 7L7 17"
-            />
-          </svg>
-        </span>
-        <span class="notificacao-texto">
-          <span class="notificacao-mensagem">{{ toast.mensagem }}</span>
           <span
-            v-for="detalhe in toast.detalhes"
-            :key="detalhe"
-            class="notificacao-detalhe"
-          >{{ detalhe }}</span>
-        </span>
-        <button
-          type="button"
-          class="notificacao-fechar"
-          aria-label="Fechar notificação"
-          @click="fecharToast(toast.id)"
-        >
-          <svg
-            viewBox="0 0 24 24"
+            class="notificacao-icone"
             aria-hidden="true"
           >
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
-      </div>
-    </TransitionGroup>
+            <svg viewBox="0 0 24 24">
+              <path :d="caminhoIcone(toast.tipo)" />
+            </svg>
+          </span>
+          <span class="notificacao-texto">
+            <span class="notificacao-mensagem">{{ toast.mensagem }}</span>
+            <span
+              v-for="detalhe in toast.detalhes"
+              :key="detalhe"
+              class="notificacao-detalhe"
+            >{{ detalhe }}</span>
+          </span>
+          <button
+            type="button"
+            class="notificacao-fechar"
+            aria-label="Fechar notificação"
+            @click="fecharToast(toast.id)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      </TransitionGroup>
+    </div>
   </div>
 </template>
 
@@ -69,15 +80,21 @@ const { toasts, fecharToast } = useToast()
   /* Centro inferior: área livre entre o "Mostrando X de Y"/Cancelar (esquerda) e a paginação/
      Salvar (direita); não cobre o botão de ação do topo nem os filtros. */
   bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
+  /* Faixa de ponta a ponta com 16px de margem: o cartão nunca passa da tela (antes, left:50% limitava a 50vw). */
+  left: 16px;
+  right: 16px;
   align-items: center;
   z-index: 2000;
 
   display: flex;
   flex-direction: column;
-  gap: 12px;
   pointer-events: none;
+}
+
+.notificacoes-regiao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .notificacao {
@@ -94,6 +111,7 @@ const { toasts, fecharToast } = useToast()
   padding: 16px 14px 16px 27px; /* esquerda: 28px do Figma menos a borda; à direita sobra um pouco para o título não quebrar */
   border: 1px solid var(--fp-cinza-borda);
   border-radius: 14px;
+  margin-top: 12px;
   background-color: #fff;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
   pointer-events: auto;

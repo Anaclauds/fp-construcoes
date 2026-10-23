@@ -91,6 +91,14 @@ withDefaults(
   font-weight: 600;
 }
 
+/* Celular: botões pequenos ganham altura mínima de toque (40px). */
+@media (max-width: 767px) {
+  .botao-fp--pagina,
+  .botao-fp--compacto {
+    min-height: 40px;
+  }
+}
+
 /* Variantes */
 .botao-fp--primario {
   background-color: var(--fp-verde);

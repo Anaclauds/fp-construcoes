@@ -18,20 +18,27 @@ const OPCOES_CADASTRO: OpcaoFiltro<FiltroStatus>[] = [
 <script setup lang="ts" generic="V extends string = FiltroStatus">
 import { computed, useId } from 'vue'
 import buscaIcon from '../../assets/icons/icone-busca.svg'
+import selectIcon from '../../assets/icons/icone-select.svg'
 import GrupoChips from './GrupoChips.vue'
 
 const props = defineProps<{
   placeholder?: string
   /** Chips do filtro; sem valor, usa Todos / Ativo / Inativo. O primeiro deve ser o valor "sem filtro". */
   opcoes?: OpcaoFiltro<V>[]
-  /** Rótulo do grupo de chips. */
+  /** Rótulo do grupo de chips (ou da lista suspensa). */
   rotuloFiltro?: string
+  /** Mostra as opções numa lista suspensa em vez de chips: para filtros com muitas opções (ex.: categorias cadastradas). */
+  filtroEmLista?: boolean
+  /** Texto de apoio abaixo da lista suspensa (só com `filtroEmLista`). */
+  apoioFiltro?: string
 }>()
 
 const busca = defineModel<string>('busca', { default: '' })
 const status = defineModel<V>('status', { required: true })
 
 const idBusca = useId()
+const idFiltro = useId()
+const idApoio = useId()
 
 const chips = computed(() => props.opcoes ?? (OPCOES_CADASTRO as OpcaoFiltro<string>[] as OpcaoFiltro<V>[]))
 </script>
@@ -63,7 +70,46 @@ const chips = computed(() => props.opcoes ?? (OPCOES_CADASTRO as OpcaoFiltro<str
     </div>
 
     <div class="card-busca-filtros">
+      <div
+        v-if="filtroEmLista"
+        class="filtro-lista"
+      >
+        <label
+          :for="idFiltro"
+          class="filtro-lista-rotulo"
+        >{{ rotuloFiltro ?? 'Status:' }}</label>
+        <div class="filtro-lista-controle">
+          <select
+            :id="idFiltro"
+            v-model="status"
+            :aria-describedby="apoioFiltro ? idApoio : undefined"
+          >
+            <option
+              v-for="opcao in chips"
+              :key="opcao.valor"
+              :value="opcao.valor"
+            >
+              {{ opcao.rotulo }}
+            </option>
+          </select>
+          <img
+            :src="selectIcon"
+            alt=""
+            width="16"
+            height="16"
+            class="filtro-lista-seta"
+          >
+        </div>
+        <p
+          v-if="apoioFiltro"
+          :id="idApoio"
+          class="filtro-lista-apoio"
+        >
+          {{ apoioFiltro }}
+        </p>
+      </div>
       <GrupoChips
+        v-else
         v-model="status"
         :rotulo="rotuloFiltro ?? 'Status:'"
         :opcoes="chips"
@@ -135,11 +181,88 @@ input:focus {
   gap: 8px 24px;
 }
 
+/* Filtro em lista suspensa: rótulo ao lado do campo; no celular o campo ocupa a largura toda. */
+.filtro-lista {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.filtro-lista-rotulo {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.filtro-lista-controle {
+  position: relative;
+  min-width: 0;
+  flex: 0 1 240px;
+}
+
+.filtro-lista select {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  border: 1px solid var(--fp-cinza-borda);
+  border-radius: 6px;
+  background-color: #fff;
+  appearance: none;
+  text-overflow: ellipsis;
+
+  color: #333;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filtro-lista select:focus {
+  outline: none;
+  border-color: var(--fp-verde);
+  box-shadow: var(--fp-foco);
+}
+
+.filtro-lista-seta {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.filtro-lista-apoio {
+  flex-basis: 100%;
+  margin: 0;
+  color: #717182;
+  font-size: 11.5px;
+  text-align: right;
+}
+
 @media (max-width: 700px) {
+  .filtro-lista {
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filtro-lista-controle {
+    flex-basis: auto;
+  }
+
+  .filtro-lista-apoio {
+    text-align: left;
+  }
+
   .card-busca {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+  }
+
+  /* Em coluna o flex-basis das telas (ex.: 280px) viraria ALTURA do campo e a lupa ficaria solta; aqui só a altura natural vale. */
+  .card-busca .card-busca-campo {
+    flex: 0 0 auto !important;
   }
 }
 </style>

@@ -275,6 +275,23 @@ function aoSair(evento: Event) {
   text-overflow: ellipsis;
 }
 
+/* Celular: sem espaço para reticências, o rótulo longo quebra de linha para continuar legível. */
+@media (max-width: 575px) {
+  .campo-rotulo {
+    display: block;
+    white-space: normal;
+  }
+
+  .campo-rotulo-texto {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .campo-obrigatorio {
+    margin-left: 3px;
+  }
+}
+
 .campo-obrigatorio {
   flex-shrink: 0;
   color: var(--fp-obrigatorio);

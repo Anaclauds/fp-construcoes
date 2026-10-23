@@ -1,15 +1,9 @@
 <script lang="ts">
-import { reactive } from 'vue'
-
 export type VarianteModal = 'verde' | 'vermelho' | 'aviso'
 export type IconeModal = 'olho' | 'lapis' | 'x' | 'check' | 'alerta' | 'cadeado' | 'mais'
 
 // Escopo de módulo: modais abertos em sequência (Visualizar -> Editar) compartilham o bloqueio de rolagem.
 let modaisAbertos = 0
-
-// Pilha de modais abertos: só o do topo responde a Esc e Tab (ex.: confirmação aberta sobre um formulário).
-// Reativa: o modal de baixo fica inerte (sem foco, clique ou leitura por leitor de tela) enquanto outro está por cima.
-const pilha = reactive<symbol[]>([])
 
 function atualizarContador(delta: number) {
   modaisAbertos = Math.max(0, modaisAbertos + delta)
@@ -19,6 +13,7 @@ function atualizarContador(delta: number) {
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, shallowRef, useId, watch } from 'vue'
+import { pilhaModais as pilha } from '../../composables/usePilhaModais'
 
 const props = withDefaults(
   defineProps<{
@@ -305,7 +300,7 @@ function aoClicarFundo(evento: MouseEvent) {
 .modal-fundo {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1600;
 
   display: flex;
   align-items: center;
@@ -319,6 +314,7 @@ function aoClicarFundo(evento: MouseEvent) {
 .modal-fp {
   width: 100%;
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
 
   display: flex;
   flex-direction: column;
@@ -471,6 +467,59 @@ function aoClicarFundo(evento: MouseEvent) {
   margin-left: auto;
   display: flex;
   gap: 12px;
+}
+
+/* Celular: cabeçalho, corpo e rodapé mais compactos; botões do rodapé quebram linha. */
+@media (max-width: 575px) {
+  .modal-fundo {
+    padding: 8px;
+  }
+
+  .modal-fp {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .modal-cabecalho {
+    min-height: 64px;
+    gap: 12px;
+    padding: 12px 12px 12px 16px;
+  }
+
+  .modal-titulo {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-fechar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .modal-corpo {
+    padding: 16px;
+  }
+
+  .modal-rodape {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  .modal-rodape-esquerda,
+  .modal-rodape-direita {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Sem ações à esquerda, o bloco vazio não ocupa uma linha (nem o espaço entre linhas) do rodapé. */
+  .modal-rodape-esquerda:empty {
+    display: none;
+  }
+
+  .modal-rodape-direita {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
 }
 
 @keyframes modal-fundo-entrada {

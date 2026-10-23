@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T">
-import { computed, onMounted, onUpdated, useTemplateRef } from 'vue'
+import { computed, onMounted, onUpdated, useTemplateRef, watch } from 'vue'
 import anteriorIcon from '../../assets/icons/icone-pagina-anterior.svg'
 import proximaIcon from '../../assets/icons/icone-pagina-proxima.svg'
 
@@ -9,6 +9,16 @@ export interface ColunaTabela {
   rotulo: string
   /** Largura CSS da coluna (ex.: '30%'). */
   largura?: string
+  /** Coluna de valor monetário/quantidade: nunca trunca (largura mínima garantida, sem reticências). */
+  numerica?: boolean
+}
+
+/** Largura mínima de uma coluna numérica: cabe "R$ 9.999.999.999,99" em negrito mais o respiro das células. */
+const LARGURA_MINIMA_NUMERICA = '176px'
+
+function larguraColuna(coluna: ColunaTabela): string | undefined {
+  if (!coluna.numerica) return coluna.largura
+  return coluna.largura ? `max(${coluna.largura}, ${LARGURA_MINIMA_NUMERICA})` : LARGURA_MINIMA_NUMERICA
 }
 
 const props = withDefaults(
@@ -44,6 +54,9 @@ const emit = defineEmits<{ 'tentar-novamente': []; 'abrir-linha': [linha: T] }>(
 
 const pagina = defineModel<number>('pagina', { default: 1 })
 
+/** Com coluna de valor, as colunas se ajustam ao conteúdo em qualquer largura (no layout fixo a largura mínima da coluna é ignorada). */
+const temColunaNumerica = computed(() => props.colunas.some((coluna) => coluna.numerica))
+
 const totalPaginas = computed(() => Math.max(1, Math.ceil(props.total / props.porPagina)))
 
 // Até 5 páginas numeradas, com a atual no centro quando possível.
@@ -62,6 +75,9 @@ const resumo = computed(() => {
 function ir(destino: number) {
   if (destino >= 1 && destino <= totalPaginas.value) pagina.value = destino
 }
+
+/** Recarga com linhas antigas ainda na tela (nova página, filtro): indicada sem mudar a altura da tabela. */
+const recarregando = computed(() => props.carregando && props.linhas.length > 0)
 
 /** Lista sem nenhum registro (vazia ou com erro): sem "Mostrando 0 de 0" nem paginação. */
 const semRegistros = computed(() => props.total === 0 && props.linhas.length === 0)
@@ -99,6 +115,15 @@ function atualizarTitulos() {
   }
 }
 
+// Sem linhas a tabela some e a mensagem fica no começo da área: sem voltar ao início, a rolagem horizontal antiga a corta.
+watch(
+  () => props.linhas.length === 0,
+  (vazia) => {
+    if (vazia && corpo.value) corpo.value.scrollLeft = 0
+  },
+  { flush: 'post' },
+)
+
 onMounted(atualizarTitulos)
 onUpdated(atualizarTitulos)
 
@@ -110,17 +135,27 @@ function valorPadrao(linha: T, chave: string): string {
 
 <template>
   <section class="tabela-card">
+    <!-- Sobreposta ao topo do cartão: não ocupa espaço, então a tabela não "pula" ao recarregar. -->
+    <div
+      v-if="recarregando"
+      class="tabela-progresso"
+      aria-hidden="true"
+    />
     <div
       ref="corpo"
       class="tabela-corpo"
+      :class="{ 'tabela-corpo--recarregando': recarregando }"
       :aria-busy="carregando"
     >
-      <table :aria-label="rotulo">
+      <table
+        :aria-label="rotulo"
+        :class="{ 'tabela--ajustada': temColunaNumerica }"
+      >
         <colgroup>
           <col
             v-for="coluna in colunas"
             :key="coluna.chave"
-            :style="{ width: coluna.largura }"
+            :style="{ width: larguraColuna(coluna) }"
           >
         </colgroup>
         <thead>
@@ -129,6 +164,7 @@ function valorPadrao(linha: T, chave: string): string {
               v-for="coluna in colunas"
               :key="coluna.chave"
               scope="col"
+              :class="{ 'col-numerica': coluna.numerica }"
             >
               {{ coluna.rotulo }}
             </th>
@@ -144,6 +180,7 @@ function valorPadrao(linha: T, chave: string): string {
             <td
               v-for="coluna in colunas"
               :key="coluna.chave"
+              :class="{ 'col-numerica': coluna.numerica }"
             >
               <slot
                 :name="`celula-${coluna.chave}`"
@@ -253,6 +290,7 @@ function valorPadrao(linha: T, chave: string): string {
 <style scoped>
 /* Ocupa a altura restante da página; o corpo rola por dentro quando há muitas linhas. */
 .tabela-card {
+  position: relative;
   flex: 1 1 0;
   min-height: 360px;
 
@@ -272,11 +310,40 @@ function valorPadrao(linha: T, chave: string): string {
   overflow: auto;
 }
 
+.tabela-corpo--recarregando table {
+  opacity: 0.55;
+}
+
 table {
+  transition: opacity 0.15s ease;
   width: 100%;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
+}
+
+/* Celular, tablet e notebook com menu expandido: as colunas se ajustam ao conteúdo (dinheiro, datas e cabeçalhos nunca ficam cortados);
+   textos muito longos ainda terminam em reticências e a tabela rola dentro do cartão. */
+@media (max-width: 1399px) {
+  table {
+    table-layout: auto;
+    min-width: 100%;
+    width: max-content;
+  }
+
+  td {
+    max-width: 200px;
+  }
+}
+
+/* Tabela com coluna de valor: mesmo ajuste ao conteúdo também em telas largas (o menu lateral aberto estreita a área útil). */
+table:where(.tabela--ajustada) {
+  table-layout: auto;
+  width: 100%;
+}
+
+table:where(.tabela--ajustada) td {
+  max-width: 200px;
 }
 
 th {
@@ -314,6 +381,21 @@ td :deep(.fp-celula-nome) {
   display: block;
 }
 
+/* Valores numéricos nunca recebem reticências: a coluna tem largura mínima e, se faltar espaço, a tabela rola. */
+td.col-numerica {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+td.col-numerica :deep(.celula-principal),
+td.col-numerica :deep(.celula-secundaria),
+td.col-numerica :deep(.celula-corte) {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 tbody tr:hover td {
   background-color: #fbfcfb;
 }
@@ -338,6 +420,41 @@ td :deep(.fp-celula-nome) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tabela-progresso {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  height: 3px;
+  overflow: hidden;
+  background-color: var(--fp-verde-20);
+}
+
+.tabela-progresso::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background-color: var(--fp-verde);
+  animation: tabela-progresso 1s ease-in-out infinite;
+}
+
+@keyframes tabela-progresso {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabela-progresso::after {
+    width: 100%;
+    animation: none;
+  }
 }
 
 .tabela-mensagem {

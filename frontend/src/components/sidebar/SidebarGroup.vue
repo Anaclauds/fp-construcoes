@@ -179,6 +179,13 @@ const idSubmenu = `submenu-${props.grupo.id}`
   outline-offset: 1px;
 }
 
+/* Celular (gaveta): alvo de toque confortável nos itens do submenu. */
+@media (max-width: 767px) {
+  .sidebar-submenu-link {
+    padding: 10px 8px;
+  }
+}
+
 .sidebar-submenu-link--ativo {
   background-color: rgba(255, 255, 255, 0.16);
 }

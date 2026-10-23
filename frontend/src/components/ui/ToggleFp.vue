@@ -68,6 +68,15 @@ const ligado = defineModel<boolean>({ default: false })
   box-shadow: var(--fp-foco);
 }
 
+/* Celular: área de toque de 41px de altura (WCAG/Material ≥ 40px) sem mudar o desenho do switch. */
+@media (max-width: 575px) {
+  .toggle::after {
+    content: '';
+    position: absolute;
+    inset: -10px -6px;
+  }
+}
+
 /* Somente leitura: mantém as cores do Figma, só tira o cursor de clique. */
 .toggle:disabled {
   cursor: default;

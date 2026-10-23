@@ -415,7 +415,9 @@ function limpar() {
   left: 0;
   right: 0;
 
-  max-height: 248px;
+  /* Nunca maior que a tela: no celular com teclado aberto a lista encolhe em vez de sair da viewport. */
+  max-width: calc(100vw - 32px);
+  max-height: min(248px, 40vh);
   margin: 0;
   padding: 4px;
   overflow-y: auto;

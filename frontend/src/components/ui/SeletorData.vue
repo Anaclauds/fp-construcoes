@@ -6,15 +6,26 @@ import selectIcon from '../../assets/icons/icone-select.svg'
 import { adicionarDias, diaDaSemana, hojeIso, isoValido } from '../../utils/datas'
 import { isoParaDataBr } from '../../utils/formatadores'
 
+const props = defineProps<{
+  /** Última data aceita (YYYY-MM-DD); sem ela qualquer dia vale. */
+  maximo?: string
+}>()
+
 // Data escolhida (YYYY-MM-DD).
 const data = defineModel<string>({ required: true })
 
 const campoNativo = useTemplateRef<HTMLInputElement>('campoNativo')
 
 const ehHoje = computed(() => data.value === hojeIso())
+// Já está no último dia permitido: a seta de "Próximo dia" fica desabilitada.
+const noLimite = computed(() => props.maximo !== undefined && data.value >= props.maximo)
+// "Hoje" também respeita o limite (se o limite for anterior a hoje, o botão não leva além dele).
+const hojeBloqueado = computed(() => props.maximo !== undefined && hojeIso() > props.maximo)
 
 function irPara(iso: string) {
-  if (isoValido(iso)) data.value = iso
+  if (!isoValido(iso)) return
+  if (props.maximo !== undefined && iso > props.maximo) return
+  data.value = iso
 }
 
 /** Abre o calendário do navegador; o input nativo fica invisível só para isso. */
@@ -73,6 +84,7 @@ function aoEscolher(evento: Event) {
         type="date"
         class="seletor-data-nativo"
         :value="data"
+        :max="maximo"
         tabindex="-1"
         aria-hidden="true"
         @change="aoEscolher"
@@ -83,6 +95,7 @@ function aoEscolher(evento: Event) {
       type="button"
       class="seletor-data-seta"
       aria-label="Próximo dia"
+      :disabled="noLimite"
       @click="irPara(adicionarDias(data, 1))"
     >
       <img
@@ -96,7 +109,7 @@ function aoEscolher(evento: Event) {
     <button
       type="button"
       class="seletor-data-hoje"
-      :disabled="ehHoje"
+      :disabled="ehHoje || hojeBloqueado"
       @click="irPara(hojeIso())"
     >
       Hoje
@@ -126,7 +139,12 @@ function aoEscolher(evento: Event) {
   cursor: pointer;
 }
 
-.seletor-data-seta:hover {
+.seletor-data-seta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seletor-data-seta:hover:not(:disabled) {
   background-color: var(--fp-cinza-fundo);
 }
 
