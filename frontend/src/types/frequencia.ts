@@ -27,6 +27,7 @@ export interface Frequencia {
 
 export interface Indicadores {
   funcionariosAtivos: number
+  totalRegistros?: number
   naoRegistrados: number
   presentes: number
   meioPeriodo: number
@@ -58,23 +59,41 @@ export interface FiltrosFolha {
   status?: StatusFrequencia
 }
 
+/** Dia do período, já completo pela API (até hoje); status null = dia sem lançamento. */
+export interface DiaRelatorio {
+  /** ISO com hora (ex.: 2026-08-01T00:00:00.000Z); usar só os 10 primeiros caracteres. */
+  data: string
+  diaSemana: number
+  status: StatusFrequencia | null
+  observacao: string | null
+}
+
+/** Indicadores do período inteiro (não mudam com o filtro de status). */
+export interface IndicadoresRelatorioApi extends Indicadores {
+  totalDias: number
+  /** null quando há filtro de status. */
+  taxaPresenca: number | null
+}
+
 export interface RelatorioFrequencia {
-  funcionario: FuncionarioFrequencia
+  funcionario: Pick<FuncionarioFrequencia, 'id' | 'nomeCompleto' | 'apelido' | 'funcao'>
   periodo: { dataInicial: string; dataFinal: string }
   tipoRelatorio: string
-  indicadores: Indicadores & { taxaPresenca: number }
+  indicadores: IndicadoresRelatorioApi
   registros: Frequencia[]
+  /** Dias do período até hoje, já filtrados pelo status pedido. */
+  dias: DiaRelatorio[]
 }
+
+/** Filtro de status do relatório; NAO_REGISTRADO = dias sem lançamento (aceito pela API). */
+export type StatusFiltroRelatorio = StatusFrequencia | 'NAO_REGISTRADO'
 
 export interface FiltrosRelatorio {
   funcionarioId: number
   dataInicial: string
   dataFinal: string
-  status?: StatusFrequencia
+  status?: StatusFiltroRelatorio
 }
-
-/** Filtro de status do relatório; NAO_REGISTRADO existe só no front (dias sem lançamento). */
-export type StatusFiltroRelatorio = StatusFrequencia | 'NAO_REGISTRADO'
 
 export interface LinhaRelatorio {
   /** YYYY-MM-DD */
@@ -90,15 +109,15 @@ export interface IndicadoresRelatorio {
   faltasJustificadas: number
   faltasNaoJustificadas: number
   naoRegistrados: number
-  /** Dias listados no relatório. */
+  /** Dias do período (indicador da API). */
   totalDias: number
-  /** Percentual inteiro; null quando há filtro de status ("—"). */
+  /** Percentual inteiro da API; null quando há filtro de status ("—"). */
   taxaPresenca: number | null
 }
 
 /** Relatório já completado no front: cada dia do período (até hoje) vira uma linha. */
 export interface RelatorioCompleto {
-  funcionario: FuncionarioFrequencia
+  funcionario: RelatorioFrequencia['funcionario']
   periodo: { dataInicial: string; dataFinal: string }
   linhas: LinhaRelatorio[]
   indicadores: IndicadoresRelatorio

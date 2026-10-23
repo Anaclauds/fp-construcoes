@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 import voltarIcon from '../../assets/icons/icone-voltar.svg'
 import BotaoFp from '../ui/BotaoFp.vue'
 import RelatorioDocumento from './RelatorioDocumento.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useImpressao } from '../../composables/useImpressao'
 import { useToast } from '../../composables/useToast'
+import { extrairMensagemErro } from '../../services/api'
+import { baixarRelatorioPdf } from '../../services/frequencias.service'
 import type { RelatorioCompleto, StatusFiltroRelatorio } from '../../types'
 import { formatarDataHora } from '../../utils/datas'
 
@@ -37,10 +39,40 @@ const nomeArquivo = computed(() => {
   return `Relatorio-Frequencia-${pessoa}-${dataInicial}_${dataFinal}`
 })
 
-function imprimirRelatorio(destino: 'impressora' | 'pdf') {
-  // Textos do Figma. Limitação: o navegador não informa se o usuário imprimiu, salvou ou cancelou o diálogo;
-  // o aviso sai quando ele fecha (`afterprint`). Só um PDF gerado no servidor permitiria confirmar o download.
-  imprimir(nomeArquivo.value, () => mostrarToast(destino === 'pdf' ? 'PDF baixado!' : 'Enviado para Impressora!'))
+function imprimirRelatorio() {
+  // O navegador não informa se o usuário imprimiu ou cancelou: o aviso sai quando o diálogo fecha (`afterprint`).
+  imprimir(nomeArquivo.value, () => mostrarToast('Impressão concluída.', 'info'))
+}
+
+const baixando = shallowRef(false)
+
+/** PDF gerado pelo backend com os mesmos filtros do relatório; o aviso só sai após o download iniciar. */
+async function baixarPdf() {
+  if (baixando.value) return
+  baixando.value = true
+  try {
+    const { funcionario, periodo } = props.relatorio
+    const pdf = await baixarRelatorioPdf({
+      funcionarioId: funcionario.id,
+      dataInicial: periodo.dataInicial,
+      dataFinal: periodo.dataFinal,
+      ...(props.statusFiltro ? { status: props.statusFiltro } : {}),
+    })
+    const url = URL.createObjectURL(pdf)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${nomeArquivo.value}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    // Revoga depois do clique para o navegador já ter iniciado o download.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    mostrarToast('PDF baixado!')
+  } catch (e) {
+    mostrarToast(extrairMensagemErro(e), 'erro')
+  } finally {
+    baixando.value = false
+  }
 }
 </script>
 
@@ -69,7 +101,7 @@ function imprimirRelatorio(destino: 'impressora' | 'pdf') {
           tamanho="pagina"
           :desabilitado="semRegistros"
           :title="semRegistros ? 'Não há registros para imprimir' : undefined"
-          @click="imprimirRelatorio('impressora')"
+          @click="imprimirRelatorio"
         >
           <template #icone>
             <svg
@@ -88,8 +120,9 @@ function imprimirRelatorio(destino: 'impressora' | 'pdf') {
         <BotaoFp
           tamanho="pagina"
           :desabilitado="semRegistros"
-          :title="semRegistros ? 'Não há registros para exportar' : 'Abre a impressão do navegador: escolha Salvar como PDF'"
-          @click="imprimirRelatorio('pdf')"
+          :carregando="baixando"
+          :title="semRegistros ? 'Não há registros para exportar' : undefined"
+          @click="baixarPdf"
         >
           <template #icone>
             <svg

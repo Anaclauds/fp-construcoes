@@ -29,6 +29,8 @@ export interface Usuario {
   login: string
   status: StatusCadastro
   ultimoAcesso: string | null
+  /** Usuário e funcionário ativos. Só vem na listagem; no detalhe/edição fica ausente. */
+  acessoAtivo?: boolean
   funcionario: FuncionarioResumo
   permissoes: PermissaoUsuario[]
 }
@@ -56,4 +58,15 @@ export interface FiltrosUsuarios {
 export interface OpcaoModulo {
   valor: ModuloSistema
   rotulo: string
+  /** Grupo do menu (ex.: "Gestão de Pessoas"). */
+  grupo: string
+}
+
+/** Funcionário elegível a ganhar usuário (GET /usuarios/opcoes/funcionarios). */
+export interface OpcaoFuncionarioUsuario {
+  id: number
+  nomeCompleto: string
+  cpf: string
+  funcao: string
+  setorAtuacao: string
 }

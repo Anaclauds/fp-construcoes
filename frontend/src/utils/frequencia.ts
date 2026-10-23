@@ -1,13 +1,12 @@
 import type {
   Frequencia,
   Indicadores,
-  LinhaRelatorio,
   RelatorioCompleto,
   RelatorioFrequencia,
   StatusFiltroRelatorio,
   StatusFrequencia,
 } from '../types'
-import { adicionarDias, hojeIso } from './datas'
+import { hojeIso } from './datas'
 
 export const STATUS_FREQUENCIA: readonly StatusFrequencia[] = [
   'PRESENTE',
@@ -104,58 +103,30 @@ export function rotuloFiltroRelatorio(filtro: StatusFiltroRelatorio): string {
 }
 
 /**
- * Completa o relatório da API (só dias lançados) com os dias sem lançamento do período,
- * de dataInicial até o menor entre dataFinal e hoje. Dias futuros ficam de fora.
- * Com filtro de status, só as linhas daquele status (e taxa de presença indisponível).
+ * Adapta o relatório da API para a tela. Dias, período e indicadores (incluindo a taxa, que é
+ * null com filtro de status) vêm prontos da API; aqui só se formatam datas e se marcam períodos futuros.
  */
-export function montarRelatorio(
-  api: RelatorioFrequencia,
-  filtro: StatusFiltroRelatorio | null,
-  hoje: string = hojeIso(),
-): RelatorioCompleto {
+export function montarRelatorio(api: RelatorioFrequencia, hoje: string = hojeIso()): RelatorioCompleto {
   const inicio = api.periodo.dataInicial.slice(0, 10)
   const final = api.periodo.dataFinal.slice(0, 10)
-  const fim = final < hoje ? final : hoje
-
-  const porData = new Map<string, Frequencia>()
-  for (const registro of api.registros) porData.set(registro.data.slice(0, 10), registro)
-
-  // Com filtro de status da API, os dias faltantes não pertencem ao resultado.
-  const completar = filtro === null || filtro === 'NAO_REGISTRADO'
-  const linhas: LinhaRelatorio[] = []
-  if (completar) {
-    for (let dia = inicio; dia <= fim; dia = adicionarDias(dia, 1)) {
-      const registro = porData.get(dia)
-      linhas.push({
-        data: dia,
-        status: registro?.status ?? null,
-        observacao: registro?.observacao?.trim() ?? '',
-      })
-    }
-  } else {
-    for (const [dia, registro] of [...porData].sort(([a], [b]) => a.localeCompare(b))) {
-      if (dia >= inicio && dia <= fim) {
-        linhas.push({ data: dia, status: registro.status, observacao: registro.observacao?.trim() ?? '' })
-      }
-    }
-  }
-
-  const visiveis = filtro === 'NAO_REGISTRADO' ? linhas.filter((l) => l.status === null) : linhas
-  const contar = (status: StatusFrequencia | null) => visiveis.filter((l) => l.status === status).length
-  const presentes = contar('PRESENTE')
+  const i = api.indicadores
 
   return {
     funcionario: api.funcionario,
     periodo: { dataInicial: inicio, dataFinal: final },
-    linhas: visiveis,
+    linhas: api.dias.map((dia) => ({
+      data: dia.data.slice(0, 10),
+      status: dia.status,
+      observacao: dia.observacao?.trim() ?? '',
+    })),
     indicadores: {
-      presentes,
-      meioPeriodo: contar('MEIO_PERIODO'),
-      faltasJustificadas: contar('FALTA_JUSTIFICADA'),
-      faltasNaoJustificadas: contar('FALTA_NAO_JUSTIFICADA'),
-      naoRegistrados: contar(null),
-      totalDias: visiveis.length,
-      taxaPresenca: filtro ? null : linhas.length ? Math.round((presentes / linhas.length) * 100) : 0,
+      presentes: i.presentes,
+      meioPeriodo: i.meioPeriodo,
+      faltasJustificadas: i.faltasJustificadas,
+      faltasNaoJustificadas: i.faltasNaoJustificadas,
+      naoRegistrados: i.naoRegistrados,
+      totalDias: i.totalDias,
+      taxaPresenca: i.taxaPresenca,
     },
     periodoFuturo: inicio > hoje,
     temDiasFuturos: final > hoje,

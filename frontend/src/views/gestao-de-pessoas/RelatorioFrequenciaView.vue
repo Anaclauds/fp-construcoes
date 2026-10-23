@@ -17,7 +17,6 @@ const {
   funcionarios,
   carregando: carregandoFuncionarios,
   erro: erroFuncionarios,
-  somenteAtivos,
   carregar,
 } = useTodosFuncionarios()
 
@@ -30,22 +29,11 @@ async function gerar(filtros: FiltrosEscolhidos) {
   gerando.value = true
   erro.value = null
   try {
-    const hoje = hojeIso()
     const { funcionarioId, dataInicial, dataFinal, status } = filtros
-    // A API só conhece os status lançados e não devolve dias futuros: "Não registrado" é completado aqui.
-    const resposta = await buscarRelatorio({
-      funcionarioId,
-      dataInicial,
-      // Período todo no futuro: segue o original só para a API devolver o funcionário (sem registros).
-      dataFinal: dataFinal < hoje || dataInicial > hoje ? dataFinal : hoje,
-      ...(status && status !== 'NAO_REGISTRADO' ? { status } : {}),
-    })
-    relatorio.value = montarRelatorio(
-      { ...resposta, periodo: { dataInicial, dataFinal } },
-      status,
-      hoje,
-    )
-    statusFiltro.value = filtros.status
+    // A API completa os dias do período (até hoje) e filtra por status, inclusive NAO_REGISTRADO.
+    const resposta = await buscarRelatorio({ funcionarioId, dataInicial, dataFinal, ...(status ? { status } : {}) })
+    relatorio.value = montarRelatorio(resposta, hojeIso())
+    statusFiltro.value = status
   } catch (e) {
     erro.value = extrairMensagemErro(e)
   } finally {
@@ -89,13 +77,6 @@ onMounted(carregar)
         </button>
       </p>
 
-      <p
-        v-if="somenteAtivos"
-        class="aviso-lista"
-      >
-        Sem acesso ao cadastro de funcionários: a lista mostra apenas os funcionários ativos.
-      </p>
-
       <RelatorioFiltros
         :funcionarios="funcionarios"
         :carregando-funcionarios="carregandoFuncionarios"
@@ -126,12 +107,6 @@ onMounted(carregar)
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.aviso-lista {
-  margin: 0;
-  color: #717182;
-  font-size: 13px;
 }
 
 .erro {
