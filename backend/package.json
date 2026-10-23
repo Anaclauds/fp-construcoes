@@ -21,6 +21,7 @@
     "test:e2e:coverage": "jest --config ./test/jest-e2e.json --coverage --runInBand --coverageDirectory coverage/e2e",
     "test:all": "npm test -- --runInBand && npm run test:e2e -- --runInBand",
     "test:frontend": "node test/frontend.smoke.cjs",
+    "test:persistencia": "node test/persistencia.visual.cjs",
     "test:verificar": "node test/verificar.cjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

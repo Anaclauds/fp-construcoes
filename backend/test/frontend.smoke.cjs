@@ -41,9 +41,10 @@ let usuarioId;
 let materialId;
 let caixaCriadoId;
 let browser;
+let page;
 
 async function waitFor(url) {
-  const deadline = Date.now() + 45000;
+  const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
     try {
       if ((await fetch(url)).ok) return;
@@ -132,12 +133,13 @@ async function main() {
     waitFor('http://127.0.0.1:5174'),
   ]);
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
-  const page = await browser.newPage({
+  page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
   const errors = [];
   const pendenciasFront = [];
   const requests = [];
+  const errosEsperados = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('response', (response) => {
     if (response.url().startsWith('http://127.0.0.1:3031/api'))
@@ -250,11 +252,16 @@ async function main() {
     .getByRole('button', { name: 'Novo Material', exact: true })
     .click();
   await page.getByLabel(/^Nome do Material:/).fill(`Material ${prefix}`);
-  await page.getByLabel(/^Categoria:/).selectOption({ index: 1 });
-  await page.getByLabel(/^Unidade de Medida:/).selectOption({ index: 1 });
+  await page
+    .getByRole('dialog')
+    .getByLabel(/^Categoria:/)
+    .selectOption({ index: 1 });
+  await page
+    .getByLabel(/^Unidade de Medida:/)
+    .selectOption({ label: 'Metro Linear' });
   await page.getByLabel(/^Quantidade Inicial/).fill('3,5');
-  const temPreco = await page.getByLabel(/^Preço de referência:/).count();
-  if (temPreco) await page.getByLabel(/^Preço de referência:/).fill('12,50');
+  const temPreco = await page.getByLabel(/^Preço de Referência/i).count();
+  if (temPreco) await page.getByLabel(/^Preço de Referência/i).fill('1250');
   const novoMaterial = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/estoque/materiais') &&
@@ -309,8 +316,15 @@ async function main() {
       window.dispatchEvent(new Event('afterprint'));
     };
   });
+  const pdfResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/frequencias/relatorio/pdf'),
+  );
+  const pdfDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Baixar PDF', exact: true }).click();
-  await page.waitForTimeout(400);
+  const pdf = await pdfResponse;
+  assert.equal(pdf.status(), 200);
+  assert.equal((await pdf.body()).subarray(0, 4).toString(), '%PDF');
+  assert.equal(await (await pdfDownload).failure(), null);
   if (!pdfServidorChamado) {
     assert.equal(await page.evaluate(() => window.__impressaoTeste), true);
     pendenciasFront.push({
@@ -319,11 +333,14 @@ async function main() {
     });
   }
 
+  const dataCaixa = new Date();
+  if (process.env.UI_PERSISTENCIA_EXTENDIDA === '1')
+    dataCaixa.setUTCMonth(dataCaixa.getUTCMonth() - 1, 15);
   const competenciaAtual = new Intl.DateTimeFormat('en-CA', {
     timeZone: process.env.APP_TIMEZONE || 'America/Porto_Velho',
     year: 'numeric',
     month: '2-digit',
-  }).format(new Date());
+  }).format(dataCaixa);
   const [mesOuAno, anoOuMes] = competenciaAtual.split('-');
   const competenciaIso =
     mesOuAno.length === 4 ? competenciaAtual : `${anoOuMes}-${mesOuAno}`;
@@ -331,7 +348,7 @@ async function main() {
   const caixaExistente = await prisma.caixa.findUnique({
     where: { competencia: competenciaData },
   });
-  await page.goto('http://127.0.0.1:5174/caixa');
+  await page.goto(`http://127.0.0.1:5174/caixa?competencia=${competenciaIso}`);
   await page.waitForLoadState('networkidle');
   if (!caixaExistente) {
     assert.equal(
@@ -340,7 +357,7 @@ async function main() {
       'Consultar a tela nao deve criar caixa',
     );
     await page
-      .getByRole('button', { name: 'Definir valor inicial', exact: true })
+      .getByRole('button', { name: 'Abrir Caixa', exact: true })
       .click();
     await page.getByLabel(/^Valor inicial/).fill('10000');
     const abertura = page.waitForResponse(
@@ -348,23 +365,59 @@ async function main() {
         response.url().endsWith('/api/financeiro/caixa/abrir') &&
         response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Abrir Caixa', exact: true })
+      .last()
+      .click();
     const resposta = await abertura;
     assert.equal(resposta.status(), 201);
     caixaCriadoId = (await resposta.json()).id;
     assert.ok(caixaCriadoId > 0);
     assert.equal(
-      await page
-        .getByRole('button', { name: 'Fechar Mês', exact: true })
-        .isDisabled(),
-      true,
+      await page.getByRole('button', { name: /Fechar Mês/ }).isDisabled(),
+      process.env.UI_PERSISTENCIA_EXTENDIDA !== '1',
     );
+  }
+  if (process.env.UI_PERSISTENCIA_EXTENDIDA === '1') {
+    const reiniciarBackend = async () => {
+      const anterior = children[0];
+      const encerrado = new Promise((resolve) =>
+        anterior.once('exit', resolve),
+      );
+      anterior.kill();
+      await encerrado;
+      children[0] = spawn(process.execPath, ['dist/src/main.js'], {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          DATABASE_URL: getTestDatabaseUrl(),
+          PORT: '3031',
+        },
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      await waitFor('http://127.0.0.1:3031/api');
+    };
+    await require('./persistencia.visual.cjs').testar({
+      page,
+      prisma,
+      prefix,
+      funcionarioId,
+      materialId,
+      competenciaIso,
+      reiniciarBackend,
+      errosEsperados,
+    });
   }
   assert.deepEqual(errors, [], 'Erros JavaScript nas telas');
   assert.deepEqual(
     requests.filter(
       (item) =>
         item.status >= 400 &&
+        !errosEsperados.some(
+          (esperado) =>
+            esperado.url === item.url && esperado.status === item.status,
+        ) &&
         !(
           item.url === '/api/estoque/materiais' &&
           item.status === 400 &&
@@ -398,7 +451,15 @@ async function main() {
     telas: routes.length,
     chamadasApi: requests.length,
     errosJavaScript: errors,
-    errosApi: requests.filter((item) => item.status >= 400),
+    errosEsperados,
+    errosApi: requests.filter(
+      (item) =>
+        item.status >= 400 &&
+        !errosEsperados.some(
+          (esperado) =>
+            esperado.url === item.url && esperado.status === item.status,
+        ),
+    ),
   };
   await fs.writeFile(
     path.join(directory, 'resultado.json'),
@@ -408,13 +469,29 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
-    console.error(error.message);
+  .catch(async (error) => {
+    console.error(error.stack || error.message);
+    if (page) {
+      const directory = path.resolve('coverage', 'browser');
+      await fs.mkdir(directory, { recursive: true });
+      await page.screenshot({
+        path: path.join(directory, 'falha.png'),
+        fullPage: true,
+      });
+      await fs.writeFile(
+        path.join(directory, 'falha.txt'),
+        await page.locator('body').innerText(),
+      );
+    }
     process.exitCode = 1;
   })
   .finally(async () => {
     if (browser) await browser.close();
     for (const child of children) child.kill();
+    if (process.env.UI_PERSISTENCIA_EXTENDIDA === '1') {
+      await prisma.$disconnect();
+      return;
+    }
     if (materialId) {
       await prisma.movimentacaoEstoque.deleteMany({ where: { materialId } });
       await prisma.estoqueMaterial.deleteMany({ where: { materialId } });
