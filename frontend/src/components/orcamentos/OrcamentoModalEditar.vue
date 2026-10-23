@@ -2,6 +2,7 @@
 import { shallowRef, useId, useTemplateRef } from 'vue'
 import { useFormularioOrcamento } from '../../composables/useFormularioOrcamento'
 import { useToast } from '../../composables/useToast'
+import { extrairErro } from '../../services/api'
 import { atualizarOrcamento } from '../../services/orcamentos.service'
 import type { Orcamento } from '../../types'
 import { isoParaDataBr } from '../../utils/formatadores'
@@ -17,6 +18,8 @@ const props = defineProps<{ orcamento: Orcamento }>()
 const emit = defineEmits<{
   fechar: []
   salvo: [orcamento: Orcamento]
+  /** O backend indicou que o orçamento mudou (aprovado, cancelado ou removido): a lista precisa recarregar. */
+  desatualizado: []
 }>()
 
 const idFormulario = useId()
@@ -33,6 +36,7 @@ function pedirFechar() {
 }
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return
@@ -51,6 +55,8 @@ async function salvar() {
     emit('salvo', atualizado)
   } catch (erro) {
     form.tratarErroApi(erro)
+    const { codigo, status } = extrairErro(erro)
+    if (codigo === 'ORCAMENTO_STATUS_INVALIDO' || status === 404) emit('desatualizado')
     await formulario.value?.focarPrimeiroErro()
   } finally {
     salvando.value = false

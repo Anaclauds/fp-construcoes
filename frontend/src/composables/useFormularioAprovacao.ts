@@ -1,8 +1,8 @@
-import { reactive, shallowRef, watch } from 'vue'
+import { computed, reactive, shallowRef, watch } from 'vue'
 import { extrairErro } from '../services/api'
 import { buscarEnderecoPorCep } from '../services/enderecos.service'
 import type { AprovarOrcamentoPayload, Cliente } from '../types'
-import { dataBrParaIso, mascararCep, semAcento } from '../utils/formatadores'
+import { dataBrParaIso, mascararCep } from '../utils/formatadores'
 import { mensagemOrcamento } from '../utils/orcamentos'
 import { UFS } from '../utils/opcoes-cliente'
 import { dataBrValida } from '../utils/validacao'
@@ -29,6 +29,8 @@ const CHAVES: (keyof CamposAprovacao)[] = [
 
 const digitos = (valor: string) => valor.replace(/\D/g, '')
 
+const CHAVES_ENDERECO: (keyof CamposAprovacao)[] = ['cep', 'rua', 'numero', 'bairro', 'cidade', 'estado', 'complemento']
+
 /**
  * Formulário da aprovação do orçamento (vira projeto): responsável, previsões e endereço da obra.
  * O endereço começa vazio e é preenchido com o do cliente (`preencherComCliente`) assim que ele carrega.
@@ -52,6 +54,12 @@ export function useFormularioAprovacao() {
   const enderecoDoCliente = shallowRef(false)
   /** O backend disse que o orçamento mudou (já aprovado, cancelado ou removido): a lista está desatualizada. */
   const desatualizado = shallowRef(false)
+
+  const enderecoSerializado = () => JSON.stringify(CHAVES_ENDERECO.map((chave) => campos[chave].trim()))
+  /** Endereço como estava ao abrir (vazio, ou o sugerido do cliente): base do dirty-check. */
+  const enderecoBase = shallowRef(enderecoSerializado())
+  /** O usuário mexeu no endereço da obra (digitou, buscou CEP ou limpou o sugerido). */
+  const enderecoModificado = computed(() => enderecoSerializado() !== enderecoBase.value)
 
   for (const chave of CHAVES) {
     watch(
@@ -92,6 +100,7 @@ export function useFormularioAprovacao() {
       }
     }
     if (preencheu) enderecoDoCliente.value = true
+    enderecoBase.value = enderecoSerializado()
   }
 
   function validar(): boolean {
@@ -149,15 +158,19 @@ export function useFormularioAprovacao() {
     }
   }
 
-  /** 409 (já convertido), 404 (não existe ou responsável inativo) e 400 (cancelado, datas, CEP) viram mensagem clara. */
+  /**
+   * Decide pelo `codigo` do backend: RESPONSAVEL_INATIVO vai para o campo do responsável; ORCAMENTO_STATUS_INVALIDO
+   * (cancelado ou reprovado) e 404/409 (removido ou já convertido em projeto) indicam que a lista está
+   * desatualizada. Os demais (datas, CEP, cliente inativo) viram mensagem geral.
+   */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
-    const texto = mensagemOrcamento(mensagem)
-    if (status === 404 && /funcionario/i.test(semAcento(mensagem))) {
+    const { mensagem, status, codigo } = extrairErro(erro)
+    const texto = mensagemOrcamento(mensagem, codigo)
+    if (codigo === 'RESPONSAVEL_INATIVO') {
       erros.responsavelId = texto
       return
     }
-    if (status === 409 || status === 404) desatualizado.value = true
+    if (codigo === 'ORCAMENTO_STATUS_INVALIDO' || status === 409 || status === 404) desatualizado.value = true
     erroGeral.value = texto
   }
 
@@ -167,6 +180,7 @@ export function useFormularioAprovacao() {
     erroGeral,
     enderecoDoCliente,
     desatualizado,
+    enderecoModificado,
     buscandoCep,
     buscarCep,
     preencherComCliente,

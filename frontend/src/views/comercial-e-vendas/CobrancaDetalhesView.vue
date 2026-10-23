@@ -72,16 +72,26 @@ async function confirmarCancelar() {
   try {
     await cancelarCobranca(cancelando.value)
     cancelando.value = null
-    mostrarToast('Cobrança cancelada.')
+    mostrarToast('Cobrança cancelada!')
     await carregar()
   } catch (e) {
-    const { mensagem, status } = extrairErro(e)
-    erroCancelar.value = mensagemCobranca(mensagem)
+    const { mensagem, status, codigo } = extrairErro(e)
+    erroCancelar.value = mensagemCobranca(mensagem, codigo)
     // Já cancelada, com recebimento ou removida: a tela está desatualizada (nunca reenvia sozinha).
     if (status === 409 || status === 400 || status === 404) await carregar()
   } finally {
     cancelandoEnviando.value = false
   }
+}
+
+/**
+ * O backend disse que a cobrança mudou (já paga, cancelada, removida...): fecha o modal, porque ele foi montado
+ * com as parcelas de antes, e recarrega. A mensagem do servidor vai no aviso, já que o modal some.
+ */
+async function aoDesatualizarRecebimento(mensagem: string) {
+  fecharModal()
+  mostrarToast(mensagem, 'info')
+  await carregar()
 }
 
 async function aoRegistrar() {
@@ -186,7 +196,7 @@ async function aoRegistrar() {
       :cobranca="cobrancaDoModal"
       @fechar="fecharModal"
       @registrado="aoRegistrar"
-      @desatualizado="carregar"
+      @desatualizado="aoDesatualizarRecebimento"
     />
   </section>
 </template>

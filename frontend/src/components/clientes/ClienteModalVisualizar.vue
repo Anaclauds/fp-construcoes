@@ -97,6 +97,10 @@ const tituloDados = computed(() => {
             rotulo="Cargo do Responsável"
             :valor="rotuloLegivel(cliente.cargoResponsavel)"
           />
+          <CampoLeitura
+            rotulo="E-mail"
+            :valor="cliente.email ?? ''"
+          />
         </template>
 
         <template v-else>
@@ -125,6 +129,11 @@ const tituloDados = computed(() => {
           <CampoLeitura
             :rotulo="cliente.tipo === 'PF' ? 'Celular' : 'Telefone'"
             :valor="formatarTelefone(cliente.telefone)"
+          />
+          <CampoLeitura
+            v-if="cliente.email"
+            rotulo="E-mail"
+            :valor="cliente.email"
           />
         </template>
       </dl>

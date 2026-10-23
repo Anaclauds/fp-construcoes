@@ -12,6 +12,8 @@ export function useOpcoesOrcamento() {
   const servicos = shallowRef<OpcaoServico[]>([])
   const carregando = shallowRef(false)
   const erro = shallowRef<string | null>(null)
+  /** As listas já chegaram ao menos uma vez com sucesso (antes disso não dá para saber quem está inativo). */
+  const carregou = shallowRef(false)
 
   async function carregar() {
     carregando.value = true
@@ -20,6 +22,7 @@ export function useOpcoesOrcamento() {
       const [listaMateriais, listaServicos] = await Promise.all([listarOpcoesMateriais(), listarOpcoesServicos()])
       materiais.value = listaMateriais
       servicos.value = listaServicos
+      carregou.value = true
     } catch (e) {
       erro.value = extrairMensagemErro(e)
     } finally {
@@ -34,7 +37,7 @@ export function useOpcoesOrcamento() {
     return tipo === '' ? [] : servicos.value.filter((s) => s.categoria === tipo)
   }
 
-  return { materiais, servicos, carregando, erro, carregar, materiaisPorId, servicosPorId, servicosDoTipo }
+  return { materiais, servicos, carregando, erro, carregou, carregar, materiaisPorId, servicosPorId, servicosDoTipo }
 }
 
 export type OpcoesOrcamento = ReturnType<typeof useOpcoesOrcamento>

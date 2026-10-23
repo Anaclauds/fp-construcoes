@@ -29,6 +29,7 @@ const preenchido = computed(() => !salvo.value && form.alterado.value)
 const aviso = useAvisoAlteracoes(preenchido)
 
 async function salvar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await formulario.value?.focarPrimeiroErro()
     return
@@ -38,7 +39,7 @@ async function salvar() {
   try {
     await criarOrcamento(form.paraPayload())
     salvo.value = true
-    mostrarToast('Salvo com sucesso!')
+    mostrarToast('Orçamento cadastrado!')
     await router.push({ name: 'orcamentos' })
   } catch (erro) {
     form.tratarErroApi(erro)

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { TipoOrcamento } from '../../types'
-import { ROTULO_TIPO_ORCAMENTO } from '../../utils/orcamentos'
+import { rotuloTipoOrcamento } from '../../utils/orcamentos'
 
 defineProps<{ tipo: TipoOrcamento }>()
 </script>
 
 <template>
-  <span class="selo-tipo">{{ ROTULO_TIPO_ORCAMENTO[tipo] }}</span>
+  <span class="selo-tipo">{{ rotuloTipoOrcamento(tipo) }}</span>
 </template>
 
 <style scoped>

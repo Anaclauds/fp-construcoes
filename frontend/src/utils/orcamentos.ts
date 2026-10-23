@@ -9,6 +9,15 @@ export const ROTULO_TIPO_ORCAMENTO: Record<TipoOrcamento, string> = {
   CONSTRUCAO_CIVIL: 'Construção Civil',
 }
 
+/**
+ * Rótulo do tipo vindo da API. O SQL cru de `/cobrancas` devolve o valor gravado no banco (`CALHAS_RUFOS`) em vez do
+ * enum (`CALHAS`): trata os dois como Calhas e, para qualquer outro valor desconhecido, cai no texto legível.
+ */
+export function rotuloTipoOrcamento(tipo: string): string {
+  if (tipo === 'CALHAS_RUFOS') return ROTULO_TIPO_ORCAMENTO.CALHAS
+  return (ROTULO_TIPO_ORCAMENTO as Record<string, string>)[tipo] ?? (rotuloLegivel(tipo) || tipo)
+}
+
 export const OPCOES_TIPO_ORCAMENTO: OpcaoCampo[] = (Object.keys(ROTULO_TIPO_ORCAMENTO) as TipoOrcamento[]).map(
   (valor) => ({ valor, rotulo: ROTULO_TIPO_ORCAMENTO[valor] }),
 )
@@ -92,7 +101,7 @@ export function nomeArquivoOrcamento(orcamento: Pick<Orcamento, 'numero' | 'clie
 /** Maior valor de uma coluna DECIMAL(12,2), em centavos: acima disso a API recusa o valor. */
 export const LIMITE_VALOR_CENTAVOS = 999_999_999_999
 
-export { filtrarDecimal, mascararDecimal, normalizarDecimal, textoParaEscala } from './decimal'
+export { filtrarDecimal, normalizarDecimal, textoParaEscala } from './decimal'
 
 /** Decimal da API ("12.50", "30.000", 4234) -> texto pt-BR sem zeros à direita ("12,5", "30", "4234"). */
 export function decimalApiParaTexto(valor: string | number, minimoCasas = 0): string {
@@ -143,6 +152,8 @@ export function totalDoItem(linha: LinhaParaCalculo): number | null {
 export interface ResumoCalculado {
   materiais: number
   servicos: number
+  /** Desconto já aplicado ao orçamento (a tela não permite alterá-lo; vem do cadastro). */
+  desconto: number
   total: number
   /** Algum item ou o total passa do limite da coluna do banco. */
   acimaDoLimite: boolean
@@ -162,6 +173,7 @@ export function calcularResumo(
   return {
     materiais: dosMateriais,
     servicos: dosServicos,
+    desconto: descontoCentavos,
     total,
     acimaDoLimite: itemAcima || total > LIMITE_VALOR_CENTAVOS,
   }
@@ -172,8 +184,20 @@ export function centavosParaMoeda(centavos: number): string {
   return formatarMoeda(centavos / 100)
 }
 
-/** Mensagens conhecidas da API (com ou sem acento; a comparação ignora acentos) ganham texto correto. */
-const TRADUCOES: [RegExp, string][] = [
+/** Códigos estáveis e legíveis do backend: a decisão é sempre por eles, nunca pelo texto da mensagem. */
+const MENSAGEM_POR_CODIGO: Record<string, string> = {
+  ORCAMENTO_STATUS_INVALIDO:
+    'O status deste orçamento não permite esta operação (aprovado, cancelado ou reprovado). Atualize a lista.',
+  RESPONSAVEL_INATIVO: 'Funcionário responsável ativo não encontrado. Escolha outro.',
+  VALOR_LIMITE_EXCEDIDO: 'O valor ultrapassa o limite de R$ 9.999.999.999,99.',
+}
+
+/**
+ * Último recurso: códigos GERADOS do backend (ex.: `ORCAMENTOS_PREPAREITENS_BADREQUEST_02`) mudam quando o service
+ * é reorganizado, então para eles só resta traduzir o texto (com ou sem acento; a comparação ignora acentos).
+ * Quando o backend ganhar códigos legíveis para estes casos, mova-os para `MENSAGEM_POR_CODIGO`.
+ */
+const TRADUCOES_DE_CODIGO_GERADO: [RegExp, string][] = [
   [/cliente ativo nao encontrado/i, 'Cliente ativo não encontrado. Escolha outro cliente.'],
   [/ao menos um material ou servico/i, 'Adicione ao menos um material ou serviço.'],
   [/nao repita o mesmo material/i, 'Não repita o mesmo material no orçamento.'],
@@ -182,18 +206,17 @@ const TRADUCOES: [RegExp, string][] = [
   [/servico inexistente ou inativo/i, 'Existe um serviço inexistente ou inativo. Remova-o e tente de novo.'],
   [/servicos devem pertencer ao mesmo tipo/i, 'Todos os serviços devem ser do mesmo tipo do orçamento.'],
   [/desconto nao pode ser superior/i, 'O desconto não pode ser maior que o subtotal.'],
-  [/aprovados ou cancelados nao podem ser alterados/i, 'Orçamentos aprovados ou cancelados não podem ser alterados.'],
   [/use a operacao de aprovacao/i, 'Para aprovar, use a opção Aprovar.'],
   [/orcamento nao encontrado/i, 'Orçamento não encontrado. Atualize a lista.'],
   [/ja foi convertido em projeto/i, 'Este orçamento já foi convertido em projeto.'],
-  [/orcamento cancelado nao pode ser aprovado/i, 'Orçamento cancelado não pode ser aprovado.'],
-  [/reprovado precisa ser reaberto/i, 'Orçamento reprovado precisa ser reaberto (Pendente ou Em Análise) antes de ser aprovado.'],
   [/cliente do orcamento esta inativo/i, 'O cliente deste orçamento está inativo. Reative o cliente antes de aprovar.'],
-  [/funcionario responsavel ativo nao encontrado/i, 'Funcionário responsável ativo não encontrado. Escolha outro.'],
   [/previsao de conclusao nao pode ser anterior/i, 'O término não pode ser anterior ao início.'],
 ]
 
-export function mensagemOrcamento(mensagem: string): string {
+/** Texto em português para o erro do orçamento: pelo `codigo` legível; senão (códigos gerados) pela mensagem conhecida. */
+export function mensagemOrcamento(mensagem: string, codigo = ''): string {
+  const porCodigo = MENSAGEM_POR_CODIGO[codigo]
+  if (porCodigo) return porCodigo
   const normalizada = semAcento(mensagem)
-  return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
+  return TRADUCOES_DE_CODIGO_GERADO.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }

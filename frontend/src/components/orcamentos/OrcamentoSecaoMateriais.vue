@@ -106,6 +106,7 @@ function total(linha: LinhaMaterial): string {
           placeholder="0"
           inputmode="decimal"
           autocomplete="off"
+          :somente-leitura="form.materialInativo(linha)"
           :mascara="mascaraQuantidade"
           :normalizar="normalizarQuantidade"
           :erro="form.errosMateriais[linha.chave]?.quantidade"
@@ -117,6 +118,7 @@ function total(linha: LinhaMaterial): string {
           placeholder="0,00"
           inputmode="decimal"
           autocomplete="off"
+          :somente-leitura="form.materialInativo(linha)"
           :mascara="mascaraValor"
           :normalizar="normalizarValor"
           :erro="form.errosMateriais[linha.chave]?.valorUnitario"
@@ -136,6 +138,13 @@ function total(linha: LinhaMaterial): string {
         >
           Remover
         </BotaoFp>
+        <p
+          v-if="form.materialInativo(linha)"
+          class="dica-inativo"
+        >
+          Item inativo mantido pelo histórico: quantidade e valor não podem ser alterados. Para mudar, remova a
+          linha e escolha um item ativo.
+        </p>
       </div>
     </div>
 
@@ -192,6 +201,13 @@ function total(linha: LinhaMaterial): string {
   border: 0;
 }
 
+.dica-inativo {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #92400e;
+  font-size: 12.5px;
+}
+
 .remover {
   margin-top: 0;
   height: var(--campo-altura, 42px);
@@ -245,6 +261,17 @@ function total(linha: LinhaMaterial): string {
     grid-column: 1 / -1;
     margin-top: 0;
     justify-self: end;
+  }
+}
+
+/* Contêiner muito estreito (celular): quantidade e valor lado a lado, total em linha própria. */
+@container (max-width: 440px) {
+  .linha {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .linha > :nth-child(4) {
+    grid-column: 1 / -1;
   }
 }
 </style>

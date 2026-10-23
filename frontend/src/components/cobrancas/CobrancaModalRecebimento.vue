@@ -22,8 +22,8 @@ const props = defineProps<{ cobranca: Cobranca }>()
 const emit = defineEmits<{
   fechar: []
   registrado: []
-  /** O backend indicou que a cobrança mudou (já paga, cancelada...): a tela precisa recarregar. */
-  desatualizado: []
+  /** O backend indicou que a cobrança mudou (já paga, cancelada...): a tela fecha o modal e recarrega. */
+  desatualizado: [mensagem: string]
 }>()
 
 const idFormulario = useId()
@@ -59,6 +59,7 @@ async function focarPrimeiroErro() {
 }
 
 async function confirmar() {
+  if (salvando.value) return
   if (!form.validar()) {
     await focarPrimeiroErro()
     return
@@ -70,7 +71,10 @@ async function confirmar() {
     emit('registrado')
   } catch (erro) {
     form.tratarErroApi(erro)
-    if (form.desatualizado.value) emit('desatualizado')
+    if (form.desatualizado.value) {
+      emit('desatualizado', form.erroGeral.value ?? 'A cobrança foi atualizada. Confira os valores e tente de novo.')
+      return
+    }
     await focarPrimeiroErro()
   } finally {
     salvando.value = false

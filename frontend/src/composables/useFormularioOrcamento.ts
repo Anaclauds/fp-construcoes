@@ -16,6 +16,7 @@ import {
   LIMITE_VALOR_CENTAVOS,
   calcularResumo,
   decimalApiParaCentavos,
+  centavosParaMoeda,
   decimalApiParaTexto,
   escalaParaNumero,
   mensagemOrcamento,
@@ -143,7 +144,9 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
   const erroGeral = shallowRef<string | null>(null)
 
   // Itens do orçamento que já não estão na lista de ativos continuam na linha, marcados como inativos
-  // (o dado não se perde); as outras linhas não os recebem como opção.
+  // (o dado não se perde); as outras linhas não os recebem como opção. Só se sabe quem está inativo depois
+  // que as listas de ativos chegam: antes disso (ou se falharem) os itens salvos aparecem normais, sem rótulo
+  // de inativo e sem travar os campos.
   const materiaisExtras = (inicial?.materiais ?? []).map((m): OpcaoMaterial => ({
     id: m.material.id,
     codigo: m.material.codigo,
@@ -151,12 +154,15 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     categoria: '',
     unidadeMedida: m.material.unidadeMedida,
     precoReferencia: m.valorUnitario,
-    inativo: true,
+    inativo: false,
   }))
 
   const listaMateriais = computed(() => {
     const ativos = opcoes.materiais.value
-    const faltantes = materiaisExtras.filter((extra) => !ativos.some((m) => m.id === extra.id))
+    const inativo = opcoes.carregou.value
+    const faltantes = materiaisExtras
+      .filter((extra) => !ativos.some((m) => m.id === extra.id))
+      .map((extra) => ({ ...extra, inativo }))
     return [...ativos, ...faltantes]
   })
 
@@ -167,14 +173,24 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     categoria: inicial!.tipo as string,
     unidadeMedida: s.servico.unidadeMedida,
     valorReferencia: s.valorUnitario,
-    inativo: true,
   }))
 
   const servicosDoTipo = computed(() => {
     const lista = opcoes.servicosDoTipo(campos.tipo)
     if (!inicial || campos.tipo !== inicial.tipo) return lista
-    return [...lista, ...servicosExtras.filter((extra) => !lista.some((s) => s.id === extra.id))]
+    const inativo = opcoes.carregou.value
+    const faltantes = servicosExtras.filter((extra) => !lista.some((s) => s.id === extra.id)).map((extra) => ({ ...extra, inativo }))
+    return [...lista, ...faltantes]
   })
+
+  /**
+   * Linha de item inativo mantido pelo histórico: o backend só a aceita idêntica à salva (mesma quantidade e valor),
+   * então a tela trava esses dois campos; para mudar é preciso remover a linha e escolher um item ativo.
+   */
+  const materialInativo = (linha: LinhaMaterial) =>
+    linha.materialId !== '' && listaMateriais.value.some((m) => String(m.id) === linha.materialId && m.inativo === true)
+  const servicoInativo = (linha: LinhaServico) =>
+    linha.servicoId !== '' && servicosDoTipo.value.some((s) => String(s.id) === linha.servicoId && s.inativo === true)
 
   /* ------------------------------ resumo e simulação ------------------------------ */
 
@@ -264,7 +280,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     const local = resumoLocal.value
     const servidor = previaServidor.value
     if (!servidor) return local
-    return { ...servidor, acimaDoLimite: local.acimaDoLimite || servidor.total > LIMITE_VALOR_CENTAVOS }
+    return { ...servidor, desconto: local.desconto, acimaDoLimite: local.acimaDoLimite || servidor.total > LIMITE_VALOR_CENTAVOS }
   })
 
   /** Cópia do estado "limpo", para saber se algo mudou. */
@@ -446,6 +462,13 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
 
     if (resumo.value.acimaDoLimite && !erros.itens) erroGeral.value = 'O valor total passa do limite permitido.'
 
+    // O desconto salvo no orçamento não pode passar do subtotal (regra do backend); acontece ao remover itens na edição.
+    const semErroDeLinha = Object.keys(errosMateriais).length === 0 && Object.keys(errosServicos).length === 0
+    const subtotal = resumo.value.materiais + resumo.value.servicos
+    if (!erroGeral.value && !erros.itens && semErroDeLinha && descontoCentavos > subtotal) {
+      erroGeral.value = `O desconto de ${centavosParaMoeda(descontoCentavos)} deste orçamento não pode ser maior que o subtotal dos itens (${centavosParaMoeda(subtotal)}).`
+    }
+
     return (
       !Object.values(erros).some(Boolean) &&
       Object.keys(errosMateriais).length === 0 &&
@@ -534,7 +557,7 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
    */
   function tratarErroApi(erro: unknown) {
     const { mensagem, codigo } = extrairErro(erro)
-    const texto = mensagemOrcamento(mensagem)
+    const texto = mensagemOrcamento(mensagem, codigo)
     if (codigo === 'ORCAMENTOS_ENSURECLIENTEATIVO_NOTFOUND_01') {
       erros.cliente = texto
       return
@@ -592,6 +615,8 @@ export function useFormularioOrcamento(inicial?: Orcamento | null) {
     opcoes,
     listaMateriais,
     servicosDoTipo,
+    materialInativo,
+    servicoInativo,
     adicionarMaterial,
     removerMaterial,
     adicionarServico,

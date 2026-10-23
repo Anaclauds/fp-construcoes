@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import type { Cobranca } from '../../types'
 import {
-  ROTULO_STATUS_COBRANCA,
   ROTULO_TIPO_COBRANCA,
   cobrancaAceitaRecebimento,
   parcelaDeReferencia,
@@ -60,7 +59,6 @@ const textoVencimento = computed(() => {
           <span class="cobranca-tipo">{{ ROTULO_TIPO_COBRANCA[cobranca.tipo] }}</span>
           <SeloStatusCobranca
             :status="cobranca.status"
-            :rotulo="ROTULO_STATUS_COBRANCA[cobranca.status]"
           />
         </div>
         <p class="cobranca-descricao">

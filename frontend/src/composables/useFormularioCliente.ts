@@ -1,5 +1,5 @@
 import { computed, reactive, shallowRef, toRef, watch } from 'vue'
-import { extrairErro } from '../services/api'
+import { errosPorCampo, extrairErro } from '../services/api'
 import { buscarEnderecoPorCep } from '../services/enderecos.service'
 import type { Cliente, ClienteAtualizacao, ClientePayload, TipoCliente } from '../types'
 import {
@@ -37,6 +37,7 @@ export interface CamposCliente {
   responsavel: string
   cargoResponsavel: string
   celular: string
+  email: string
   cep: string
   estado: string
   cidade: string
@@ -51,7 +52,7 @@ export type ModoCliente = 'PF' | 'PJ' | 'rapido'
 
 const CHAVES: (keyof CamposCliente)[] = [
   'tipo', 'nome', 'apelido', 'cpf', 'dataNascimento', 'sexo', 'razaoSocial', 'nomeFantasia', 'cnpj',
-  'responsavel', 'cargoResponsavel', 'celular', 'cep', 'estado', 'cidade', 'rua', 'numero', 'bairro',
+  'responsavel', 'cargoResponsavel', 'celular', 'email', 'cep', 'estado', 'cidade', 'rua', 'numero', 'bairro',
   'complemento',
 ]
 
@@ -62,6 +63,11 @@ const CAMPOS_DO_TIPO: Record<TipoCliente, (keyof CamposCliente)[]> = {
 }
 
 const digitos = (valor: string) => valor.replace(/\D/g, '')
+
+/** Limite da coluna `email` no banco (VarChar 180). */
+const MAX_EMAIL = 180
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const emailValido = (valor: string) => EMAIL_REGEX.test(valor)
 const modoDe = (tipo: CamposCliente['tipo']): ModoCliente => (tipo === '' ? 'rapido' : tipo)
 
 function camposVazios(tipo: CamposCliente['tipo']): CamposCliente {
@@ -86,6 +92,7 @@ function camposDoCliente(c: Cliente): CamposCliente {
     responsavel: c.responsavel ?? '',
     cargoResponsavel: c.cargoResponsavel ?? '',
     celular: formatarTelefone(c.telefone),
+    email: c.email ?? '',
     cep: c.cep ? mascararCep(c.cep) : '',
     estado: c.estado,
     cidade: c.cidade,
@@ -117,6 +124,7 @@ function normalizar(c: CamposCliente) {
       cpfCnpj: digitos(c.cpf),
       dataNascimento: dataBrParaIso(c.dataNascimento),
       sexo: c.sexo,
+      email: c.email.trim(),
       ...comum,
       ...endereco,
     }
@@ -131,6 +139,7 @@ function normalizar(c: CamposCliente) {
     cpfCnpj: digitos(c.cnpj),
     responsavel: c.responsavel.trim(),
     cargoResponsavel: c.cargoResponsavel,
+    email: c.email.trim(),
     ...comum,
     ...endereco,
   }
@@ -192,6 +201,11 @@ function validarCampos(c: CamposCliente, base: Normalizado | null): ErrosCliente
     obrigatorio('numero', 'Informe o número.', 20)
     obrigatorio('bairro', 'Informe o bairro.', 100)
     opcionalAte('complemento', 150)
+
+    // E-mail é opcional: só valida se preenchido (o DTO usa @IsEmail; a coluna aceita 180).
+    const email = c.email.trim()
+    if (email.length > MAX_EMAIL) erros.email = `Use no máximo ${MAX_EMAIL} caracteres.`
+    else if (email !== '' && !emailValido(email)) erros.email = 'E-mail inválido.'
   }
 
   // Na edição, valor igual ao já salvo não é revalidado: dado antigo fora do padrão não trava o PATCH.
@@ -199,6 +213,7 @@ function validarCampos(c: CamposCliente, base: Normalizado | null): ErrosCliente
     const salvo = base as Partial<Record<string, string>>
     if (digitos(c.celular) === salvo.telefone) delete erros.celular
     if (digitos(c.cep) === salvo.cep) delete erros.cep
+    if (c.email.trim() === (salvo.email ?? '')) delete erros.email
     if (digitos(modo === 'PJ' ? c.cnpj : c.cpf) === salvo.cpfCnpj) {
       delete erros.cpf
       delete erros.cnpj
@@ -223,7 +238,7 @@ export function useFormularioCliente(inicial?: Cliente | null, tipoInicial: Camp
   const erroGeral = shallowRef<string | null>(null)
 
   const base: Normalizado | null = inicial ? normalizar(camposDoCliente(inicial)) : null
-  const baseSerializada = base ? JSON.stringify(base) : null
+  let baseSerializada = base ? JSON.stringify(base) : null
 
   const modo = computed(() => modoDe(campos.tipo))
 
@@ -235,7 +250,14 @@ export function useFormularioCliente(inicial?: Cliente | null, tipoInicial: Camp
     estado: montarOpcoes(UFS, inicial?.estado),
   }))
 
-  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'))
+  // "ji-parana" salvo -> "Ji-Paraná" da lista do IBGE: o valor original da edição passa a ser o oficial, então o ajuste
+  // automático ao abrir não marca o formulário como alterado.
+  const cidades = useCidadesDoEstado(toRef(campos, 'estado'), toRef(campos, 'cidade'), (anterior, oficial) => {
+    if (base && base.cidade === anterior.trim()) {
+      base.cidade = oficial
+      baseSerializada = JSON.stringify(base)
+    }
+  })
 
   // Mexeu no campo: o erro daquele campo some até a próxima validação.
   for (const chave of CHAVES) {
@@ -286,10 +308,10 @@ export function useFormularioCliente(inicial?: Cliente | null, tipoInicial: Camp
     return CHAVES.some((chave) => chave !== 'tipo' && campos[chave].trim() !== '')
   })
 
-  /** Corpo do POST: sem máscaras; opcionais vazios (apelido, complemento) são omitidos. */
+  /** Corpo do POST: sem máscaras; opcionais vazios (apelido, complemento, email) são omitidos. */
   function paraPayload(): ClientePayload {
     const payload: Record<string, unknown> = { ...normalizar(campos) }
-    for (const chave of ['apelido', 'complemento']) {
+    for (const chave of ['apelido', 'complemento', 'email']) {
       if (payload[chave] === '') delete payload[chave]
     }
     return payload as unknown as ClientePayload
@@ -297,28 +319,63 @@ export function useFormularioCliente(inicial?: Cliente | null, tipoInicial: Camp
 
   /**
    * Corpo do PATCH. O backend revalida o cadastro inteiro a cada alteração, então vai sempre o objeto
-   * completo do tipo (e o endereço completo, para o CEP não refazer rua/bairro). Opcional esvaziado vai como null.
+   * completo do tipo (e o endereço completo, para o CEP não refazer rua/bairro). Opcional esvaziado (apelido, complemento, e-mail) vai como null.
    */
   function paraAtualizacao(): ClienteAtualizacao {
     const payload: Record<string, unknown> = { ...normalizar(campos) }
-    for (const chave of ['apelido', 'complemento']) {
+    for (const chave of ['apelido', 'complemento', 'email']) {
       if (payload[chave] === '') payload[chave] = null
     }
     return payload as unknown as ClienteAtualizacao
   }
 
-  /** Interpreta o erro da API: 409 (CPF/CNPJ duplicado) e erros de CEP vão para o campo; o resto vira mensagem geral. */
+  /**
+   * Interpreta o erro da API pelo `codigo`/campo: CPF_CNPJ_DUPLICADO e CEP_INVALIDO vão para o campo,
+   * erros de validação por campo (`erros[]`) também; o resto vira mensagem geral.
+   */
   function tratarErroApi(erro: unknown) {
-    const { mensagem, status } = extrairErro(erro)
-    // A API responde "CPF/CNPJ ja cadastrado..." (sem acento e sem dizer qual): o texto do campo é específico.
-    if (status === 409) {
-      const ehPj = campos.tipo === 'PJ'
-      erros[ehPj ? 'cnpj' : 'cpf'] = `${ehPj ? 'CNPJ' : 'CPF'} já cadastrado para outro cliente.`
-    } else if (/\bcep\b/i.test(mensagem)) {
-      erros.cep = mensagem
-    } else {
-      erroGeral.value = mensagem
+    const { mensagem, codigo } = extrairErro(erro)
+    const ehPj = campos.tipo === 'PJ'
+    // Nomes do DTO -> campos da tela.
+    const campoDaTela: Record<string, keyof CamposCliente> = {
+      cpfCnpj: ehPj ? 'cnpj' : 'cpf',
+      telefone: 'celular',
+      email: 'email',
+      cep: 'cep',
+      nome: ehPj ? 'razaoSocial' : 'nome',
+      razaoSocial: 'razaoSocial',
+      nomeFantasia: 'nomeFantasia',
+      apelido: 'apelido',
+      dataNascimento: 'dataNascimento',
+      sexo: 'sexo',
+      responsavel: 'responsavel',
+      cargoResponsavel: 'cargoResponsavel',
+      estado: 'estado',
+      cidade: 'cidade',
+      rua: 'rua',
+      numero: 'numero',
+      bairro: 'bairro',
+      complemento: 'complemento',
     }
+
+    // A API responde "CPF/CNPJ ja cadastrado..." (sem acento): o texto do campo é específico.
+    if (codigo === 'CPF_CNPJ_DUPLICADO') {
+      erros[ehPj ? 'cnpj' : 'cpf'] = `${ehPj ? 'CNPJ' : 'CPF'} já cadastrado para outro cliente.`
+      return
+    }
+    if (codigo === 'CEP_INVALIDO') {
+      erros.cep = mensagem
+      return
+    }
+
+    let algumCampo = false
+    for (const [campoApi, texto] of Object.entries(errosPorCampo(erro))) {
+      const campoTela = campoDaTela[campoApi]
+      if (!campoTela) continue
+      erros[campoTela] = texto
+      algumCampo = true
+    }
+    if (!algumCampo) erroGeral.value = mensagem
   }
 
   const { buscandoCep, buscarCep } = useBuscaCep({

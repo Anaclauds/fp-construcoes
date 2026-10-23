@@ -5,6 +5,7 @@ import { listarClientes } from '../services/clientes.service'
 import type { Cliente, FiltrosClientes, TipoCliente } from '../types'
 import { termoDeBusca } from '../utils/formatadores'
 import { useDebounce } from './useDebounce'
+import { pareceDocumento, useFiltrosNaUrl } from './useFiltrosNaUrl'
 
 const POR_PAGINA = 8
 const ATRASO_BUSCA_MS = 300
@@ -59,6 +60,39 @@ export function useListaClientes() {
       if (requisicao === ultimaRequisicao) carregando.value = false
     }
   }
+
+  // Busca, tipo, status e página ficam na URL: recarregar (F5) ou voltar de outra tela reabre a lista como estava.
+  // Antes dos `watch` abaixo, para a leitura inicial não consultar duas vezes.
+  useFiltrosNaUrl(
+    'clientes',
+    [
+      {
+        param: 'busca',
+        ler: () => buscaAplicada.value.trim(),
+        naoGravarSe: pareceDocumento,
+        definir: (valor) => {
+          busca.value = valor
+          buscaAplicada.value = valor // na hora: senão a URL voltaria a receber a busca antiga
+        },
+        padrao: '',
+      },
+      {
+        param: 'tipo',
+        ler: () => tipo.value,
+        definir: (valor) => (tipo.value = valor as FiltroTipoCliente),
+        padrao: 'TODOS',
+        valido: (valor) => valor === 'PF' || valor === 'PJ',
+      },
+      {
+        param: 'status',
+        ler: () => status.value,
+        definir: (valor) => (status.value = valor as FiltroStatus),
+        padrao: 'TODOS',
+        valido: (valor) => valor === 'ATIVO' || valor === 'INATIVO',
+      },
+    ],
+    pagina,
+  )
 
   // Muda a página: busca nova no servidor.
   watch(pagina, () => void carregar())

@@ -4,6 +4,7 @@ import type {
   FormaPagamento,
   Parcela,
   StatusCobranca,
+  StatusParcela,
   TipoCobranca,
 } from '../types'
 import { paraCentavos, semAcento } from './formatadores'
@@ -29,16 +30,22 @@ export const OPCOES_FORMA_PAGAMENTO: OpcaoCampo[] = (Object.keys(ROTULO_FORMA_PA
   (valor) => ({ valor, rotulo: ROTULO_FORMA_PAGAMENTO[valor] }),
 )
 
-/** Figma (cartão da cobrança): o que ainda não recebeu nada aparece como "Pendente". */
-export const ROTULO_STATUS_COBRANCA: Record<StatusCobranca, string> = {
-  EM_ABERTO: 'Pendente',
+/**
+ * Único mapa de rótulos de status (cobrança, projeto com cobranças e parcela), usado pelo `SeloStatusCobranca` e por
+ * quem passar `rotulo`. Segue os textos da lista de Cobranças ("Em Aberto"), em vez de variar entre telas.
+ */
+export const ROTULO_STATUS_COBRANCA: Record<StatusCobranca | StatusParcela, string> = {
+  EM_ABERTO: 'Em Aberto',
   PARCIAL: 'Parcial',
   PAGO: 'Pago',
+  PAGA: 'Paga',
+  VENCIDA: 'Vencida',
   CANCELADO: 'Cancelada',
+  CANCELADA: 'Cancelada',
 }
 
 /** Total já recebido da parcela, em centavos. */
-export function recebidoDaParcelaEmCentavos(parcela: Parcela): number {
+export function recebidoDaParcelaEmCentavos(parcela: { recebimentos: { valor: string }[] }): number {
   return parcela.recebimentos.reduce((total, r) => total + paraCentavos(r.valor), 0)
 }
 
@@ -86,8 +93,19 @@ export function nomeDeQuemRegistrou(
   return registrado?.funcionario?.nomeCompleto ?? registrado?.login ?? ''
 }
 
-/** Mensagens conhecidas da API (com ou sem acento; a comparação ignora acentos) ganham texto correto. */
-const TRADUCOES: [RegExp, string][] = [
+/** Códigos estáveis e legíveis do backend: a decisão é sempre por eles, nunca pelo texto da mensagem. */
+const MENSAGEM_POR_CODIGO: Record<string, string> = {
+  CAIXA_FECHADO: 'O caixa do mês desta data está fechado. Escolha uma data de outro mês ou reabra o caixa.',
+  PARCELA_PAGA_OU_CANCELADA: 'Esta parcela já foi paga ou cancelada.',
+  PERIODO_INVALIDO: 'A data inicial não pode ser posterior à data final.',
+}
+
+/**
+ * Último recurso: códigos GERADOS do backend (ex.: `COBRANCAS_CANCELAR_CONFLICT_01`) mudam quando o service é
+ * reorganizado, então para eles só resta traduzir a mensagem conhecida (com ou sem acento; a comparação ignora acentos).
+ * Quando o backend ganhar códigos legíveis para estes casos, mova-os para `MENSAGEM_POR_CODIGO`.
+ */
+const TRADUCOES_DE_CODIGO_GERADO: [RegExp, string][] = [
   [/caixa da competencia .* fechado/i, 'O caixa do mês desta data está fechado. Escolha uma data de outro mês ou reabra o caixa.'],
   [/nao ha caixa aberto|abra o caixa da competencia/i, 'Não há caixa aberto para o mês desta data. Abra o caixa do mês (em Caixa) antes de registrar o recebimento.'],
   [/data do lancamento deve ser entre 2000 e hoje/i, 'A data do recebimento deve ser entre o ano 2000 e hoje.'],
@@ -95,14 +113,19 @@ const TRADUCOES: [RegExp, string][] = [
   [/parcela paga ou cancelada/i, 'Esta parcela já foi paga ou cancelada.'],
   [/nao pertence a esta cobranca/i, 'A parcela escolhida não pertence a esta cobrança.'],
   [/cobranca nao encontrada/i, 'Cobrança não encontrada. Atualize a tela.'],
+  [/cobranca ja esta cancelada/i, 'Esta cobrança já está cancelada.'],
+  [/cobranca com recebimento nao pode ser cancelada/i, 'Esta cobrança já tem recebimento e não pode ser cancelada.'],
   [/projeto sem cobrancas|nao possui cobrancas/i, 'Este projeto não possui cobranças.'],
 ]
 
-export function mensagemCobranca(mensagem: string): string {
+/** Texto em português para o erro de cobrança: pelo `codigo` legível; senão (códigos gerados) pela mensagem conhecida. */
+export function mensagemCobranca(mensagem: string, codigo = ''): string {
+  const porCodigo = MENSAGEM_POR_CODIGO[codigo]
+  if (porCodigo) return porCodigo
   const normalizada = semAcento(mensagem)
   const superior = normalizada.match(/valor superior ao restante da parcela: R\$ ([\d.,]+)/i)
   if (superior) return `Valor superior ao restante da parcela (R$ ${superior[1]!.replace('.', ',')}).`
-  return TRADUCOES.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
+  return TRADUCOES_DE_CODIGO_GERADO.find(([padrao]) => padrao.test(normalizada))?.[1] ?? mensagem
 }
 
 /** A API gera "Cobranca final N" e "Medicao N" sem acento; exibe a forma correta. */

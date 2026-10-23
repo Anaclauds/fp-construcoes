@@ -59,8 +59,8 @@ const colunas: ColunaTabela[] = [
   { chave: 'projeto', rotulo: 'Projeto', largura: '28%' },
   { chave: 'cliente', rotulo: 'Cliente', largura: '17%' },
   { chave: 'tipo', rotulo: 'Tipo', largura: '14%' },
-  { chave: 'valor', rotulo: 'Valor', largura: '14%' },
-  { chave: 'recebido', rotulo: 'Recebido', largura: '14%' },
+  { chave: 'valor', rotulo: 'Valor', largura: '14%', numerica: true },
+  { chave: 'recebido', rotulo: 'Recebido', largura: '14%', numerica: true },
   { chave: 'status', rotulo: 'Status', largura: '13%' },
 ]
 

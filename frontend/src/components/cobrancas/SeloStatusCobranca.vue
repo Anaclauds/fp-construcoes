@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { StatusCobranca, StatusParcela, StatusProjetoCobranca } from '../../types'
+import { ROTULO_STATUS_COBRANCA } from '../../utils/cobrancas'
 
 type Situacao = 'aberto' | 'parcial' | 'pago' | 'vencido' | 'cancelado'
 
@@ -22,16 +23,6 @@ const SITUACAO: Record<string, Situacao> = {
   CANCELADA: 'cancelado',
 }
 
-const PADRAO: Record<string, string> = {
-  EM_ABERTO: 'Em Aberto',
-  PARCIAL: 'Parcial',
-  PAGO: 'Pago',
-  PAGA: 'Paga',
-  VENCIDA: 'Vencida',
-  CANCELADO: 'Cancelado',
-  CANCELADA: 'Cancelada',
-}
-
 const vencida = computed(() => props.vencida === true && (props.status === 'EM_ABERTO' || props.status === 'PARCIAL'))
 const situacao = computed<Situacao>(() => (vencida.value ? 'vencido' : (SITUACAO[props.status] ?? 'aberto')))
 </script>
@@ -45,7 +36,7 @@ const situacao = computed<Situacao>(() => (vencida.value ? 'vencido' : (SITUACAO
       class="selo-status-ponto"
       aria-hidden="true"
     />
-    {{ vencida ? PADRAO.VENCIDA : (rotulo ?? PADRAO[status]) }}
+    {{ vencida ? ROTULO_STATUS_COBRANCA.VENCIDA : (rotulo ?? ROTULO_STATUS_COBRANCA[status]) }}
   </span>
 </template>
 

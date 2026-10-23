@@ -4,7 +4,6 @@ import { useCobrancaDetalhe } from '../../composables/useCobrancaDetalhe'
 import type { Cobranca } from '../../types'
 import {
   ROTULO_FORMA_PAGAMENTO,
-  ROTULO_STATUS_COBRANCA,
   ROTULO_TIPO_COBRANCA,
   nomeDeQuemRegistrou,
   parcelaDeReferencia,
@@ -55,7 +54,6 @@ const historico = computed(() =>
         <span class="tipo">{{ ROTULO_TIPO_COBRANCA[atual.tipo] }}</span>
         <SeloStatusCobranca
           :status="atual.status"
-          :rotulo="ROTULO_STATUS_COBRANCA[atual.status]"
         />
       </div>
       <p class="datas">

@@ -4,6 +4,10 @@ import { listarOrcamentos } from '../services/orcamentos.service'
 import type { FiltrosOrcamentos, IndicadoresOrcamentos, Orcamento, StatusOrcamento, TipoOrcamento } from '../types'
 import { termoDeBusca } from '../utils/formatadores'
 import { useDebounce } from './useDebounce'
+import { useFiltrosNaUrl } from './useFiltrosNaUrl'
+
+const STATUS_VALIDOS: StatusOrcamento[] = ['PENDENTE', 'EM_ANALISE', 'APROVADO', 'REPROVADO', 'CANCELADO']
+const TIPOS_VALIDOS: TipoOrcamento[] = ['CONSTRUCAO_CIVIL', 'SERRALHERIA', 'CALHAS']
 
 // O Figma mostra 6 linhas por página ("Mostrando 6 de 8 registros").
 const POR_PAGINA = 6
@@ -71,6 +75,38 @@ export function useListaOrcamentos() {
       if (requisicao === ultimaRequisicao) carregando.value = false
     }
   }
+
+  // Busca, status, tipo e página ficam na URL: recarregar (F5) ou voltar de outra tela reabre a lista como estava.
+  // Antes dos `watch` abaixo, para a leitura inicial não consultar duas vezes.
+  useFiltrosNaUrl(
+    'orcamentos',
+    [
+      {
+        param: 'busca',
+        ler: () => buscaAplicada.value.trim(),
+        definir: (valor) => {
+          busca.value = valor
+          buscaAplicada.value = valor // na hora: senão a URL voltaria a receber a busca antiga
+        },
+        padrao: '',
+      },
+      {
+        param: 'status',
+        ler: () => status.value,
+        definir: (valor) => (status.value = valor as FiltroStatusOrcamento),
+        padrao: 'TODOS',
+        valido: (valor) => STATUS_VALIDOS.includes(valor as StatusOrcamento),
+      },
+      {
+        param: 'tipo',
+        ler: () => tipo.value,
+        definir: (valor) => (tipo.value = valor as FiltroTipoOrcamento),
+        padrao: 'TODOS',
+        valido: (valor) => TIPOS_VALIDOS.includes(valor as TipoOrcamento),
+      },
+    ],
+    pagina,
+  )
 
   // Muda a página: busca nova no servidor.
   watch(pagina, () => void carregar())

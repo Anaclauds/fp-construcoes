@@ -6,6 +6,10 @@ const props = defineProps<{
   materiais: number
   servicos: number
   total: number
+  /** Desconto do orçamento em centavos; a linha só aparece quando for maior que zero. */
+  desconto?: number
+  /** A prévia está sendo confirmada pelo servidor (valores locais já aparecem enquanto isso). */
+  calculando?: boolean
   /** O total (ou algum item) passa do limite permitido: em vez do número enorme mostra "Acima do limite". */
   acimaDoLimite?: boolean
 }>()
@@ -39,6 +43,13 @@ function texto(centavos: number, ehTotal = false): string {
         <dt>Serviços:</dt>
         <dd>{{ texto(servicos) }}</dd>
       </div>
+      <div
+        v-if="desconto && desconto > 0"
+        class="resumo-linha"
+      >
+        <dt>Desconto:</dt>
+        <dd>− {{ centavosParaMoeda(desconto) }}</dd>
+      </div>
       <div class="resumo-linha resumo-linha--total">
         <dt>TOTAL:</dt>
         <dd
@@ -49,6 +60,13 @@ function texto(centavos: number, ehTotal = false): string {
         </dd>
       </div>
     </dl>
+    <p
+      v-if="calculando"
+      class="resumo-calculando"
+      role="status"
+    >
+      Calculando valores...
+    </p>
   </section>
 </template>
 
@@ -74,6 +92,12 @@ function texto(centavos: number, ehTotal = false): string {
   border: 1.3px solid var(--fp-verde-30);
   border-radius: var(--fp-raio);
   background-color: var(--fp-cinza-fundo);
+}
+
+.resumo-calculando {
+  margin: 0;
+  color: #717182;
+  font-size: 13px;
 }
 
 .resumo-linha {
