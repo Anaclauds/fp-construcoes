@@ -3,6 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { parseTrustProxy } from './common/utils/trust-proxy.util';
 import type { Application } from 'express';
+import { parseCorsOrigins } from './common/utils/cors-origins.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,7 +11,10 @@ async function bootstrap() {
   expressApp.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 
   app.setGlobalPrefix('api');
-  app.enableCors({ exposedHeaders: ['Content-Disposition'] });
+  app.enableCors({
+    origin: parseCorsOrigins(process.env.CORS_ORIGINS),
+    exposedHeaders: ['Content-Disposition'],
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('FP Construcoes API')
